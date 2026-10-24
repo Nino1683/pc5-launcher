@@ -39,8 +39,10 @@ Alles Weitere, auch Systeme, Voraussetzungen, der Weg zurück zu Steam und das D
 
 ## Unterstützen
 
+[![Spenden mit PayPal](https://img.shields.io/badge/Spenden-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
+
 Der PC5 Launcher ist kostenlos und bleibt es. Wenn er dir gefällt, kannst du freiwillig etwas geben, per PayPal
-an **pay.nino.pal@gmail.com**. Eine Spende ist ein Geschenk ohne Gegenleistung: keine Bezahlfunktionen, keine
+an **[pay.nino.pal@gmail.com](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)**. Eine Spende ist ein Geschenk ohne Gegenleistung: keine Bezahlfunktionen, keine
 Vorteile für Spender.
 
 ## Lizenz und Marken
