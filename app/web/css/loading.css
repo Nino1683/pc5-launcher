@@ -1,0 +1,22 @@
+/* Ladebild beim Start (07 Abschnitt 6.6). Zahlenwerte: tokens.css. */
+.loading { background: var(--g-loading); display: flex; flex-direction: column; align-items: center; }
+.load-cover { position: relative; flex: none; margin-top: var(--load-cover-top); width: var(--load-cover); height: var(--load-cover); border-radius: var(--load-cover-r);
+  overflow: hidden; box-shadow: var(--shadow-panel); opacity: var(--fx-o); transform: scale(var(--fx-s)); animation: load-in var(--t-launch) var(--ease-std) both; }
+.load-cover .art.is-sys > .ic { font-size: var(--ic-notice); }
+@keyframes load-in { from { --fx-o: 0; --fx-s: var(--load-scale-from); } to { --fx-o: 1; --fx-s: 1; } }
+.load-title { margin-top: var(--load-title-gap); max-width: var(--load-w); text-align: center; font-size: var(--fs-body); line-height: var(--lh-body); }
+.load-text { margin-top: var(--load-text-gap); max-width: var(--load-w); min-height: var(--load-text-h); text-align: center; font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.load-bar { margin-top: var(--load-bar-top); width: var(--load-bar-w); flex: none; }
+/* Laufbalken ohne bekannten Stand: ein Stück wandert (nur transform) */
+.progress.is-busy > i { width: var(--busy-part); transform: translateX(-100%); animation: busy var(--t-busy) var(--ease-std) infinite; }
+@keyframes busy { from { transform: translateX(-100%); } to { transform: translateX(var(--busy-end)); } }
+/* „Bewegung reduzieren“ hält jede Animation an; das Stück stünde dann ganz links außerhalb, und der
+   Balken wirkte leer (E52 erlaubt den Laufbalken ausdrücklich). Stattdessen gedämpft gefüllt (E99) */
+html.reduce-motion .progress.is-busy > i { width: 100%; transform: none; opacity: var(--o-dim); }
+.load-hint { right: auto; left: 0; width: 100%; justify-content: center; bottom: var(--load-hint-bottom); }
+/* Hintergrund des Spiels, stark zurückgenommen (steht still: Das Ladebild bleibt ruhig) */
+.load-hero { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: var(--o-load-hero); }
+.loading > :not(.load-hero) { position: relative; }
+.loading > .load-hint { position: absolute; }
+/* Hinweis bei der Übergabe an Steam: wie man zurückkommt */
+.load-note { margin-top: var(--load-note-gap); max-width: var(--load-note-w); text-align: center; font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text); }

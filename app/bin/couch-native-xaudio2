@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+# couch-native-xaudio2 <ordner> – Vorab-Befehl (Bauplan E77): legt Microsofts XAudio2 als xaudio2_9.dll
+# neben die Programmdatei eines Spiels mit Sonys Controller-Modul (couch/launch/xaudio.py). Endet immer
+# mit 0, damit das Spiel auch ohne startet.
+here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"      # <release>/app/bin
+app="$(dirname "$here")"
+py="${COUCH_PYTHON:-}"
+if [[ -z "$py" ]]; then
+  if [[ -x /usr/bin/python3 ]]; then py=/usr/bin/python3; else py=python3; fi
+fi
+PYTHONPATH="$app" "$py" -B -m couch.launch.xaudio "$@" || true
+exit 0

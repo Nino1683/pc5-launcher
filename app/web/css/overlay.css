@@ -1,0 +1,191 @@
+/* Rolle overlay: Control Center, Bildschirmtastatur, Hinweise (07 Abschnitt 3, 6.3, 11.4).
+   Der Grund der Seite bleibt durchsichtig; deckend sind nur die Tafeln. Zahlenwerte: tokens.css. */
+.ov-view { position: absolute; inset: 0; opacity: var(--fx-o); will-change: opacity; transition: --fx-o var(--t-overlay-in) var(--ease-out); }
+.ov-view.is-enter { --fx-o: 0; }
+.ov-view.is-leave { --fx-o: 0; transition: --fx-o var(--t-overlay-out) var(--ease-in); }
+.ov-center { display: flex; align-items: center; justify-content: center; background: var(--c-dim); }
+
+/* ---------------------------------------------------------------- Control Center */
+.cc-dim { position: absolute; inset: 0; background: var(--g-cc-dim); }
+.cc-bar { position: absolute; left: 0; right: 0; bottom: var(--cc-bar-bottom); height: var(--cc-bar-h); display: flex; justify-content: center;
+  transform: translate(0, var(--fx-y)); transition: --fx-y var(--t-overlay-in) var(--ease-out); }
+.cc.is-enter .cc-bar { --fx-y: var(--cc-in-bar); }
+.cc-icon { position: relative; width: var(--cc-icon-w); height: var(--cc-bar-h); margin: 0 var(--cc-icon-gap); border-radius: var(--cc-icon-r); --r: var(--cc-icon-r);
+  display: flex; align-items: center; justify-content: center; font-size: var(--ic-cc); color: var(--c-cc-icon); }
+.cc-icon.is-focus, .cc-icon.is-open, .cc-icon.is-on { color: var(--c-text); }
+.cc.has-panel .cc-icon:not(.is-open):not(.is-focus) { color: var(--c-cc-icon-low); }
+.cc-icon.is-on::before { content: ""; position: absolute; left: var(--cc-on-inset); right: var(--cc-on-inset); bottom: 0; height: var(--ring-w); border-radius: var(--progress-r); background: var(--c-text); }
+.cc-dot { position: absolute; right: var(--cc-dot-right); top: var(--cc-dot-top); width: var(--cc-dot); height: var(--cc-dot); border-radius: 50%; background: var(--c-accent); opacity: 0; }
+.cc-icon.has-dot .cc-dot { opacity: 1; }
+.cc-thumb { position: relative; width: var(--cc-thumb); height: var(--cc-thumb); border-radius: var(--cc-thumb-r); overflow: hidden; flex: none; }
+.cc-icon.has-thumb > .ic { display: none; }
+.cc-label { position: absolute; bottom: var(--cc-label-bottom); max-width: var(--cc-label-w); height: var(--cc-label-h); padding: 0 var(--cc-label-pad); border-radius: var(--cc-label-r);
+  background: var(--c-surface-hi); font-size: var(--fs-caption); line-height: var(--cc-label-h); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transform: translateX(-50%); }
+
+/* Karten über der Leiste: unten bündig, die fokussierte ist größer */
+.cc-cards { position: absolute; left: var(--cc-cards-left); bottom: var(--cc-cards-bottom); display: flex; align-items: flex-end; gap: var(--cc-card-gap);
+  opacity: var(--fx-o); transform: translate(0, var(--fx-y));
+  transition: --fx-y var(--t-overlay-in) var(--ease-out) var(--t-cards-delay), --fx-o var(--t-menu-in) var(--ease-out); }
+.cc.is-enter .cc-cards { --fx-y: var(--cc-in-cards); }
+.cc.has-panel .cc-cards { --fx-o: 0; }
+.cc-card { position: relative; flex: none; width: var(--cc-card-w); height: var(--cc-card-h); padding: var(--cc-card-pad); border-radius: var(--cc-card-r); --r: var(--cc-card-r);
+  background: var(--g-cc-card); display: flex; flex-direction: column; gap: var(--cc-card-pad); }
+.cc-card.is-focus { width: var(--cc-card-w-f); height: var(--cc-card-h-f); }
+.cc-card-art { position: relative; flex: 1 1 0; min-height: 0; border-radius: var(--cc-card-art-r); overflow: hidden; }
+.cc-card-art .art.is-sys > .ic { font-size: var(--ic-tile); }
+.cc-card-text { flex: none; display: flex; flex-direction: column; gap: var(--cc-card-gap-in); min-width: 0; }
+.cc-card-sub { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.cc-card-title { font-size: var(--fs-button); font-weight: var(--w-strong); line-height: var(--lh-card-title); }
+
+/* Tafel eines Symbols */
+.cc-panel { position: absolute; top: var(--cc-panel-top); width: var(--cc-panel-w); height: var(--cc-panel-h); border-radius: var(--cc-panel-r); background: var(--g-panel);
+  box-shadow: var(--shadow-panel); opacity: var(--fx-o); transform: scale(var(--fx-s)); animation: panel-in var(--t-menu-in) var(--ease-out); transform-origin: center bottom; }
+@keyframes panel-in { from { --fx-o: 0; --fx-s: var(--scale-menu-in); } to { --fx-o: 1; --fx-s: 1; } }
+.cc-panel-title { position: absolute; left: var(--cc-panel-pad); right: var(--cc-panel-pad); top: var(--cc-panel-title-top); font-size: var(--fs-panel); line-height: var(--cc-panel-title-lh); }
+.cc-panel-body { position: absolute; left: var(--cc-panel-inset); right: var(--cc-panel-inset); top: var(--cc-panel-body-top); }
+.cc-panel-body .rows { height: var(--cc-panel-view); }
+.cc-panel .row-side { max-width: var(--cc-panel-side); }
+/* Downloads (Wunsch 2026-10-24: „Der Dateiname … ist meistens abgeschnitten“): breitere Tafel, Namen bis
+   zwei Zeilen, im Fokus drei; rechts nur Balken und Prozent, Menge, Tempo und Restzeit darunter */
+.cc-panel[data-id="downloads"] { width: var(--cc-panel-w-dl); }
+.cc-panel[data-id="downloads"] .row-label { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.cc-panel[data-id="downloads"] .row.is-focus .row-label { -webkit-line-clamp: 3; }
+/* Laufende Downloads und Aufträge: Name über die ganze Breite, darunter der Balken in einer eigenen Zeile
+   (Wunsch 2026-10-24: „den Download-Balken in einer extra Zeile“), darunter Menge, Tempo und Restzeit */
+.cc-panel[data-id="downloads"] .row.is-progress { display: grid; grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "icon label" "icon side" "icon note" "icon more"; column-gap: var(--row-gap); row-gap: var(--dl-bar-gap);
+  align-items: center; padding-top: var(--row-desc-pad); padding-bottom: var(--row-desc-pad); }
+.cc-panel[data-id="downloads"] .row.is-progress .row-main { display: contents; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-icon { grid-area: icon; align-self: start; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-label { grid-area: label; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-note { grid-area: note; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-hint, .cc-panel[data-id="downloads"] .row.is-progress .row-full { grid-area: more; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-side { grid-area: side; max-width: none; }
+.cc-panel[data-id="downloads"] .row.is-progress .row-side > .row-value { order: 1; }
+.cc-panel[data-id="downloads"] .row.is-progress .progress { flex: 1 1 0; width: auto; min-width: 0; }
+.cc-panel-hints { right: var(--cc-panel-pad); bottom: var(--cc-panel-pad); }
+
+/* Das Overlay ist ein eigenes Fenster; Gamescope mischt es im linearen Licht mit dem Bild darunter.
+   Schon 2-6 % Durchlässigkeit lassen dort helle Schrift lesbar durchscheinen (Rundgang: Uhr und
+   Symbole des Home in der Mitteilung „Controller verbunden“). Tafeln hier deckend */
+body[data-role="overlay"] .toast, body[data-role="overlay"] .hintcard { background: var(--c-toast-solid); }
+body[data-role="overlay"] .dialog, body[data-role="overlay"] .notice { background: var(--c-dialog-solid); }
+body[data-role="overlay"] .menu { background: var(--c-menu-solid); }
+
+/* Ein/Aus-Menü: über dem Symbol, rechtsbündig. Menüs in #layers liegen bildschirmbezogen; bei 16:10 ist
+   die Wurzel um --frame-top versetzt (E104, base.css), in 16:9 ist es 0px (pixelgleich) */
+.menu-power { bottom: calc(var(--frame-top) + var(--menu-power-bottom)); width: var(--menu-power-w); transform-origin: bottom right; }
+/* Dasselbe Menü im Home: unter dem Symbol in der Kopfzeile */
+.menu-power.is-top { top: calc(var(--frame-top) + var(--menu-power-top)); bottom: auto; transform-origin: top right; }
+.menu-osk { right: var(--osk-more-right); bottom: var(--osk-more-bottom); width: var(--osk-more-w); transform-origin: bottom right; }
+
+/* ---------------------------------------------------------------- Bildschirmtastatur */
+.osk-view { transition: --fx-o var(--t-overlay-in) var(--ease-out); }
+/* Deckende Tafel (07 10.4): Das Overlay ist ein eigenes Fenster, backdrop-filter zeichnet das Home
+   bzw. Spiel darunter nicht weich, durchscheinende Zeilen stünden lesbar zwischen den Tasten */
+.osk { position: absolute; left: var(--osk-left); width: var(--osk-w); bottom: var(--osk-bottom); padding: var(--osk-pad-y) var(--osk-pad-x); border-radius: var(--osk-r);
+  background: var(--c-osk); box-shadow: var(--shadow-panel);
+  transform: translate(0, var(--fx-y)); transition: --fx-y var(--t-overlay-in) var(--ease-out); }
+/* Eingabe in ein eigenes Feld: die Seite dahinter tritt zurück wie unter einem Dialog. Beim Tippen
+   in eine App bleibt sie zu sehen (dort steht das Feld, in das geschrieben wird). */
+.osk-view.is-field { background: var(--c-dim); }
+.osk-view.is-enter .osk { --fx-y: var(--osk-shift); }
+.osk-title { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); margin-bottom: var(--osk-title-mb); padding: 0 var(--osk-field-pad); }
+.osk-field { height: var(--osk-field-h); margin-bottom: var(--osk-field-mb); padding: 0 var(--osk-field-pad); border-radius: var(--osk-field-r); background: var(--c-field);
+  display: flex; align-items: center; font-size: var(--fs-body); white-space: pre; overflow: hidden; }
+/* Der Text vor der Schreibmarke wird links abgeschnitten, damit die Marke immer zu sehen ist */
+.osk-before { flex: 0 1 auto; min-width: 0; overflow: hidden; display: flex; justify-content: flex-end; white-space: pre; }
+.osk-after { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.caret { flex: none; width: var(--caret-w); height: var(--caret-h); background: var(--c-text); animation: caret var(--t-caret) steps(1) infinite; }
+@keyframes caret { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+.osk-keys { display: flex; flex-direction: column; gap: var(--key-gap); }
+/* Wortvorschläge über den Tasten: feste Höhe, damit die Tastatur beim Tippen nicht springt */
+.osk-sugg { display: flex; gap: var(--key-gap); justify-content: center; height: var(--key-h); margin-bottom: var(--key-gap); }
+.key.is-sugg { width: auto; min-width: var(--key-w2); max-width: var(--osk-sugg-max); padding: 0 var(--osk-sugg-pad); background: var(--c-key-fn); }
+.key-row { display: flex; gap: var(--key-gap); justify-content: center; }
+.key { position: relative; flex: none; width: var(--key-w); height: var(--key-h); border-radius: var(--key-r); --r: var(--key-r); background: var(--c-key);
+  display: flex; align-items: center; justify-content: center; font-size: var(--fs-body); }
+.key .ic { font-size: var(--ic-key); }
+.key.is-fn { background: var(--c-key-fn); font-size: var(--fs-value); }
+.key.is-w2 { width: var(--key-w2); }
+.key.is-w4 { width: var(--key-w4); }
+.key.is-on { background: var(--c-key-on); }
+.key.is-lock::before { content: ""; position: absolute; left: var(--key-hint-right); top: var(--key-hint-right); width: var(--key-lock); height: var(--key-lock); border-radius: 50%; background: var(--c-text); }
+.key.is-done { background: var(--c-btn); color: var(--c-btn-text); font-size: var(--fs-value); font-weight: var(--w-strong); }
+.key-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; padding: 0 var(--key-hint-right); }
+.key-hint { position: absolute; right: var(--key-hint-right); top: var(--key-hint-top); font-size: var(--fs-tiny); font-weight: var(--w-strong); line-height: var(--lh-one); color: var(--c-text-3); }
+.key.is-done .key-hint { color: var(--c-key-done-hint); }
+
+/* ---------------------------------------------------------------- Hinweis-Tafeln */
+.notice { width: var(--notice-w); padding: var(--notice-pad); border-radius: var(--notice-r); background: var(--c-dialog); box-shadow: var(--shadow-panel);
+  display: flex; flex-direction: column; align-items: center; gap: var(--notice-gap); text-align: center; }
+.notice > .ic { font-size: var(--ic-notice); color: var(--c-text-2); }
+.notice-title { font-size: var(--fs-tab); line-height: var(--lh-notice); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-text { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); max-width: 100%; overflow-wrap: anywhere; }
+.ringp { width: var(--ringp-size); height: var(--ringp-size); transform: rotate(var(--ringp-rot)); }
+.ringp circle { fill: none; stroke-width: var(--ringp-stroke); stroke-linecap: round; }
+.ringp-rest { stroke: var(--c-slider-rest); }
+.ringp-arc { stroke: var(--c-text); stroke-dasharray: 100; stroke-dashoffset: 100; }
+.notice-hint { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+
+/* ---------------------------------------------------------------- Bildschirmtastatur: Feld mit Auge (Kennwort) */
+.osk-text { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: center; overflow: hidden; white-space: pre; }
+.osk-eye { position: relative; flex: none; width: var(--osk-eye); height: var(--osk-eye); margin-right: calc(-1 * var(--osk-eye-pull));
+  border-radius: 50%; --r: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--ic-key); color: var(--c-text-2); }
+.osk-eye.is-on, .osk-eye.is-focus { color: var(--c-text); }
+.osk-field.is-secret .osk-before, .osk-field.is-secret .osk-after { letter-spacing: var(--ls-badge); }
+
+/* ---------------------------------------------------------------- Control Center: Ergänzungen */
+.cc-card-progress { display: flex; align-items: center; gap: var(--cc-card-pct-gap); min-width: 0; }
+.cc-card-progress .progress { flex: 1 1 0; min-width: 0; }
+.cc-card-pct { flex: none; font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); white-space: nowrap; }
+/* Ein/Aus-Menü: unter den Einträgen die Erklärung zum Eintrag im Fokus */
+.power-note { padding: var(--power-note-pad) var(--menu-pad-x); border-top: var(--line) solid var(--c-line); margin-top: var(--menu-inset);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); overflow-wrap: anywhere; }
+.power-note.is-empty { display: none; }
+
+/* ---------------------------------------------------------------- Mitteilungen untereinander, Statusleiste */
+.toasts { display: flex; flex-direction: column; gap: var(--toast-stack-gap); }
+.status-dot { position: absolute; right: var(--status-dot-inset); top: var(--status-dot-inset); width: var(--cc-dot); height: var(--cc-dot); border-radius: 50%;
+  background: var(--c-accent); opacity: 0; }
+.status-gear.has-dot .status-dot { opacity: 1; }
+.status-mini .is-warn { color: var(--c-warn); }
+/* Control Center: Netz als Text links neben den Symbolen (Anordnung der Leiste: home.css .status) */
+.status-net { max-width: var(--status-net-w); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); }
+.status-net.is-warn { color: var(--c-warn); }
+/* Über dem Namen des Maus-Symbols: Dreieck zeigt die Belegung */
+.cc-keyhint { position: absolute; bottom: var(--cc-keyhint-bottom); display: flex; align-items: center; gap: var(--hint-key-gap); transform: translateX(-50%);
+  font-size: var(--fs-hint); font-weight: var(--w-strong); color: var(--c-text-2); white-space: nowrap; }
+.cc-keyhint > .ic { font-size: var(--hint-key); }
+/* Tafel „Maus-Modus“: Schalter, darunter die Belegung als Tabelle */
+.cc-panel-body .rows.is-auto { height: auto; }
+.cc-legend { padding: 0 var(--row-pad); }
+.cc-legend .row-section { padding: 0; transform: none; margin-top: var(--section-mb); }
+.cc-legend-row { display: flex; align-items: center; gap: var(--row-gap); min-height: var(--cc-legend-row); border-bottom: var(--line) solid var(--c-line);
+  font-size: var(--fs-value); line-height: var(--lh-value); }
+.cc-legend-key { flex: none; width: var(--hintcard-key-w); font-weight: var(--w-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-legend-do { flex: 1 1 0; min-width: 0; text-align: right; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- Hinweis-Karte (Belegung des Maus-Modus) */
+.hintcard { position: absolute; left: 50%; bottom: var(--hintcard-bottom); width: var(--hintcard-w); padding: var(--hintcard-pad); border-radius: var(--dialog-r);
+  background: var(--c-toast); box-shadow: var(--shadow-panel); z-index: var(--z-toast); opacity: var(--fx-o); transform: translate(-50%, var(--fx-y));
+  transition: --fx-o var(--t-toast-in) var(--ease-out), --fx-y var(--t-toast-in) var(--ease-out); }
+.hintcard.is-enter, .hintcard.is-leave { --fx-o: 0; --fx-y: var(--hintcard-shift); }
+.hintcard.is-leave { transition-duration: var(--t-toast-out); transition-timing-function: var(--ease-in); }
+.hintcard-head { display: flex; align-items: center; gap: var(--toast-gap); }
+.hintcard-head > .ic { flex: none; font-size: var(--ic-hintcard); }
+.hintcard-titles { flex: 1 1 0; min-width: 0; }
+.hintcard-title { font-size: var(--fs-body); line-height: var(--lh-body); }
+.hintcard-text { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); overflow-wrap: anywhere; }
+.hintcard-body { display: flex; gap: var(--hintcard-col-gap); margin-top: var(--hintcard-gap); }
+.hintcard-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.hintcard-row { display: flex; align-items: center; gap: var(--row-gap); min-height: var(--hintcard-row); border-bottom: var(--line) solid var(--c-line); font-size: var(--fs-value); }
+.hintcard-key { flex: none; width: var(--hintcard-key-w); font-weight: var(--w-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hintcard-do { flex: 1 1 0; min-width: 0; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Bildschirmschoner (notices.js createSaver): schwarz, die Uhr springt jede Minute an eine andere Stelle */
+.saver { position: fixed; inset: 0; background: var(--c-black); animation: saver-in var(--t-saver-in) var(--ease-std); }
+.saver-clock { position: absolute; font-size: var(--fs-saver-clock); font-weight: var(--w-light); color: var(--c-saver-text);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+@keyframes saver-in { from { opacity: 0; } to { opacity: 1; } }

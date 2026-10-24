@@ -1,0 +1,14 @@
+# PC5 Launcher (couch): Touchpad von DualSense und DualShock 4 für den angemeldeten Benutzer lesbar.
+#
+# Warum: Das Touchpad ist ein eigenes Eingabegerät, das Gamescope als Maus nimmt. In Spielen mit
+# Controller-Unterstützung bewegte es deshalb zugleich den Zeiger und klickte (Wunsch 2026-10-24). Mit
+# dieser Regel kann der PC5 Launcher das Touchpad außerhalb der Zeiger-Modi für sich reservieren
+# (EVIOCGRAB, input/padreader.py); Spiele lesen es weiter über hidraw.
+#
+# Einrichten und Entfernen: Einstellungen › System › Systemfreigaben (couch/sysadmin.py, mit dem eigenen
+# Kennwort, nur auf Wunsch am Bildschirm). Von Hand:
+#   sudo install -m 0644 app/system/udev/70-pc5-dualsense-touchpad.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input --action=change
+#
+# Nur Touchpads (ID_INPUT_TOUCHPAD) mit Sonys Herstellerkennung; vor 73-seat-late.rules, das „uaccess“ auswertet.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHPAD}=="1", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6|0df2|05c4|09cc|0ba0", TAG+="uaccess"

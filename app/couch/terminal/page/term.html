@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Claude Code</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<link rel="stylesheet" href="term.css">
+</head>
+<body>
+<div id="term"></div>
+
+<div id="compose" class="compose" hidden>
+  <div class="compose-title" id="compose-title">Nachricht an Claude</div>
+  <textarea id="compose-text" rows="3" spellcheck="false" autocomplete="off"></textarea>
+  <div class="compose-hint"><span class="b b-cross">✕</span> Senden <span class="b b-circle">○</span> Schließen <span class="b b-triangle">△</span> Tastatur</div>
+</div>
+
+<div id="start" class="layer" hidden>
+  <div class="panel">
+    <div class="title">Claude Code</div>
+    <div class="sub" id="start-sub">Im Home-Ordner, wie im Terminal auf dem Desktop.</div>
+    <div class="list" id="start-list"></div>
+    <div class="note" id="start-note"></div>
+  </div>
+</div>
+
+<div id="menu" class="layer" hidden>
+  <div class="panel wide">
+    <div class="title">Befehle</div>
+    <div class="grid" id="menu-grid"></div>
+  </div>
+</div>
+
+<div id="bar" class="bar">
+  <span><span class="b b-cross">✕</span> Enter</span>
+  <span><span class="b b-circle">○</span> Esc</span>
+  <span><span class="b b-square">□</span> Löschen</span>
+  <span><span class="b b-triangle">△</span> Schreiben</span>
+  <span><span class="b b-text">L1</span> Modus</span>
+  <span><span class="b b-text">R1</span> Tab</span>
+  <span><span class="b b-text">L2</span><span class="b b-text">R2</span> Blättern</span>
+  <span><span class="b b-text">Options</span> Befehle</span>
+  <span class="state" id="state"></span>
+</div>
+
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script src="term.js"></script>
+</body>
+</html>

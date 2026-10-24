@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+# couch-terminal – Terminal der Konsole für Claude Code (Bauplan E72): WebKit-Fenster mit xterm.js
+# für den Fernseher, bedient mit dem Pad als feste Tasten (padmouse, profile "term").
+# Startet als App unter dem reaper der Konsole auf Xwayland 1 (DISPLAY setzt der AppManager).
+here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"      # <release>/app/bin
+app="$(dirname "$here")"
+
+# Wie beim Browser: WebKit taktet mit einem Zeitgeber (sonst 2 fps nach Gamescopes HDR-Umschaltung),
+# Gamescopes Vulkan-Schicht ist für Spiele, nicht für GTK
+export WEBKIT_FORCE_VBLANK_TIMER=1
+export DISABLE_GAMESCOPE_WSI=1
+export GDK_BACKEND=x11
+# 4K: Schrift und Leisten doppelt so groß
+if [[ -z "${GDK_SCALE:-}" && -n "${COUCH_TERM_SCALE:-}" ]]; then
+  export GDK_SCALE="$COUCH_TERM_SCALE"
+fi
+
+py="${COUCH_PYTHON:-}"
+if [[ -z "$py" ]]; then
+  if [[ -x /usr/bin/python3 ]]; then py=/usr/bin/python3; else py=python3; fi
+fi
+export PYTHONPATH="$app${PYTHONPATH:+:$PYTHONPATH}"
+exec "$py" -B -m couch.terminal "$@"

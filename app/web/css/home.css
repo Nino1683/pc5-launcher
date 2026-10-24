@@ -1,0 +1,173 @@
+/* Home: Kopfzeile, Kachelreihe, Hintergrund, Hub (07 Abschnitt 2). Zahlenwerte: tokens.css. */
+
+/* ---------------------------------------------------------------- Bewegter Hintergrund (E33, js/components/backdrop.js)
+   Fünf große Ebenen: drei Lichtflächen und zwei Bild-Ebenen. Bewegt wird nur transform (vom Skript,
+   mit niedriger Bildrate), überblendet nur opacity. Kein filter auf diesen Flächen. */
+.backdrop { position: absolute; inset: 0; overflow: hidden; background: var(--c-bg); z-index: var(--z-bg); }
+/* Die Lichtflächen liegen unter den Bild-Ebenen: Ist ein Bild ganz eingeblendet, verschwinden sie
+   ohne Übergang (verdeckt), und beim Zurück auf „kein Bild“ sind sie schon da, bevor das Bild ausblendet */
+.bd-flow { position: absolute; inset: 0; background: var(--g-art-default); }
+.bd-flow.is-off { visibility: hidden; }
+.bd-blob { position: absolute; left: var(--bd-blob-x); top: var(--bd-blob-y); width: var(--bd-blob-w); height: var(--bd-blob-h);
+  border-radius: 50%; will-change: transform; }
+.bd-blob.is-a { background: radial-gradient(closest-side, var(--c-bd-a), var(--c-none)); }
+.bd-blob.is-b { background: radial-gradient(closest-side, var(--c-bd-b), var(--c-none)); }
+.bd-blob.is-c { background: radial-gradient(closest-side, var(--c-bd-c), var(--c-none)); }
+.bd-layer { position: absolute; inset: 0; --fx-o: 0; opacity: var(--fx-o); will-change: opacity; transition: --fx-o var(--t-bd-fade) var(--ease-std); }
+.bd-layer.is-on { --fx-o: 1; }
+.bd-layer.is-cut { transition: none; }
+.bd-layer > img { width: 100%; height: 100%; object-fit: cover; will-change: transform; }
+/* Abdunklung, damit Text lesbar bleibt (07 Abschnitt 2.3), dazu ein Feld hinter Logo, Unterzeile
+   und Knöpfen: Auch auf einem hellen Bild steht der Text dort auf dunklem Grund. */
+.bd-dim { position: absolute; inset: 0; background: var(--g-art-top), var(--g-art-left), var(--g-art-bottom); }
+.backdrop.has-art .bd-dim { background: var(--g-art-text), var(--g-art-head), var(--g-art-top), var(--g-art-left), var(--g-art-bottom); }
+
+/* ---------------------------------------------------------------- Kopfzeile */
+.home-head { position: absolute; left: var(--m-head); top: var(--head-top); z-index: var(--z-head); display: flex; gap: var(--tab-gap);
+  font-size: var(--fs-tab); line-height: var(--head-lh); opacity: var(--fx-o); transition: --fx-o var(--t-hub) var(--ease-std); }
+.tab { position: relative; padding: 0 var(--tab-pad); margin: 0 calc(-1 * var(--tab-pad)); border-radius: var(--tab-r); --r: var(--tab-r);
+  color: var(--c-text-3); font-weight: var(--w-light); white-space: nowrap; }
+.tab.is-active { color: var(--c-text); font-weight: var(--w-strong); }
+/* Jeder Reiter ist so breit wie sein fetter Schnitt (unsichtbarer Doppeltext ohne Höhe): Beim
+   Wechsel bleibt die Kopfzeile stehen (07 2.1), „Medien“ rückt nicht um ein paar Pixel */
+.tab::before { content: attr(data-label); display: block; height: 0; overflow: hidden; visibility: hidden; font-weight: var(--w-strong); }
+
+/* Statusleiste: eine Zeile, rechtsbündig bis x=1832. Von rechts: Uhr, Netz, Akku, dann im Home
+   Ein/Aus (Mitte ≈1625, Platz des Profils) und das Zahnrad (≈1521). */
+.status { position: absolute; right: var(--m-status-right); top: var(--status-top); height: var(--status-h); z-index: var(--z-head);
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--status-gap); opacity: var(--fx-o); transition: --fx-o var(--t-overlay-in) var(--ease-out); }
+.status-clock { flex: none; font-size: var(--fs-tab); line-height: var(--status-h); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.status-gear, .status-power { position: relative; flex: none; width: var(--status-h); height: var(--status-h); border-radius: 50%; --r: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: var(--ic-head); }
+.status-gear + .status-power { margin-left: var(--status-pair-gap); }
+.status-mini { flex: 0 1 auto; min-width: 0; height: var(--status-h); display: flex; align-items: center; gap: var(--ic-mini-gap); font-size: var(--ic-mini); }
+.status-mini .is-off { color: var(--c-text-off); }
+/* Control Center über dem Home: dessen Kopfzeile und Reiter treten zurück; sie schienen sonst
+   verschwommen hinter der Uhr des Control Centers durch */
+html.is-overlaid .status, html.is-overlaid .home-head { --fx-o: 0; }
+.status-mini .battery.is-low { color: var(--c-warn); }
+/* Laufender Download (nur im Home): Symbol und Stand links vom Akku */
+.status-dl { flex: none; height: var(--status-h); display: flex; align-items: center; gap: var(--status-dl-gap); font-size: var(--ic-mini); }
+.status-dl-pct { font-size: var(--fs-caption); color: var(--c-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* E107: Ruhemodus-Timer (components/statusbar.js), aufgebaut wie das Download-Symbol */
+.status-timer { flex: none; height: var(--status-h); display: flex; align-items: center; gap: var(--status-timer-gap); font-size: var(--ic-mini); }
+.status-timer-left { font-size: var(--fs-caption); color: var(--c-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- Kachelreihe */
+.home-rows { position: absolute; left: 0; right: 0; top: var(--row-top); height: var(--tile-focus); z-index: var(--z-content);
+  opacity: var(--fx-o); transform: translate(0, var(--fx-y)); transition: --fx-o var(--t-hub) var(--ease-std), --fx-y var(--t-hub) var(--ease-std); }
+.tile-row { position: absolute; inset: 0; opacity: var(--fx-o); transform: translate(var(--fx-x), 0);
+  transition: --fx-o var(--t-tab) var(--ease-std), --fx-x var(--t-tab) var(--ease-std); }
+.tile-row.is-off { --fx-o: 0; }
+.tile-row[data-area="games"].is-off { --fx-x: calc(-1 * var(--shift-tab)); }
+.tile-row[data-area="media"].is-off { --fx-x: var(--shift-tab); }
+.tile { position: absolute; left: 0; top: 0; width: var(--tile-focus); height: var(--tile-focus); border-radius: var(--tile-r); --r: var(--tile-r);
+  transform-origin: top left;
+  --fx-x: calc(var(--row-next-x) + (var(--d, 1) - 1) * var(--tile-pitch)); --fx-s: var(--tile-scale);
+  transform: translate3d(var(--fx-x), 0, 0) scale(var(--fx-s));
+  transition: --fx-x var(--t-row) var(--ease-out), --fx-s var(--t-row) var(--ease-out); will-change: transform; }
+.tile.is-before { --fx-x: calc(var(--row-prev-x) + (var(--d, -1) + 1) * var(--tile-pitch)); }
+.tile.is-current { --fx-x: var(--m-content); --fx-s: 1; box-shadow: var(--shadow-tile); }
+.tile-row.is-fast .tile { transition-duration: var(--t-row-fast); }
+/* Kachel verschieben (E69): die gewählte Kachel trägt einen farbigen Rand, die übrigen treten zurück */
+.tile.is-moving { box-shadow: 0 0 0 var(--tile-move-w) var(--c-accent), var(--shadow-tile); }
+.tile-row.is-moving .tile:not(.is-moving) { opacity: var(--tile-move-dim); }
+.tile-row.is-still .tile { transition: none; }
+.tile .art.is-sys > .ic { font-size: var(--ic-tile); }
+.tile .art-appicon { width: var(--ic-tile); height: var(--ic-tile); object-fit: contain; }
+/* Spielkacheln tragen keinen Text (07 2.2): Die Marke der Quelle steht neben dem Titel der
+   Fokuskachel; „nicht verfügbar“ zeigt die Kachel gedimmt (art.is-dim), nicht als Zeichen im Bild */
+.tile-run { position: absolute; right: var(--tile-badge-inset); top: var(--tile-badge-inset); width: var(--run-dot); height: var(--run-dot); border-radius: 50%;
+  background: var(--c-ok); box-shadow: var(--shadow-text); opacity: 0; }
+.tile.is-running .tile-run { opacity: 1; }
+
+/* Titel neben der Fokuskachel, bündig mit dem Nachfolger */
+.rowlabel { position: absolute; left: var(--row-next-x); top: var(--rowlabel-top); max-width: var(--rowlabel-w); height: var(--rowlabel-lh); z-index: var(--z-content);
+  display: flex; align-items: center; gap: var(--rowlabel-gap); font-size: var(--fs-body); line-height: var(--rowlabel-lh);
+  opacity: var(--fx-o); transform: translate(0, var(--fx-y)); transition: --fx-o var(--t-title-in) linear, --fx-y var(--t-hub) var(--ease-std); }
+.rowlabel.is-out { --fx-o: 0; transition-duration: var(--t-title-out), var(--t-hub); }
+.mark { flex: none; height: var(--badge-h); padding: 0 var(--badge-pad); border-radius: var(--badge-r); background: var(--c-mark); color: var(--c-text);
+  font-size: var(--fs-small); font-weight: var(--w-strong); letter-spacing: var(--ls-badge); line-height: var(--badge-h); white-space: nowrap; }
+.mark.is-unavailable, .mark.is-not-installed { background: var(--c-mark-warn); color: var(--c-mark-warn-text); }
+.mark.is-running { background: var(--c-ok); color: var(--c-badge-text); }
+
+/* ---------------------------------------------------------------- Hub */
+.hub { position: absolute; left: var(--m-content); right: var(--m-content); top: var(--hub-top); bottom: 0; z-index: var(--z-content);
+  transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-hub) var(--ease-std); will-change: transform; }
+.hub-logo { position: absolute; left: 0; top: 0; width: var(--hub-logo-w); height: var(--hub-logo-h); display: flex; align-items: flex-end; }
+/* Lichtsaum und Schatten: Ein dunkles Logo bleibt auf dunklem Grund lesbar, ein helles auf hellem */
+.hub-logo > img { max-width: var(--hub-logo-img-w); max-height: 100%; object-fit: contain; object-position: left bottom; -webkit-filter: var(--glow-logo); filter: var(--glow-logo); }
+/* Der Hintergrund trägt den Schriftzug schon im Bild: nichts doppelt zeigen */
+.hub.is-titled .hub-logo { visibility: hidden; }
+/* Innenabstand in Breite des Schattens, per negativem Rand ausgeglichen: Die Kürzung (overflow)
+   schneidet den Schatten sonst am Kasten ab, auf hellen Bildern als dunkle Kante sichtbar */
+.hub-title { max-width: calc(100% + 2 * var(--hub-title-pad)); padding: var(--hub-title-pad); margin: calc(-1 * var(--hub-title-pad));
+  font-size: var(--fs-logo); font-weight: var(--w-strong); line-height: var(--lh-logo); letter-spacing: var(--ls-logo);
+  text-shadow: var(--shadow-logo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-title.is-m, .hub-title.is-s { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.hub-title.is-m { font-size: var(--fs-logo-m); line-height: var(--lh-logo-m); }
+.hub-title.is-s { font-size: var(--fs-logo-s); line-height: var(--lh-logo-s); }
+.hub-sub { position: absolute; left: 0; top: var(--hub-sub-top); max-width: var(--hub-logo-w); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--c-text-2); }
+/* Hinweis des Kerns (Feld note) unter der Unterzeile; das Logo gibt dafür etwas Höhe ab */
+.hub-note { position: absolute; left: 0; top: var(--hub-note-top); max-width: var(--hub-logo-w); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2);
+  text-shadow: var(--shadow-text); }
+.hub.has-note .hub-logo { height: var(--hub-logo-h-note); }
+.hub.has-note .hub-sub { top: var(--hub-sub-top-note); }
+.hub-sub { text-shadow: var(--shadow-text); }
+.chip.is-warn { color: var(--c-warn); }
+.chip.is-warn > span { color: var(--c-text); }
+.hub-actions { position: absolute; left: 0; top: var(--hub-actions-top); display: flex; gap: var(--btn-gap); }
+/* Nebenknopf (Spiel schließen, Desktop-Modus): graue Pille, ≈376 breit (07 2.4) */
+.hub-second { min-width: var(--btn-second-w); max-width: none; }
+.hub-chips { position: absolute; right: 0; top: var(--hub-chips-top); display: flex; gap: var(--chip-gap); }
+.chip { height: var(--chip-h); padding: 0 var(--chip-pad); border-radius: var(--chip-r); background: var(--c-chip); display: flex; align-items: center; gap: var(--chip-in-gap);
+  font-size: var(--fs-caption); color: var(--c-text-2); white-space: nowrap; }
+.chip b { color: var(--c-text); font-weight: var(--w-strong); }
+.chip .ic { font-size: var(--ic-chip); }
+.hub-cards { position: absolute; left: 0; top: var(--hub-cards-top); display: flex; gap: var(--card-gap); }
+/* Store-Kachel: Karten mit Bild (Gratis bei Epic, Angebote), anwählbar; Text unten auf dunklem Verlauf */
+.hub-store { gap: var(--sc-gap); }
+/* … und über „Öffnen“ (Wunsch 2026-10-21): die Karten nehmen den Platz der Knöpfe, die rücken darunter */
+.hub.is-store .hub-store { top: var(--hub-actions-top); }
+.hub.is-store .hub-actions { top: var(--hub-store-actions-top); }
+.hub-sc { position: relative; flex: none; width: var(--sc-w); height: var(--sc-h); border-radius: var(--card-r); --r: var(--card-r); background: var(--c-card); }
+.hub-sc > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.hub-sc-text { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--sc-pad-top) var(--sc-pad) var(--sc-pad);
+  border-radius: 0 0 var(--card-r) var(--card-r); background: var(--g-sc-shade); }
+.hub-sc-label { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); }
+.hub-sc-title { font-size: var(--fs-value); line-height: var(--lh-value); font-weight: var(--w-strong); }
+.hub-sc-value { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); }
+.hub-card { width: var(--card-w); height: var(--card-h); padding: var(--card-pad-y) var(--card-pad-x); border-radius: var(--card-r); background: var(--c-card);
+  display: flex; flex-direction: column; justify-content: space-between; }
+.hub-card-label { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); }
+.hub-card-value { font-size: var(--fs-value); line-height: var(--lh-value); font-weight: var(--w-strong); }
+
+/* Kopf des Eintrags, solange der Hub offen ist */
+.mini { position: absolute; left: 0; top: 0; right: 0; --fx-o: 0; opacity: var(--fx-o); z-index: var(--z-head); transition: --fx-o var(--t-hub) var(--ease-std); }
+.mini-art { position: absolute; left: var(--mini-pos); top: var(--mini-pos); width: var(--mini-size); height: var(--mini-size); border-radius: var(--mini-r); overflow: hidden; }
+.mini-art .art.is-sys > .ic { font-size: var(--ic-mini-tile); }
+.mini-title { position: absolute; left: var(--m-content); top: var(--mini-title-top); max-width: var(--mini-title-w); height: var(--rowlabel-lh);
+  display: flex; align-items: center; gap: var(--mini-title-gap); font-size: var(--fs-body); line-height: var(--rowlabel-lh); }
+
+/* Zustand B: Fokus im Hub. Reihe und Reiter blenden aus, der Hub rückt nach oben. */
+.home.is-hub .hub, .hub-screen .hub { --fx-y: var(--hub-shift); }
+.home.is-hub .home-rows, .home.is-hub .rowlabel { --fx-o: 0; --fx-y: var(--hub-row-shift); }
+.home.is-hub .home-head { --fx-o: 0; }
+.home.is-hub .mini, .hub-screen .mini { --fx-o: 1; }
+
+/* Optionsmenü: rechts neben der Fokuskachel, Oberkante wie die Reihe (die genaue Lage an der
+   gewählten Kachel setzt entry-actions.js; dies gilt, wenn keine Kachel genannt ist) */
+.menu-entry { left: var(--menu-left); top: var(--menu-top); }
+/* Ein/Aus-Menü des Home: overlay.css .menu-power.is-top (derselbe Baustein wie im Control Center) */
+/* Menü in der Bildmitte (Auswahl der Startdatei) mit Kopfzeile */
+.menu-center { left: calc(50% - var(--dialog-w) / 2); top: var(--menu-top); width: var(--dialog-w); max-height: var(--menu-max-h); overflow: hidden; transform-origin: top center; }
+.menu-title { padding: var(--menu-gap) var(--menu-pad-x); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+/* Unaufdringliche Anzeige unten rechts, solange alle Bilder geladen werden */
+.home-note { position: absolute; right: var(--home-note-right); bottom: var(--home-note-bottom); z-index: var(--z-head); display: flex; align-items: center; gap: var(--hint-key-gap);
+  font-size: var(--fs-hint); color: var(--c-text-3); white-space: nowrap; }
+.home-note > .ic { font-size: var(--ic-home-note); }
+/* Die Bibliothek antwortet nicht (E99): dasselbe Feld, aber oben rechts unter der Statusleiste und
+   über der Kachelreihe (unten läge es auf den Karten des Hub); das Symbol in der Warnfarbe */
+.home-note.is-warn { top: var(--home-warn-top); bottom: auto; right: var(--m-status-right); }
+.home-note.is-warn > .ic { color: var(--c-warn); }
+.home.is-hub .home-note { opacity: 0; }

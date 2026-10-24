@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PC5 Launcher – Zustand
+Name[en]=PC5 Launcher – status
+Comment=Fassung, Sicherungen und Haken des PC5 Launchers anzeigen.
+Comment[en]=Show PC5 Launcher version, safeguards and hook.
+Exec=@CTL@ status
+Icon=applications-games
+Terminal=true
+Categories=Game;

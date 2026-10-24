@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+# Ersatz für steamos-session-select, nur im PATH des Steam-Kinds (der Supervisor stellt
+# session/shims nach vorn). Steam ruft das beim Punkt "Zum Desktop wechseln" auf
+# (Annahme aus Bericht 02, am Gerät noch unbestätigt).
+#
+# Hier heißt das: zurück ins Home. Der Shim beendet Steam sauber; der Supervisor merkt das
+# und startet das Home wieder. Er wechselt NICHT in den Desktop-Modus (das macht im Home
+# der Punkt "Zum Desktop wechseln" über steamosctl).
+set -u
+cmd="${COUCH_STEAM_SHUTDOWN_CMD:-}"
+if [[ -n "${COUCH_TEST_ROOT:-}" || "${COUCH_TEST:-}" == 1 ]]; then
+  first="${cmd%% *}"
+  if [[ -z "$cmd" || "${first##*/}" == steam ]]; then
+    echo "steamos-session-select (couch): Prüfmodus ohne Attrappe, nichts getan" >&2
+    exit 0
+  fi
+fi
+[[ -n "$cmd" ]] || cmd="steam -shutdown"
+echo "steamos-session-select (couch): Wunsch '${1:-}' -> zurück ins Home über: $cmd" >&2
+# Wortzerlegung gewollt
+# shellcheck disable=SC2086
+$cmd || echo "steamos-session-select (couch): '$cmd' gescheitert ($?)" >&2
+exit 0

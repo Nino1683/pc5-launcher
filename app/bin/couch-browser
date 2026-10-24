@@ -1,0 +1,24 @@
+#!/usr/bin/bash
+# couch-browser – der Browser der Konsole (Bauplan E59): WebKit-Fenster für den Fernseher, bedient
+# mit dem Pad als Maus (padmouse). Downloads erscheinen im Control Center unter „Downloads“.
+# Startet als App unter dem reaper der Konsole auf Xwayland 1 (DISPLAY setzt der AppManager).
+here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"      # <release>/app/bin
+app="$(dirname "$here")"
+
+# Wie beim Home (app/couch-home): WebKit taktet mit einem Zeitgeber statt über einen DRM-Ausgang,
+# der nach Gamescopes HDR-Umschaltung schweigt (sonst 2 fps), und Gamescopes Vulkan-Schicht ist für
+# Spiele, nicht für GTK
+export WEBKIT_FORCE_VBLANK_TIMER=1
+export DISABLE_GAMESCOPE_WSI=1
+export GDK_BACKEND=x11
+# 4K: GTK und Seiten doppelt so groß; die Feinheit regelt der Zoom im Browser
+if [[ -z "${GDK_SCALE:-}" && -n "${COUCH_BROWSER_SCALE:-}" ]]; then
+  export GDK_SCALE="$COUCH_BROWSER_SCALE"
+fi
+
+py="${COUCH_PYTHON:-}"
+if [[ -z "$py" ]]; then
+  if [[ -x /usr/bin/python3 ]]; then py=/usr/bin/python3; else py=python3; fi
+fi
+export PYTHONPATH="$app${PYTHONPATH:+:$PYTHONPATH}"
+exec "$py" -B -m couch.browser "$@"

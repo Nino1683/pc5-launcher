@@ -1,0 +1,535 @@
+#!/usr/bin/python3
+"""couch-steam-game <spielkennung> <app-nummer> [titel]: startet ein Steam-Spiel, ohne dass man
+Steam sieht (Bauplan E57).
+couch-steam-game --download: Steam unsichtbar laufen lassen, bis SIGTERM kommt, damit es die
+Downloads aus dem Store lädt (Bauplan E68; die Einträge schreibt das Home vorher). Fremdes Steam
+wie unten in 1., dann „steam -silent“ ohne Adresse; endet Steam von selbst (etwa weil ein
+Spielstart es beendet hat), endet auch der Helfer mit 0. Er ist Unter-Reaper, damit verwaiste
+Steam-Prozesse unter ihm bleiben und als eigenes Steam zählen.
+Seit E98 auf einem eigenen, unsichtbaren X-Server (Xvfb, COUCH_XVFB) und ohne die Umgebung von
+Gamescope (Wunsch 2026-10-23: „Wenn ich von Steam z. B. Rocksmith+ aus meiner Bibliothek installieren
+will, öffnet sich Big Picture“, „Ich komme auch nicht mehr zurück“): Auf dem Spiele-Server wechselte
+Steam nach der Anmeldung mal in Big Picture (UIMode 4) und holte sich über
+GAMESCOPECTRL_BASELAYER_WINDOW den Bildschirm. Auf Xvfb sieht man nichts davon, und Steam weiß nichts
+von Gamescope. Controller sind für dieses Steam ausgeblendet (NO_PADS), damit die PS-Taste dort
+nichts öffnet. Ohne Xvfb wie vorher auf dem Spiele-Server.
+
+Läuft als gewöhnliche App der Konsole unter ihrem reaper: Das Home bleibt dabei an, zeigt sein
+Ladebild und holt das Spiel nach vorn, sobald Gamescope ein Fenster unter der AppId unseres reaper
+meldet (E57, Korrektur 2026-10-18; E71). Ablauf:
+
+  1. Läuft schon ein Steam außerhalb dieses Helfers (z. B. in der Desktop-App), wird es mit
+     "steam -shutdown" beendet, außer es läuft dort gerade ein Spiel (dann Abbruch mit Satz).
+  2. Steam unsichtbar starten: "steam -silent steam://rungameid/<kennung>", Ausgabe nach
+     COUCH_STEAM_LOG. DISPLAY ist der Spiele-Server (Xwayland 1): Dort kann Steam die
+     Vordergrund-Liste der Konsole nicht umschreiben (die liegt an der Wurzel von Xwayland 0).
+  3. Erscheint kein Spiel, die Adresse noch einmal schicken (COUCH_STEAM_RESEND, Sekunden).
+  4. Das Spiel ist ein "reaper SteamLaunch AppId=<app-nummer>" von Steam. Ist es weg (und kommt
+     binnen COUCH_STEAM_GONE nicht wieder), "steam -shutdown" für das eigene Steam, dann Ende.
+     Steam soll nicht im Hintergrund weiterlaufen: Seine Desktop-Belegung des Pads käme sonst
+     zusätzlich im Home an.
+  5. SIGTERM (Konsole schließt das Spiel): Spiel beenden, Steam beenden, Ende.
+
+Steam bekommt die Sitzungsumgebung (Datei aus COUCH_STEAM_SESSION_ENV) ohne die Schalter für
+Big Picture (SESSION_ONLY), mit den Schaltern aus Einstellungen › Spiele (PASS) und session/shims
+vorn im PATH.
+
+Zeiten (Sekunden): COUCH_STEAM_GAME_WAIT (300) bis zum Spiel, COUCH_STEAM_RESEND ("25,60,120"),
+COUCH_STEAM_GONE (5), COUCH_STEAM_QUIT_WAIT (25) für das Ende des eigenen Steam,
+COUCH_STEAM_STOP_WAIT (6) dasselbe nach SIGTERM, COUCH_STEAM_FOREIGN_WAIT (30),
+COUCH_STEAM_SCAN (0.5). Befehl: COUCH_STEAM_CMD (steam). Im Prüfmodus läuft nie das echte
+Steam: Ohne COUCH_STEAM_CMD (Attrappe) endet der Helfer mit 5.
+
+Zeilen, die mit "MELDUNG: " beginnen, zeigt die Konsole als Satz im Fehlerdialog.
+Rückgabe: 0 = Spiel lief und ist zu Ende, 2 = Aufruf, 3 = kein Spiel gestartet,
+4 = fremdes Steam steht im Weg, 5 = Prüfmodus oder kein Steam.
+"""
+import os
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+from couch import APP_ID_BASE  # noqa: E402
+from couch.log import capped  # noqa: E402
+from couch.proc import tree  # noqa: E402
+
+APP_ID_MAX = 0x7FFFFFFF
+STEAM_COMM = "steam"                     # der Client (ubuntu12_32/steam), nicht steam.sh oder steamwebhelper
+PASS = ("DXVK_HDR", "PROTON_FSR4_UPGRADE", "FSR4_UPGRADE")
+# Schalter, mit denen die Game-Mode-Sitzung Steams Oberfläche (Big Picture) einrichtet. Ohne sie
+# verhält sich Steam wie der unsichtbare Desktop-Client (so läuft es auch in der Desktop-App);
+# die Marken für Ausschalten/Neustart gehören allein dem Steam des Supervisors.
+SESSION_ONLY = ("STEAM_USE_MANGOAPP", "STEAM_MULTIPLE_XWAYLANDS", "STEAM_DISABLE_MANGOAPP_ATOM_WORKAROUND",
+                "STEAM_USE_DYNAMIC_VRS", "STEAM_ENABLE_VOLUME_HANDLER", "STEAM_DISABLE_AUDIO_DEVICE_SWITCHING",
+                "STEAM_SESSION_FILE", "STEAMOS_STEAM_REBOOT_SENTINEL", "STEAMOS_STEAM_SHUTDOWN_SENTINEL",
+                "GAMESCOPE_LIMITER_FILE")
+SESSION_ONLY_PREFIXES = ("STEAM_GAMESCOPE_", "STEAM_MANGOAPP_")
+OWN = ("COUCH_APP_ID", "COUCH_ENTRY_ID", "COUCH_PRELAUNCH", "COUCH_PRELAUNCH_TIMEOUT",
+       "COUCH_STEAM_SESSION_ENV", "COUCH_STEAM_LOG")
+SHIMS = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "session", "shims")
+# Downloads (E98): Kennzeichen der Gamescope-Sitzung, die Steam auf Xvfb nicht sehen soll (dazu alles
+# mit GAMESCOPE_ vorn), und SDL-Schalter, die ihm alle Controller verbergen
+GAMESCOPE_MARKS = ("XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "ENABLE_GAMESCOPE_WSI",
+                   "SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS")
+NO_PADS = {"SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT": "0x0000/0x0000", "SDL_JOYSTICK_HIDAPI": "0"}
+XVFB_SCREEN = "1280x800x24"
+XVFB_WAIT = 10.0
+
+stop_wanted = False
+ROOTS = {os.getpid()}                    # main() ergänzt den reaper der Konsole
+
+
+def say(text):
+    print("couch-steam-game: " + text, flush=True)
+
+
+def tell(text):
+    print("MELDUNG: " + text, flush=True)
+
+
+def seconds(name, default):
+    try:
+        return max(0.0, float(os.environ.get(name, "") or default))
+    except ValueError:
+        return float(default)
+
+
+def schedule(name, default):
+    out = []
+    for part in (os.environ.get(name) if name in os.environ else default).split(","):
+        try:
+            if part.strip():
+                out.append(max(0.0, float(part)))
+        except ValueError:
+            pass
+    return sorted(out)
+
+
+def test_mode():
+    return bool(os.environ.get("COUCH_TEST_ROOT")) or os.environ.get("COUCH_TEST") == "1"
+
+
+def steam_command():
+    """argv-Anfang für Steam. Im Prüfmodus nur eine Attrappe, nie etwas, das "steam" heißt."""
+    given = os.environ.get("COUCH_STEAM_CMD", "")
+    if test_mode():
+        cmd = shlex.split(given) if given else []
+        if not cmd or os.path.basename(cmd[0]) == "steam":
+            return None
+        return cmd
+    return shlex.split(given) if given else ["steam"]
+
+
+def read_env_file(path):
+    env = {}
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError:
+        return None
+    for item in raw.split(b"\0"):
+        if b"=" in item:
+            k, _, v = item.partition(b"=")
+            env[k.decode("utf-8", "surrogateescape")] = v.decode("utf-8", "surrogateescape")
+    return env or None
+
+
+def steam_env():
+    env = read_env_file(os.environ.get("COUCH_STEAM_SESSION_ENV", "")) if os.environ.get("COUCH_STEAM_SESSION_ENV") else None
+    if env is None:
+        env = dict(os.environ)
+    for key in list(env):
+        if key in OWN or key in SESSION_ONLY or key.startswith(SESSION_ONLY_PREFIXES):
+            del env[key]
+    for key in PASS:
+        if key in os.environ:
+            env[key] = os.environ[key]
+    if os.environ.get("DISPLAY"):
+        env["DISPLAY"] = os.environ["DISPLAY"]          # Spiele-Server (Xwayland 1)
+    env.pop("WAYLAND_DISPLAY", None)
+    shims = os.path.realpath(SHIMS)
+    if os.path.isdir(shims):
+        env["PATH"] = shims + os.pathsep + env.get("PATH", os.defpath)
+    return env
+
+
+def die_with_parent():
+    """Im Kind vor exec: endet der Helfer (auch hart), bekommt es SIGTERM."""
+    try:
+        import ctypes
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM, 0, 0, 0)     # PR_SET_PDEATHSIG
+    except (OSError, AttributeError):
+        pass
+
+
+def hidden_display():
+    """Eigener unsichtbarer X-Server für das Download-Steam: (":N", Popen) oder (None, None).
+    Im Prüfmodus nur mit COUCH_XVFB (Attrappe), nie ein echtes Xvfb."""
+    given = os.environ.get("COUCH_XVFB", "")
+    if test_mode() and not given:
+        return None, None
+    exe = shutil.which(given or "Xvfb")
+    if not exe:
+        return None, None
+    r, w = os.pipe()
+    try:
+        p = subprocess.Popen([exe, "-displayfd", str(w), "-screen", "0", XVFB_SCREEN, "-nolisten", "tcp", "-noreset"],
+                             pass_fds=(w,), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, preexec_fn=die_with_parent)
+    except OSError as e:
+        os.close(r)
+        os.close(w)
+        say("Xvfb startet nicht: %s" % e)
+        return None, None
+    os.close(w)
+    data, end = b"", time.monotonic() + seconds("COUCH_XVFB_WAIT", XVFB_WAIT)
+    try:
+        import select
+        while b"\n" not in data and time.monotonic() < end and p.poll() is None:
+            ready, _, _ = select.select([r], [], [], 0.2)
+            if ready:
+                chunk = os.read(r, 32)
+                if not chunk:
+                    break
+                data += chunk
+    finally:
+        os.close(r)
+    num = data.strip()
+    if not num.isdigit():
+        say("Xvfb meldet keinen Bildschirm")
+        stop_display(p)
+        return None, None
+    return ":" + num.decode(), p
+
+
+def stop_display(p):
+    if p is None or p.poll() is not None:
+        return
+    p.terminate()
+    try:
+        p.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait()
+
+
+def download_env(env, display):
+    """Umgebung des Download-Steam auf dem eigenen Bildschirm: ohne Gamescope, ohne Controller."""
+    out = {k: v for k, v in env.items() if k not in GAMESCOPE_MARKS and not k.startswith("GAMESCOPE_")}
+    out["DISPLAY"] = display
+    out.update(NO_PADS)
+    return out
+
+
+# ---------------------------------------------------------------- Prozesse
+def own_roots():
+    """Wurzeln, unter denen "unser" Steam liegt: dieser Helfer und sein reaper (dorthin hängt
+    der Kernel verwaiste Steam-Prozesse um)."""
+    roots = {os.getpid()}
+    found = tree.find_reaper(os.getpid())
+    # nur der eigene reaper (direkter Elternprozess), nicht irgendeiner weiter oben: Läuft der
+    # Helfer z. B. in der Desktop-App, gehörte sonst deren ganzer Baum samt Steam „uns“
+    if found is not None and found[0] == os.getppid() and APP_ID_BASE < found[1] <= APP_ID_MAX:
+        roots.add(found[0])
+    return roots
+
+
+def scan():
+    """(alle Prozesse, eigene lebende Prozesse). Im Prüfmodus zählen nur Prozesse aus demselben
+    Prüfkäfig (COUCH_TEST_ROOT in ihrer Umgebung): Ein echtes Steam bleibt dann unsichtbar."""
+    snap = tree.snapshot()
+    uid = os.getuid()
+    cage = ("COUCH_TEST_ROOT=%s" % os.environ["COUCH_TEST_ROOT"]).encode() if test_mode() and os.environ.get("COUCH_TEST_ROOT") else None
+    mine = {}
+    for pid, info in snap.items():
+        try:
+            if os.stat("/proc/%d" % pid).st_uid != uid or info.state in ("Z", "X"):
+                continue
+            if cage is not None or test_mode():
+                with open("/proc/%d/environ" % pid, "rb") as f:
+                    if cage is None or cage not in f.read().split(b"\0"):
+                        continue
+            mine[pid] = info
+        except OSError:
+            pass
+    return snap, mine
+
+
+def under(pid, roots, snap):
+    cur = pid
+    for _ in range(256):
+        info = snap.get(cur)
+        if info is None:
+            return False
+        if info.ppid in roots:
+            return True
+        if info.ppid <= 1:
+            return False
+        cur = info.ppid
+    return False
+
+
+def steam_clients(mine):
+    return [p for p, i in mine.items() if i.comm == STEAM_COMM]
+
+
+def game_reapers(mine):
+    """Steams eigene reaper (nicht die der Konsole): {pid: app_nummer}."""
+    out = {}
+    for pid, info in mine.items():
+        if info.comm != tree.REAPER_COMM:
+            continue
+        n = tree.reaper_app_id(pid)
+        if n is not None and not (APP_ID_BASE < n <= APP_ID_MAX):
+            out[pid] = n
+    return out
+
+
+# ---------------------------------------------------------------- Steam bedienen
+def send(cmd, args, env, log, wait=None):
+    try:
+        p = subprocess.Popen(cmd + args, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+    except OSError as e:
+        say("%s %s scheitert: %s" % (cmd[0], " ".join(args), e))
+        return None
+    if wait is not None:
+        try:
+            p.wait(timeout=wait)
+        except subprocess.TimeoutExpired:
+            pass
+    return p
+
+
+def wait_until(check, limit, step):
+    end = time.monotonic() + limit
+    while time.monotonic() < end:
+        if check():
+            return True
+        time.sleep(step)
+    return check()
+
+
+def clear_foreign(cmd, env, log, roots, step):
+    """Ein Steam, das nicht von diesem Helfer stammt, beenden. False: steht weiter im Weg."""
+    snap, mine = scan()
+    foreign = [p for p in steam_clients(mine) if not under(p, roots, snap)]
+    if not foreign:
+        return True
+    busy = [p for p in game_reapers(mine) if any(under(p, {f}, snap) for f in foreign)]
+    if busy:
+        tell("In Steam läuft gerade schon ein Spiel (wohl in der Desktop-App). Beende es dort, "
+             "dann startet die Konsole das Spiel selbst.")
+        return False
+    say("Steam läuft schon außerhalb der Konsole (PID %s, wohl in der Desktop-App), wird für den Start beendet"
+        % ", ".join(map(str, foreign)))
+    send(cmd, ["-shutdown"], env, log, wait=20)
+
+    def gone():
+        return not any(tree.alive(p) for p in foreign)
+    if wait_until(gone, seconds("COUCH_STEAM_FOREIGN_WAIT", 30), step):
+        say("fremdes Steam ist beendet")
+        return True
+    tell("Steam läuft schon (wohl in der Desktop-App) und lässt sich nicht beenden. Beende es dort, "
+         "dann startet die Konsole das Spiel selbst.")
+    return False
+
+
+def quit_own(steam, cmd, env, log, limit, step):
+    """Eigenes Steam beenden: erst höflich, dann SIGTERM, dann SIGKILL an die Nachkommen."""
+    def own_alive():
+        snap, mine = scan()
+        return [p for p in steam_clients(mine) if under(p, ROOTS, snap)]
+    end = time.monotonic() + limit
+    if own_alive():
+        say("Steam wird beendet")
+        send(cmd, ["-shutdown"], env, log, wait=limit)
+    if not wait_until(lambda: not own_alive() and (steam is None or steam.poll() is not None),
+                      max(0.0, end - time.monotonic()), 0.25):
+        say("Steam endet nicht von selbst: SIGTERM")
+        tree.signal_tree(os.getpid(), signal.SIGTERM)
+        if not wait_until(lambda: not own_alive(), 3, 0.25):
+            say("Steam endet nicht: SIGKILL")
+            tree.signal_tree(os.getpid(), signal.SIGKILL)
+    if steam is not None:
+        try:
+            steam.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def stop_game(games):
+    for pid in games:
+        say("Spiel wird beendet (reaper %d)" % pid)
+        tree.signal_tree(pid, signal.SIGTERM)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def on_signal(signum, _frame):
+    global stop_wanted
+    stop_wanted = True
+
+
+def become_subreaper():
+    try:
+        import ctypes
+        ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)       # PR_SET_CHILD_SUBREAPER
+    except (OSError, AttributeError):
+        pass
+
+
+def download_main():
+    """Steam im Hintergrund für die Downloads des Stores (siehe Modulkopf)."""
+    cmd = steam_command()
+    if cmd is None:
+        tell("Im Prüfmodus startet die Konsole kein echtes Steam.")
+        return 5
+    if not test_mode() and shutil.which(cmd[0]) is None:
+        tell("Steam ist nicht installiert.")
+        return 5
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, on_signal)
+    become_subreaper()
+    step = max(0.05, seconds("COUCH_STEAM_SCAN", 0.5))
+    env = steam_env()
+    log_path = os.environ.get("COUCH_STEAM_LOG") or os.devnull
+    try:
+        # Angehängt wird bei jedem Download-Lauf: über 5 MiB wird es zu .1 (log.capped, E99)
+        log = open(capped(log_path) if log_path != os.devnull else log_path, "a")
+    except OSError:
+        log = open(os.devnull, "w")
+    xvfb = None
+    try:
+        with log:
+            if not clear_foreign(cmd, env, log, ROOTS, step):
+                return 4
+            if stop_wanted:
+                return 0
+            display, xvfb = hidden_display()
+            if display:
+                env = download_env(env, display)
+                say("Steam startet unsichtbar für Downloads (eigener Bildschirm %s)" % display)
+            else:
+                say("Steam startet unsichtbar für Downloads")
+            steam = send(cmd, ["-silent"], env, log)
+            if steam is None:
+                tell("Steam ließ sich nicht starten.")
+                return 5
+            started = time.monotonic()
+            while not stop_wanted:
+                snap, mine = scan()
+                own = [p for p in steam_clients(mine) if under(p, ROOTS, snap)]
+                if not own and steam.poll() is not None and time.monotonic() - started > 20:
+                    say("Steam ist beendet (von außen)")
+                    return 0
+                time.sleep(step)
+            quit_own(steam, cmd, env, log, seconds("COUCH_STEAM_QUIT_WAIT", 25), step)
+            say("Ende der Downloads")
+            return 0
+    finally:
+        stop_display(xvfb)
+
+
+def main(argv):
+    if len(argv) == 2 and argv[1] == "--download":
+        return download_main()
+    if len(argv) < 3 or not argv[1].isdigit() or not argv[2].isdigit():
+        print(__doc__.split("\n\n")[0], file=sys.stderr)
+        return 2
+    gameid, appid = argv[1], int(argv[2])
+    name = "„%s“" % argv[3] if len(argv) > 3 and argv[3] else "das Spiel"
+    uri = "steam://rungameid/" + gameid
+    cmd = steam_command()
+    if cmd is None:
+        tell("Im Prüfmodus startet die Konsole kein echtes Steam.")
+        return 5
+    if not test_mode() and shutil.which(cmd[0]) is None:
+        tell("Steam ist nicht installiert.")
+        return 5
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, on_signal)
+    step = max(0.05, seconds("COUCH_STEAM_SCAN", 0.5))
+    env = steam_env()
+    ROOTS.update(own_roots())
+    log_path = os.environ.get("COUCH_STEAM_LOG") or os.devnull
+    try:
+        log = open(log_path, "w")
+    except OSError:
+        log = open(os.devnull, "w")
+    with log:
+        if not clear_foreign(cmd, env, log, ROOTS, step):
+            return 4
+        if stop_wanted:
+            return 0
+        say("Steam startet unsichtbar: %s" % uri)
+        steam = send(cmd, ["-silent", uri], env, log)
+        if steam is None:
+            tell("Steam ließ sich nicht starten.")
+            return 5
+        rc = watch(steam, cmd, env, log, uri, appid, name, step)
+        quit_own(steam, cmd, env, log,
+                 seconds("COUCH_STEAM_STOP_WAIT", 6) if stop_wanted else seconds("COUCH_STEAM_QUIT_WAIT", 25), step)
+        say("Ende (%d)" % rc)
+        return rc
+
+
+def watch(steam, cmd, env, log, uri, appid, name, step):
+    wait = seconds("COUCH_STEAM_GAME_WAIT", 300)
+    gone_after = seconds("COUCH_STEAM_GONE", 5)
+    resends = schedule("COUCH_STEAM_RESEND", "25,60,120")
+    helpers = []
+    elapsed = 0.0                        # ohne angehaltene Zeit (die Konsole hält Apps an)
+    last = time.monotonic()
+    seen = None                          # Zeitpunkt, an dem zuletzt ein Spiel lief
+    games = {}
+    next_note = 30.0                     # Lebenszeichen ins Protokoll, solange kein Spiel da ist
+    while True:
+        now = time.monotonic()
+        elapsed += min(now - last, 2 * step)
+        last = now
+        helpers = [p for p in helpers if p.poll() is None]
+        snap, mine = scan()
+        reapers = game_reapers(mine)
+        games = {p: n for p, n in reapers.items() if n == appid or under(p, ROOTS, snap)}
+        if stop_wanted:
+            stop_game(games)
+            return 0
+        if games:
+            if seen is None:
+                say("Spiel läuft: %s" % ", ".join("AppId=%d (reaper %d)" % (n, p) for p, n in games.items()))
+                if appid not in games.values():
+                    say("Achtung: erwartet war AppId=%d" % appid)
+            seen = elapsed
+        elif seen is not None:
+            if elapsed - seen >= gone_after:
+                say("Spiel ist beendet")
+                return 0
+        else:
+            if steam.poll() is not None and not steam_clients(mine):
+                tell("Steam wurde beendet, bevor %s startete." % name)
+                return 3
+            if resends and elapsed >= resends[0]:
+                resends.pop(0)
+                if steam_clients(mine):
+                    say("nach %.0f s noch kein Spiel: Adresse erneut an Steam" % elapsed)
+                    p = send(cmd, [uri], env, log)
+                    if p is not None:
+                        helpers.append(p)
+            if elapsed >= next_note:
+                next_note += 30.0
+                say("warte auf das Spiel (%.0f s): Steam-Client %s, reaper %s" % (
+                    elapsed, steam_clients(mine) or "keiner", reapers or "keine"))
+            if elapsed >= wait:
+                tell("Steam hat %s nicht binnen %d Sekunden gestartet." % (name, wait))
+                return 3
+        time.sleep(step)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

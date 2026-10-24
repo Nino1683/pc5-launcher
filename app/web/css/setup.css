@@ -1,0 +1,52 @@
+/* Einrichtungs-Assistent (E105, Teil P5), Bildschirme setup-*. Gerüst aus createListScreen
+   (css/installer.css .flow), hier als Spalte: Titel, Unterzeile (S1), Einleitung, darunter Liste und
+   rechte Spalte, die den Rest der Höhe füllen. Die Einleitung bricht um statt gekürzt zu werden.
+   Knöpfe unten rechts wie im Archiv-Installer, links daneben eine Fußzeile.
+   Zahlenwerte nur in tokens.css (Block E105-setup). */
+.flow.setup { display: flex; flex-direction: column; padding: var(--setup-pad-top) 0 var(--setup-pad-bottom); }
+.flow.setup > .flow-title { position: static; flex: none; margin-left: var(--m-head); }
+.setup-crumb { position: absolute; left: var(--m-head); top: var(--set-crumb-top); max-width: var(--set-title-w);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); white-space: nowrap; }
+.setup-subline { flex: none; margin: var(--setup-sub-gap) 0 0 var(--m-head); max-width: var(--setup-lead-w);
+  font-size: var(--fs-body); line-height: var(--lh-body); }
+.flow.setup > .flow-sub { position: static; flex: none; margin: var(--setup-lead-gap) 0 0 var(--m-head); max-width: var(--setup-lead-w);
+  white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+
+/* Schrittanzeige oben rechts (sieben Striche: erledigt, jetzt, offen) */
+.setup-steps { position: absolute; right: var(--m-content); top: calc(var(--set-crumb-top) + (var(--lh-caption) - var(--setup-dot-h)) / 2);
+  display: flex; gap: var(--setup-dot-gap); }
+.setup-steps > i { width: var(--setup-dot-w); height: var(--setup-dot-h); border-radius: var(--setup-dot-r); background: var(--c-setup-dot); }
+.setup-steps > i.is-done { background: var(--c-setup-dot-done); }
+.setup-steps > i.is-now { background: var(--c-setup-dot-now); }
+
+/* Liste (und rechte Spalte) unter der Einleitung bis über die Knopfzeile; Text der Liste bei x=172 */
+.setup-body { flex: 1 1 0; min-height: 0; display: flex; gap: var(--setup-side-gap);
+  margin: var(--setup-body-gap) calc(var(--m-content) - var(--row-pad)) 0; }
+.flow.setup .flow-list { position: relative; left: auto; top: auto; flex: 1 1 0; min-width: 0; width: auto; }
+.flow.setup.setup-with-side .flow-list { flex: none; width: var(--flow-list-w); }
+.flow.setup .flow-list .rows { height: 100%; }
+.flow.setup .flow-scroll { left: auto; right: 0; top: 0; }
+
+/* Rechte Spalte (S7: Gesamt und Warnung, S9: was fehlt, Tipps): umbrechender Text, endet bei x=1748 */
+.setup-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--setup-tip-gap);
+  padding: var(--setup-side-pad) var(--row-pad) 0 0; }
+.setup-side-title { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+.setup-tip { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow-wrap: anywhere; }
+.setup-missing { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-setup-warn); overflow-wrap: anywhere; }
+.setup-fact-label { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); overflow-wrap: anywhere; }
+.setup-fact-value { font-size: var(--fs-body); line-height: var(--lh-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* S8: Gesamtfortschritt unter der Unterzeile, so breit wie der Inhalt */
+.flow.setup > .setup-overall { flex: none; height: var(--prog-bar-h); border-radius: var(--prog-bar-r); margin: var(--setup-lead-gap) var(--m-content) 0 var(--m-head); }
+
+/* Knopfzeile: links die Fußzeile (Auswahl, Hinweis), rechts die Knöpfe, Hauptknopf ganz rechts */
+.setup-bar { position: absolute; left: var(--m-content); right: var(--m-content); bottom: var(--flow-btn-bottom);
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--setup-side-gap); }
+.setup-foot { flex: 1 1 0; min-width: 0; max-width: var(--setup-foot-w); margin-right: auto;
+  font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow-wrap: anywhere; }
+.setup-actions { flex: none; display: flex; gap: var(--btn-gap); }
+.setup-actions > .btn { min-width: var(--btn-w); }
+
+/* Warnungen in der Liste: „Flatpak fehlt“ (S1), „Zu wenig Platz …“ (S7) */
+.flow.setup .row[data-row-id="flatpak"] .row-label, .flow.setup .row[data-row-id="flatpak"] .row-icon,
+.flow.setup .row[data-row-id="nospace"] .row-label, .flow.setup .row[data-row-id="nospace"] .row-icon { color: var(--c-setup-warn); }

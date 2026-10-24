@@ -1,0 +1,53 @@
+/* Startanimation „Polarlicht“ (E103). Zahlenwerte: tokens.css (Block Startanimation und Block E103-intro).
+   Keine CSS-Übergänge und keine Keyframes: components/intro.js setzt je Bild die registrierten Werte
+   (--fx-o/x/y/s, --in-sweep, --in-ls, --in-w); das Polarlicht zeichnet components/intro-sky.js. */
+.intro { position: fixed; inset: 0; z-index: var(--z-intro); overflow: hidden; background: var(--c-intro-bg);
+  display: flex; align-items: center; justify-content: center; opacity: var(--fx-o); pointer-events: none; }
+
+/* Polarlicht: WebGL-Fläche oder Rückfall aus weichen Lichtflächen */
+.intro-sky { position: absolute; inset: 0; opacity: var(--fx-o); }
+.intro-gl, .intro-blobs { position: absolute; inset: 0; width: 100%; height: 100%; }
+.intro-blobs { overflow: hidden; background: var(--g-intro-deep); opacity: var(--fx-o); transform: scale(var(--fx-s)); }
+/* jede Ebene ragt über den Rand hinaus (sie wandert), die Bänder enden weich (Maske) */
+.intro-blobs > i { position: absolute; inset: var(--intro-blob-inset); transform: translate(var(--fx-x), var(--fx-y)) scale(var(--fx-s)); }
+.intro-blobs > i:nth-child(1) { background: var(--g-intro-blob-a); }
+.intro-blobs > i:nth-child(2) { background: var(--g-intro-blob-b); -webkit-mask-image: var(--g-intro-blob-mask); mask-image: var(--g-intro-blob-mask); }
+.intro-blobs > i:nth-child(3) { background: var(--g-intro-blob-c); -webkit-mask-image: var(--g-intro-blob-mask); mask-image: var(--g-intro-blob-mask); }
+.intro-blobs > i:nth-child(4) { background: var(--g-intro-blob-d); }
+
+/* Licht hinter dem Schriftzug */
+.intro-halo { position: absolute; left: 50%; top: 50%; width: var(--intro-halo-w); height: var(--intro-halo-h);
+  margin: calc(var(--intro-halo-h) / -2) 0 0 calc(var(--intro-halo-w) / -2); background: var(--g-intro-halo);
+  opacity: var(--fx-o); transform: scale(var(--fx-s)); }
+
+/* Vorhang: zwei Hälften mit weicher Kante, öffnen sich von der Lichtnaht aus */
+.intro-curtain { position: absolute; left: 0; right: 0; height: calc(50% + var(--intro-feather)); transform: translateY(var(--fx-y)); }
+.intro-curtain.is-top { top: 0; background: var(--g-intro-curtain-top); }
+.intro-curtain.is-bottom { bottom: 0; background: var(--g-intro-curtain-bottom); }
+.intro-seam, .intro-seam-glow { position: absolute; left: 50%; top: 50%; }
+.intro-seam { width: var(--intro-seam-w); height: var(--intro-seam-h);
+  margin: calc(var(--intro-seam-h) / -2) 0 0 calc(var(--intro-seam-w) / -2); background: var(--g-intro-seam);
+  opacity: var(--fx-o); transform: scaleX(var(--fx-s)); }
+.intro-seam-glow { width: var(--intro-seam-glow-w); height: var(--intro-seam-glow-h);
+  margin: calc(var(--intro-seam-glow-h) / -2) 0 0 calc(var(--intro-seam-glow-w) / -2); background: var(--g-intro-seam-glow);
+  opacity: var(--fx-o); transform: scale(var(--fx-s), calc(var(--fx-s) * .6 + .4)); }
+
+/* Schriftzug: „PC5“ groß, „LAUNCHER“ gesperrt darunter */
+.intro-mark { position: relative; display: flex; flex-direction: column; align-items: center;
+  opacity: var(--fx-o); transform: translateY(var(--fx-y)) scale(var(--fx-s)); }
+.intro-word { position: relative; font-family: var(--font-intro); font-size: var(--fs-intro); line-height: var(--lh-intro); font-weight: var(--in-w);
+  letter-spacing: var(--ls-intro); padding-left: var(--ls-intro); font-kerning: none; white-space: nowrap; }
+.intro-glyphs { position: relative; }
+.intro-ch { position: relative; display: inline-block; color: var(--c-intro-logo); text-shadow: var(--intro-glow);
+  opacity: var(--fx-o); transform: translate(var(--fx-x), var(--fx-y)); }
+/* Spuren: dieselbe Ziffer etwas zurück (Eindruck von Bewegungsunschärfe), hinter der Ziffer */
+.intro-trail { position: absolute; inset: 0; padding-left: var(--ls-intro); }
+.intro-trail > span { display: inline-block; color: var(--c-intro-trail);
+  opacity: var(--fx-o); transform: translate(var(--fx-x), var(--fx-y)); }
+/* Glanz: derselbe Schriftzug darüber, nur ein heller Streifen ist sichtbar */
+.intro-shine { position: absolute; inset: 0; padding-left: var(--ls-intro); color: transparent; -webkit-text-fill-color: transparent;
+  background: var(--g-intro-shine); background-size: var(--intro-shine-size) 100%; background-repeat: no-repeat;
+  background-position: var(--in-sweep) 0; -webkit-background-clip: text; background-clip: text; opacity: var(--fx-o); }
+.intro-sub { margin-top: var(--intro-sub-gap); font-size: var(--fs-intro-sub); line-height: var(--lh-intro-sub); font-weight: var(--w-intro-sub);
+  color: var(--c-intro-sub); text-shadow: var(--intro-sub-glow); letter-spacing: var(--in-ls); padding-left: var(--in-ls); white-space: nowrap;
+  opacity: var(--fx-o); transform: translateY(var(--fx-y)); }

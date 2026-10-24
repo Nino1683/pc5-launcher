@@ -1,0 +1,210 @@
+#!/usr/bin/python3 -I
+"""couch-launcher-game <launcher> <code> <ordner-windows> – startet ein Spiel über den Launcher des
+Herstellers, ohne dass man ihn sieht (Bauplan E94): Battle.net, Ubisoft Connect, Rockstar.
+
+Prefix, Proton und die übrige Umgebung stehen schon da (launch/proton.py, WINEPREFIX, PROTONPATH).
+Was der Helfer je Launcher braucht, kommt aus store/launchers.py über die Umgebung (E99; vorher
+führte er eine eigene Kopie der Tabelle):
+  COUCH_LAUNCHER_EXE     Programmdatei des Launchers (Linux-Pfad)
+  COUCH_LAUNCHER_NAME    sein Name für Meldungen
+  COUCH_LAUNCHER_READY   Programme, an denen man erkennt, dass er läuft (klein, mit Komma getrennt)
+  COUCH_LAUNCHER_SETTLE  Sekunden danach, bevor der Start ausgelöst wird
+  COUCH_LAUNCHER_START   Argumente für den Start des Spiels (JSON-Liste, nach der Programmdatei)
+  COUCH_LAUNCHER_AFTER   Nachlauf in Sekunden nach dem Spiel (Cloud-Abgleich der Spielstände)
+Ablauf:
+  1. Läuft der Launcher im Prefix noch nicht, wird er gestartet (umu-run); seine Fenster zeigt die
+     Konsole nicht (gs/focus.py), man sieht weiter das Ladebild.
+  2. Sobald seine Programme laufen (und noch einige Sekunden), löst ein zweiter Aufruf den Start aus
+     (PROTON_VERB=runinprefix: kein Warten auf den laufenden Wineserver).
+  3. Das Skript wartet auf das Spiel (ein Programm aus dem Spielordner) und dann auf sein Ende, danach
+     noch den Nachlauf (endet früher, wenn der Launcher selbst zu ist).
+  4. Danach beendet es alles im Prefix (wineserver -k): Die App der Konsole endet mit dem Spiel. Den
+     Launcher, den dieser Helfer gestartet hat, immer: Er gehört zum Baum der App, und deren reaper
+     wartet auf alle Nachkommen (E99; vorher blieb die App bei gesetzter Marke „laufend“ hängen).
+Fristen zählen nur Zeit, in der der Helfer lief: Die Konsole hält Apps samt Helfer an (SIGSTOP), wenn
+sie hinten liegen; danach galt eine Frist sonst als abgelaufen (wie couch-steam-game, E99).
+Rückgabewert 0; 3, wenn das Spiel nicht kam (Satz als Zeile „MELDUNG: …“ für den Fehlerdialog der
+Shell, E57); 2 bei falschem Aufruf. Prüf-Schalter: COUCH_LAUNCHER_START_WAIT, _GAME_WAIT, _QUIET, _STEP.
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+
+MARK = ".couch-installing"           # wiring_launchers.MARK: die Konsole installiert über diesen Launcher
+ASK_AGAIN_S = 45
+
+
+def seconds(name: str, default: float) -> float:
+    try:
+        return max(0.0, float(os.environ.get(name, "") or default))
+    except ValueError:
+        return float(default)
+
+
+START_LAUNCHER_S = seconds("COUCH_LAUNCHER_START_WAIT", 180)
+# Will der Launcher etwas (Anmeldung, Update), zeigt die Konsole ihn nach einer Minute (gs/focus.py):
+# Zeit genug zum Anmelden, auch mit Bestätigungscode
+GAME_APPEARS_S = seconds("COUCH_LAUNCHER_GAME_WAIT", 900)
+QUIET_S = seconds("COUCH_LAUNCHER_QUIET", 5)     # ein Spiel startet sich manchmal neu (Patcher, Anti-Cheat)
+STEP = seconds("COUCH_LAUNCHER_STEP", 1) or 1.0
+
+
+def log(text: str) -> None:
+    print("couch-launcher-game: " + text, file=sys.stderr, flush=True)
+
+
+def tell(text: str) -> None:
+    """Satz für den Fehlerdialog (shell._own_words liest die letzte Zeile „MELDUNG: …“)."""
+    print("MELDUNG: " + text, flush=True)
+
+
+class Clock:
+    """Sekunden, in denen der Helfer lief: Ein Sprung über zwei Takte (angehalten) zählt nur zwei Takte."""
+
+    def __init__(self) -> None:
+        self.last = time.monotonic()
+        self.elapsed = 0.0
+
+    def tick(self) -> float:
+        now = time.monotonic()
+        self.elapsed += min(now - self.last, 2 * STEP)
+        self.last = now
+        return self.elapsed
+
+
+def wine_procs() -> list:
+    """[(pid, programmpfad klein)] aller Wine-Programme dieses Nutzers in diesem Prefix."""
+    prefix = os.path.realpath(os.environ.get("WINEPREFIX", ""))
+    out = []
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open("/proc/%s/environ" % name, "rb") as fh:
+                env = fh.read().split(b"\0")
+            if prefix and not any(e == b"WINEPREFIX=" + os.fsencode(prefix) or
+                                  (e.startswith(b"WINEPREFIX=") and os.path.realpath(os.fsdecode(e[11:])) == prefix)
+                                  for e in env):
+                continue
+            with open("/proc/%s/cmdline" % name, "rb") as fh:
+                argv0 = fh.read().split(b"\0")[0].decode("utf-8", "replace")
+        except OSError:
+            continue
+        if argv0:
+            out.append((int(name), argv0.replace("/", "\\").lower()))
+    return out
+
+
+def running(names) -> bool:
+    procs = [p for _pid, p in wine_procs()]
+    return all(any(p.endswith("\\" + n) or p == n for p in procs) for n in names)
+
+
+def game_pids(folder_win: str) -> list:
+    folder = folder_win.replace("/", "\\").lower().rstrip("\\") + "\\"
+    return [pid for pid, p in wine_procs() if p.startswith(folder) and p.endswith(".exe")]
+
+
+def umu(args: list, verb: str = "") -> subprocess.Popen:
+    env = dict(os.environ)
+    if verb:
+        env["PROTON_VERB"] = verb
+    return subprocess.Popen(["umu-run", *args], env=env, stdin=subprocess.DEVNULL)
+
+
+def main() -> int:
+    if len(sys.argv) < 4:
+        log("Aufruf: couch-launcher-game <battlenet|ubisoft|rockstar> <code> <ordner-windows>")
+        return 2
+    launcher, code, folder = sys.argv[1], sys.argv[2], sys.argv[3]
+    exe = os.environ.get("COUCH_LAUNCHER_EXE", "")
+    name = os.environ.get("COUCH_LAUNCHER_NAME", "") or "Der Launcher"
+    ready = [n.strip().lower() for n in os.environ.get("COUCH_LAUNCHER_READY", "").split(",") if n.strip()]
+    try:
+        start = [exe, *[str(a) for a in json.loads(os.environ.get("COUCH_LAUNCHER_START", "") or "null")]]
+    except (TypeError, ValueError):
+        start = None
+    if not exe or not ready or start is None:
+        log("COUCH_LAUNCHER_EXE, COUCH_LAUNCHER_READY oder COUCH_LAUNCHER_START fehlt (launch/proton.py)")
+        return 2
+    settle = seconds("COUCH_LAUNCHER_SETTLE", 0)
+    after = seconds("COUCH_LAUNCHER_AFTER", 0)
+
+    own = False
+    if not running(ready):
+        log("starte %s" % launcher)
+        umu([exe])
+        own = True
+        clock = Clock()
+        while not running(ready):
+            if clock.tick() > START_LAUNCHER_S:
+                log("der Launcher ist nach %d s nicht bereit" % START_LAUNCHER_S)
+                stop_prefix(own)
+                tell("%s startete nicht (keine Rückmeldung nach %d Minuten). Versuche es noch einmal."
+                     % (name, max(1, round(START_LAUNCHER_S / 60))))
+                return 3
+            time.sleep(STEP)
+        time.sleep(settle)
+    log("löse den Start aus: %s %s" % (launcher, code))
+    trigger = umu(start, verb="runinprefix")
+
+    clock = Clock()
+    asked_again = False
+    while not game_pids(folder):
+        waited = clock.tick()
+        if waited > GAME_APPEARS_S:
+            log("das Spiel ist nach %d s nicht gestartet" % GAME_APPEARS_S)
+            stop_prefix(own)
+            tell("Das Spiel startete über %s nicht (nach %d Minuten). Versuche es noch einmal."
+                 % (name, max(1, round(GAME_APPEARS_S / 60))))
+            return 3
+        # Battle.net nimmt den ersten Aufruf manchmal nicht an, solange es noch anmeldet: noch einmal
+        if not asked_again and waited > ASK_AGAIN_S and trigger.poll() is not None:
+            asked_again = True
+            trigger = umu(start, verb="runinprefix")
+        time.sleep(STEP)
+    log("Spiel läuft")
+    wait_for_end(folder, ready, after)
+    stop_prefix(own)
+    return 0
+
+
+def wait_for_end(folder: str, ready, after: float) -> None:
+    """Bis das Spiel QUIET_S lang weg ist, dann den Nachlauf: Ubisoft Connect und Rockstar gleichen
+    Cloud-Spielstände erst nach dem Spiel ab (store/launchers.py after_game). Kommt das Spiel wieder
+    (Neustart durch Patcher), gilt wieder das Warten auf sein Ende."""
+    clock = Clock()
+    seen = clock.tick()
+    told = False
+    while True:
+        now = clock.tick()
+        if game_pids(folder):
+            seen, told = now, False
+        elif now - seen >= QUIET_S + after or (now - seen >= QUIET_S and after and not running(ready)):
+            break
+        elif now - seen >= QUIET_S and after and not told:
+            told = True
+            log("Spiel beendet, der Launcher gleicht noch bis %d s ab" % after)
+        time.sleep(STEP)
+    log("Spiel beendet")
+
+
+def stop_prefix(own: bool) -> None:
+    """Alles in diesem Prefix beenden, damit die App mit dem Spiel endet. Hat dieser Helfer den Launcher
+    gestartet, immer. Lief er schon vorher (nicht in diesem Baum), nicht, solange die Konsole über ihn
+    noch etwas installiert (Marke .couch-installing im Prefix)."""
+    if not own and os.path.exists(os.path.join(os.environ.get("WINEPREFIX", ""), MARK)):
+        log("der Launcher lädt noch ein Spiel, er läuft weiter")
+        return
+    server = os.path.join(os.environ.get("PROTONPATH", ""), "files", "bin", "wineserver")
+    if os.path.isfile(server):
+        try:
+            subprocess.run([server, "-k"], env=dict(os.environ), timeout=30, check=False)
+        except (OSError, subprocess.SubprocessError) as e:
+            log("wineserver -k: %s" % e)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

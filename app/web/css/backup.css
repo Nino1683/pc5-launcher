@@ -1,0 +1,8 @@
+/* Einstellungen sichern und übernehmen (E106, Teil P11), Bildschirm backup. Zahlenwerte nur in tokens.css (Block E106-backup).
+   Gerüst der Abläufe (installer.css .flow, .flow-side, .saves-label, .saves-path): Liste links, rechts was
+   gesichert wird bzw. die Angaben der gewählten Sicherung. */
+.bk-side { display: flex; flex-direction: column; gap: var(--bk-block-gap); }
+.bk-block { display: flex; flex-direction: column; gap: var(--bk-gap); }
+.bk-facts { display: flex; flex-direction: column; gap: var(--bk-block-gap); }
+.bk-text { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); overflow-wrap: anywhere; }
+.bk-path { padding: var(--bk-path-pad); }

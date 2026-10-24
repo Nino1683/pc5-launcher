@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+"""couch-vacuumtube-prep: schaltet VacuumTubes eigene Controller-Abfrage aus (Bauplan E54).
+
+couch übersetzt das Pad für YouTube selbst in Pfeiltasten, Enter und Escape. Liest VacuumTube
+das Pad zusätzlich selbst (oder Steams virtuelles Pad, wenn in der Desktop-App Steam läuft),
+kommt jede Richtung doppelt an (am Fernseher gesehen 2026-10-15: „geht immer 2 Schritte“).
+
+Ändert nur "controller_support" in ~/.var/app/rocks.shy.VacuumTube/config/VacuumTube/config.json,
+alle anderen Werte bleiben, wie sie sind. Fehlt die Datei (VacuumTube lief noch nie), entsteht
+sie nur mit diesem einen Wert; VacuumTube ergänzt den Rest selbst.
+
+Läuft als prelaunch vor jedem YouTube-Start. Pfad zum Prüfen: COUCH_VACUUMTUBE_CONFIG; im
+Prüfmodus (COUCH_TEST_ROOT) ohne diese Angabe tut es nichts.
+Rückgabe immer 0: Ein Vorab-Befehl darf den Start nicht verhindern.
+"""
+import json
+import os
+import sys
+
+KEY = "controller_support"
+
+
+def config_path() -> str | None:
+    given = os.environ.get("COUCH_VACUUMTUBE_CONFIG")
+    if given:
+        return given
+    if os.environ.get("COUCH_TEST_ROOT"):
+        return None
+    return os.path.expanduser("~/.var/app/rocks.shy.VacuumTube/config/VacuumTube/config.json")
+
+
+def main() -> int:
+    path = config_path()
+    if not path:
+        print("couch-vacuumtube-prep: Prüfmodus, nichts geändert")
+        return 0
+    data = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            print("couch-vacuumtube-prep: %s ist kein Objekt, bleibt unverändert" % path)
+            return 0
+    except FileNotFoundError:
+        data = {}
+    except (OSError, ValueError) as e:
+        print("couch-vacuumtube-prep: %s nicht lesbar (%s), bleibt unverändert" % (path, e))
+        return 0
+    if data.get(KEY) is False:
+        return 0
+    data[KEY] = False
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".couch-neu"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+            f.write("\n")
+        os.replace(tmp, path)
+        print("couch-vacuumtube-prep: eigene Controller-Abfrage von VacuumTube ausgeschaltet")
+    except OSError as e:
+        print("couch-vacuumtube-prep: %s nicht schreibbar (%s)" % (path, e))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

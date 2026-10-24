@@ -1,0 +1,100 @@
+# couch – Vorlage für ~/.config/gamescope-session-plus/sessions.d/steam
+# (ogui-steam ist dort ein Verweis auf diese Datei; sie gilt also für beide Sitzungen).
+# Einhängen macht ausschließlich der Hauptagent.
+#
+# gamescope-session-plus liest diese Datei per "." unter "set -a" ein, NACH der Stock-Datei
+# /usr/share/gamescope-session-plus/sessions.d/steam. Regeln für alles, was hier steht:
+#   * kein Abbruch der Shell, kein Fehlermodus, jeder Befehl mit Fehlerabfang, nichts was
+#     hängen kann. Ein Fehler hier darf höchstens bewirken, dass die Sitzung reines Steam startet.
+#   * GAMESCOPECMD, Auflösung und HDR bleiben unangetastet (Bauplan E1).
+#   * Alles, was hier zugewiesen wird, landet in der Umgebung aller Kinder (set -a).
+
+# Fernseher über das HDMI-over-LAN-Gerät an HDMI-A-1 (Stand vor diesem Projekt)
+OUTPUT_CONNECTOR="HDMI-A-1,*"
+
+# ---------------------------------------------------------------------------- couch einhängen
+_couch_home="${HOME:-}"
+_couch_data="${COUCH_DATA:-$_couch_home/.local/share/couch}"
+_couch_entry="$_couch_data/current/session/couch-session"
+_couch_state="$_couch_home/.local/state/couch"
+
+if [[ -n "${CLIENTCMD:-}" && "${CLIENTCMD:-}" == "$_couch_entry" ]]; then
+    :   # schon eingehängt (Datei zweimal eingelesen): nichts ein zweites Mal anfassen
+else
+    # Die echte Sitzung beginnt ohne COUCH_*-Variablen. Wäre etwa COUCH_TEST_ROOT aus einem
+    # Testlauf in die Benutzerumgebung geraten, liefe die Sitzung sonst im Prüfmodus (ohne Steam).
+    for _couch_var in "${!COUCH_@}"; do
+        [[ "$_couch_var" == COUCH_DATA ]] || unset "$_couch_var" 2>/dev/null || :
+    done
+    unset _couch_var
+
+    _couch_on=1
+    [[ -n "$_couch_home" ]] || _couch_on=0
+    # Notschalter von Hand: touch ~/.config/couch/disabled
+    [[ -e "$_couch_home/.config/couch/disabled" ]] && _couch_on=0
+    # Die Sitzung zerlegt $CLIENTCMD in Wörter: Der Pfad darf weder Leerraum noch Muster enthalten.
+    case "$_couch_entry" in *[[:space:]\*\?\[\]]*) _couch_on=0 ;; esac
+    # Einstieg fehlt, ist nicht ausführbar oder hat einen Syntaxfehler: gar nicht erst versuchen.
+    if [[ $_couch_on == 1 ]]; then
+        if [[ -f "$_couch_entry" && -x "$_couch_entry" ]] && timeout 5 bash -n "$_couch_entry" 2>/dev/null; then :; else _couch_on=0; fi
+    fi
+    # Ohne Stock-Befehl gäbe es keine Rückfallebene.
+    [[ -n "${CLIENTCMD:-}" ]] || _couch_on=0
+
+    # Kennung der eingehängten Fassung, wie sie der Supervisor ausrechnet: VERSION@Ordnername
+    _couch_rel="$(readlink -f -- "$_couch_data/current" 2>/dev/null)" || _couch_rel=""
+    _couch_ver=""
+    if [[ -n "$_couch_rel" && -f "$_couch_rel/VERSION" ]]; then
+        read -r _couch_ver <"$_couch_rel/VERSION" 2>/dev/null || :
+    fi
+    _couch_id="${_couch_ver:-0}@${_couch_rel##*/}"
+
+    # Sicherung: Der Launcher hat aufgegeben oder die Sitzung endete fünfmal zu schnell. Sie gilt
+    # für die Fassung, die in ihrer ersten Zeile steht (leer = gilt immer), bis "couch-session
+    # --reset" läuft. Dann startet die Sitzung genau wie ohne couch.
+    if [[ $_couch_on == 1 && -e "$_couch_state/fuse-launcher" ]]; then
+        _couch_fuse=""
+        read -r _couch_fuse <"$_couch_state/fuse-launcher" 2>/dev/null || :
+        if [[ -z "$_couch_fuse" || "$_couch_fuse" == "$_couch_id" ]]; then _couch_on=0; fi
+    fi
+
+    # Immer zuweisen: Ein aus einer früheren Sitzung in die Benutzerumgebung geratener Wert
+    # dürfte short_session_recover (unten) nicht glauben machen, couch sei eingehängt.
+    COUCH_SESSION_ACTIVE=0
+    COUCH_SESSION_RELEASE="$_couch_id"
+    if [[ $_couch_on == 1 ]]; then
+        # Was die Sitzung sonst gestartet hätte, ist die Rückfallebene des Supervisors.
+        COUCH_FALLBACK_CMD="$CLIENTCMD"
+        CLIENTCMD="$_couch_entry"
+        COUCH_SESSION_ACTIVE=1
+    fi
+fi
+
+# ---------------------------------------------------------------------------- Kurzsitzungen
+# Stehen fünf Sitzungen unter 60 s im Zähler, ruft die Sitzung short_session_recover auf. Die
+# Stock-Fassung entpackt Steams 1,4-GB-Archiv und wechselt in den Desktop-Modus: Der Fernseher
+# bliebe dunkel. Erste Stufe ist deshalb nur die Sicherung (nächste Sitzung = reines Steam).
+# Die Stock-Funktion läuft, wenn couch gar nicht eingehängt ist (dann liegt es nicht an uns),
+# wenn nur Gamescope scheiterte oder wenn sich die Sicherung nicht schreiben lässt.
+if ! declare -F _couch_stock_short_session_recover >/dev/null 2>&1; then
+    _couch_src="$(declare -f short_session_recover 2>/dev/null)" || _couch_src=""
+    if [[ -n "$_couch_src" ]]; then
+        eval "_couch_stock_${_couch_src}" 2>/dev/null || :
+    fi
+fi
+if declare -F _couch_stock_short_session_recover >/dev/null 2>&1; then
+    short_session_recover() {
+        local state="${HOME:-}/.local/state/couch"
+        local tracker="${short_session_tracker_file:-/tmp/chimeraos-short-session-tracker}"
+        if [[ "${COUCH_SESSION_ACTIVE:-0}" == 1 && -n "${HOME:-}" ]] \
+            && grep -qv '^gamescope failed' "$tracker" 2>/dev/null \
+            && mkdir -p "$state" 2>/dev/null \
+            && printf '%s\n%s\n' "${COUCH_SESSION_RELEASE:-}" "$(date '+%F %T' 2>/dev/null) fünf kurze Sitzungen" 2>/dev/null >"$state/fuse-launcher"; then
+            echo "couch: fünf kurze Sitzungen, Sicherung fuse-launcher gesetzt; die nächste Sitzung startet reines Steam" >&2
+            return 0
+        fi
+        _couch_stock_short_session_recover
+    }
+fi
+
+unset _couch_home _couch_data _couch_entry _couch_state _couch_on _couch_rel _couch_ver _couch_id _couch_fuse _couch_src

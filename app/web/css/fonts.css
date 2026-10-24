@@ -1,0 +1,8 @@
+/* Schriften (E103, Teil P1). Die Oberfläche nutzt „Noto Sans“ (tokens.css --font). Die Systemschrift hat
+   Vorrang (local); die beigelegte variable Noto Sans (web/fonts, OFL, siehe web/fonts/OFL.txt) greift nur,
+   wo sie fehlt (SteamOS und andere Systeme: unbestätigt). */
+@font-face { font-family: "Noto Sans"; src: local("Noto Sans"), url("../fonts/NotoSans-VF.ttf") format("truetype"); font-weight: 100 900; }
+/* Schriftzug der Startanimation: immer die variable Datei. WebKit löst local("Noto Sans") über fontconfig in
+   feste Schnitte auf (gemessen 2026-10-24: Breite springt bei 250 und 370), die Strichstärke 200 → 340
+   liefe dann in Sprüngen statt stufenlos. */
+@font-face { font-family: "PC5 Intro"; src: url("../fonts/NotoSans-VF.ttf") format("truetype"); font-weight: 100 900; }

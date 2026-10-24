@@ -1,0 +1,492 @@
+/* Gestaltungs-Tokens. Einzige Stelle für Zahlenwerte (Farben, Maße, Zeiten).
+   Maßstab: 1rem = 10 Referenz-Pixel auf 1920x1080 (docs/research, Bericht 07);
+   skaliert wird über die Höhe des Fensters, in 4K ist 1rem = 20 echte Pixel.
+   Die übrigen CSS-Dateien enthalten keine eigenen Längen, Farben oder Zeiten
+   (tests/e2e/web/run.sh prüft das). */
+html { font-size: min(calc(100vh / 108), calc(100vw / 192)); }
+
+/* Winkel des Fokusrings; als Eigenschaft angemeldet, damit er sich animieren lässt */
+@property --ring-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+/* Bewegung nur über diese registrierten Eigenschaften, nie mit transition/animation direkt auf
+   opacity oder transform: WebKitGTK 2.54 zeigt am Ende eines solchen Übergangs ein Bild lang
+   wieder den Anfangswert (der Compositor gibt die Animation ab, bevor der Endwert ankommt;
+   gemessen 2026-10-14, je Tastendruck ein Aufblitzen). Registrierte Eigenschaften rechnet WebKit
+   selbst, Bild für Bild. Jedes Element hat seine eigenen (inherits: false). */
+@property --fx-o { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --fx-x { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
+@property --fx-y { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
+@property --fx-s { syntax: "<number>"; inherits: false; initial-value: 1; }
+
+:root {
+  /* ---------------------------------------------------------------- Schrift */
+  /* Noto Sans liegt im Systemabbild (Light 300 trägt die Fläche, SemiBold 600 die Knöpfe) */
+  --font: "Noto Sans", "Noto Sans Display", sans-serif;
+  --w-light: 300; --w-strong: 600;
+  --fs-logo: 8.4rem; --fs-logo-m: 6rem; --fs-logo-s: 4.4rem;
+  --fs-display: 4.4rem;     /* Seitenüberschrift */
+  --fs-saver-clock: 12rem;  /* Uhr des Bildschirmschoners */
+  --lh-display: 5.4rem;
+  --fs-tab: 3.4rem;         /* Reiter, Uhr */
+  --fs-body: 3rem;          /* Listenzeilen, Titel, Menüpunkte, Mitteilungstext */
+  --fs-button: 2.8rem;
+  --fs-panel: 2.6rem;       /* Titel einer Tafel im Control Center */
+  --fs-value: 2.4rem;       /* Werte rechts, Mitteilungstitel, Kartentitel */
+  --fs-caption: 2.2rem;     /* Abschnittstitel, Beschreibungen */
+  --fs-hint: 2rem;          /* Tastenhinweise */
+  --fs-small: 1.8rem;       /* Marken */
+  --fs-tiny: 1.5rem;        /* Kürzel auf Tasten der Bildschirmtastatur */
+  --fs-tile-ph: 2.2rem;     /* Titel auf Platzhalter-Kacheln (Maß der 168er-Kachel) */
+  --fs-cover-ph: 3rem;
+  --lh-one: 1;
+  --lh-text: 1.4;
+  /* Zeilenhöhen in rem: so liegen gestapelte Zeilen bei 1080p und 4K auf ganzen Pixeln */
+  --lh-body: 4.2rem; --lh-value: 3.4rem; --lh-caption: 3rem; --lh-small: 2.6rem;
+  --lh-logo: 9.6rem; --lh-logo-m: 6.8rem; --lh-logo-s: 5rem; --lh-card-title: 3.2rem; --lh-notice: 4.8rem; --lh-cover: 2.8rem;
+  --ls-badge: .06em;
+  --ls-logo: .01em;
+
+  /* ---------------------------------------------------------------- Farben */
+  --c-text: #ffffff;
+  --c-text-2: rgba(255,255,255,.72);     /* Werte, Beschreibungen */
+  --c-text-3: rgba(255,255,255,.45);     /* inaktive Reiter, Abschnittstitel */
+  --c-text-off: rgba(255,255,255,.30);   /* gesperrt */
+  --c-bg: #0b0c12;                       /* Grundton hinter allem */
+  --c-black: #000000;
+  --c-saver-text: rgba(255,255,255,.28);  /* Uhr des Bildschirmschoners */
+  --c-none: rgba(0,0,0,0);
+  --c-surface-hi: #2a2d33;
+  --c-menu: rgba(24,27,32,.98);
+  --c-dialog: rgba(28,31,36,.98);
+  --c-toast: rgba(30,34,38,.94);
+  --c-tile-sys: rgba(27,32,36,.86);      /* Systemkacheln ohne Bild */
+  --c-tile-sys-solid: #1b2024;
+  --c-card: #22252a;                     /* Hub-Karte */
+  --c-chip: rgba(23,32,39,.85);          /* Info-Marke */
+  --c-line: rgba(255,255,255,.08);       /* Trennlinie */
+  --c-scroll: rgba(255,255,255,.18);
+  --c-hover: rgba(255,255,255,.05);      /* aufgehellte Fläche der fokussierten Zeile */
+  --c-hover-2: rgba(255,255,255,.08);
+  --c-key: rgba(255,255,255,.08);        /* Taste der Bildschirmtastatur */
+  --c-key-fn: rgba(255,255,255,.04);
+  --c-key-on: rgba(255,255,255,.22);
+  --c-field: rgba(255,255,255,.10);
+  --c-btn: #ffffff; --c-btn-text: #292929;
+  --c-btn-2: rgba(62,66,77,.72);         /* Nebenknopf, „…“ */
+  --c-btn-off: rgba(62,66,77,.45);
+  --c-badge: #ffffff; --c-badge-text: #111111;
+  --c-toggle-on: #4b4c55; --c-toggle-off: #313439; --c-knob: #cdced2; --c-knob-ring: #6b6e73;
+  --c-slider-fill: rgba(255,255,255,.80); --c-slider-rest: rgba(255,255,255,.22); --c-slider-off: rgba(255,255,255,.12);
+  --c-accent: #2f80ed;                   /* Punkt für Neues, Fortschritt */
+  --c-ok: #1ed760; --c-warn: #f5a623;
+  --c-ring-a: #f2ddd2; --c-ring-b: #a9abc4; --c-ring-c: #ffffff;
+  --c-dim: rgba(0,0,0,.60);              /* Abdunklung unter Menüs und Dialogen */
+  --c-dim-light: rgba(0,0,0,.35);
+  --c-cc-icon: rgba(255,255,255,.55);
+  --c-cc-icon-low: rgba(255,255,255,.30);
+  --o-dim: .45;                          /* nicht verfügbare Einträge */
+
+  /* Verläufe */
+  --g-art-top: linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,.22) 24%, rgba(0,0,0,0) 45%);
+  --g-art-left: linear-gradient(to right, rgba(0,0,0,.50) 0, rgba(0,0,0,.18) 34%, rgba(0,0,0,0) 60%);
+  --g-art-bottom: linear-gradient(to top, rgba(0,0,0,.72) 0, rgba(0,0,0,.20) 26%, rgba(0,0,0,0) 42%);
+  --g-art-default: radial-gradient(120% 90% at 78% 38%, #2c3346 0, #191d2b 38%, #0b0c12 80%);
+  --g-settings: radial-gradient(60rem 46rem at 14% -6%, rgba(190,160,150,.50) 0, rgba(120,105,105,.22) 38%, rgba(0,0,0,0) 72%),
+                radial-gradient(90rem 40rem at 24% 104%, rgba(110,112,130,.42) 0, rgba(0,0,0,0) 70%),
+                linear-gradient(to bottom, #11111d, #181922);
+  --g-library: radial-gradient(70rem 60rem at 80% 40%, rgba(70,60,60,.35), rgba(0,0,0,0) 70%), linear-gradient(#0a0b10, #0a0b10);
+  --g-loading: radial-gradient(90rem 70rem at 50% 42%, rgba(60,66,90,.45), rgba(0,0,0,0) 70%), linear-gradient(#05060a, #05060a);
+  --g-panel: linear-gradient(#16191e, #222629);
+  --g-cc-card: linear-gradient(160deg, #252a36, #12151b);
+  --g-cc-dim: linear-gradient(to bottom, rgba(0,0,0,.42) 0, rgba(0,0,0,.30) 36%, rgba(0,0,0,.86) 80%, rgba(2,3,6,.98) 100%);
+  --g-cover-shade: linear-gradient(to top, rgba(0,0,0,.78) 0, rgba(0,0,0,0) 100%);
+  --g-mask: linear-gradient(#000 0 0);
+  /* Platzhalter-Kachel: Farbton (--hue) setzt das Skript aus dem Titel */
+  --ph-sat: 52%; --ph-l1: 40%; --ph-l2: 17%; --ph-shift: 42;
+  --ph-hero-l1: 26%; --ph-hero-l2: 8%;
+  --shadow-tile: 0 1.2rem 3.2rem rgba(0,0,0,.45);
+  --shadow-panel: 0 1.6rem 4.8rem rgba(0,0,0,.5);
+  --shadow-text: 0 .1rem .4rem rgba(0,0,0,.6);
+  --shadow-logo: 0 .4rem 2.4rem rgba(0,0,0,.5);
+  --blur-btn: blur(2rem);
+
+  /* ---------------------------------------------------------------- Raster */
+  --m-head: 9.6rem;          /* linker Rand für Überschriften und Reiter */
+  --m-content: 17.2rem;      /* linker und rechter Rand für Inhalt */
+  --m-status-right: 8.8rem;  /* Uhr endet bei x=1832 */
+  --line: .1rem;
+
+  /* Fokusring: 3 breit, 3 Abstand; auf Zeilen liegt er als Kontur auf dem Kasten */
+  --ring-w: .3rem; --ring-gap: .3rem; --ring-out: calc(var(--ring-w) + var(--ring-gap)); --ring-on: 0rem;
+  --ring-scale-from: 1.03;
+
+  /* Kopfzeile */
+  --head-top: 4.1rem; --head-lh: 4.4rem; --tab-gap: 8.5rem;
+  --status-top: 3.8rem; --status-h: 4.8rem;
+  /* Statusleiste von rechts: Uhr, Abstand 32, Netz (28), Akku, Abstand 32, Ein/Aus (48, Mitte ≈1625),
+     Abstand 56, Zahnrad (Mitte ≈1521): ohne Akku die Lagen aus 07 2.1 */
+  --status-pair-gap: 2.4rem;
+  --ic-head: 3.2rem; --ic-mini: 2.8rem; --ic-mini-gap: 2rem; --status-dl-gap: .8rem;
+
+  /* Kachelreihe: alle Kacheln sind 168er-Kästen, die kleinen auf 106/168 verkleinert */
+  --row-top: 12.6rem;
+  --tile-focus: 16.8rem; --tile-scale: .63095; --tile-pitch: 11.4rem;   /* .63095 = 106 / 168 */
+  --tile-r: 2.5rem;                  /* verkleinert ≈ 16 */
+  --row-prev-x: 5rem;                /* Vorgänger: x=50…156 */
+  --row-next-x: 35.7rem;             /* Nachfolger beginnt bei x=357 */
+  --ic-tile: 7.2rem;                 /* verkleinert ≈ 46 */
+  --tile-badge-h: 2.8rem; --tile-badge-pad: .9rem; --tile-badge-inset: 1rem; --tile-badge-fs: 1.7rem;
+  --tile-ph-pad: 1.4rem;
+  --rowlabel-top: 24.4rem; --rowlabel-lh: 3.8rem; --rowlabel-gap: 1.1rem; --rowlabel-w: 138rem;
+  --badge-w: 7.6rem; --badge-h: 3.2rem; --badge-pad: 1rem; --badge-r: .4rem;
+
+  /* Hub */
+  --hub-top: 61.8rem; --hub-shift: -22rem; --hub-logo-h: 15.2rem; --hub-logo-w: 110rem; --hub-logo-img-w: 53rem;
+  --hub-sub-top: 16.6rem; --hub-actions-top: 22.8rem; --hub-chips-top: 24.4rem; --hub-cards-top: 36.4rem;
+
+  --btn-h: 7.2rem; --btn-w: 33.4rem; --btn-r: 3.6rem; --btn-pad: 4rem; --btn-gap: 1.6rem; --btn-w-wide: 47.6rem;
+  --ic-btn: 3.6rem;
+  --chip-h: 5.6rem; --chip-r: .8rem; --chip-pad: 1.6rem; --chip-gap: 3.2rem; --chip-in-gap: 1.2rem; --ic-chip: 2.6rem;
+  --sc-w: 37.6rem; --sc-h: 21.2rem; --sc-gap: 2.4rem; --sc-pad: 1.6rem; --sc-pad-top: 4.8rem;   /* Karten der Store-Kachel */
+  --hub-store-actions-top: 46.4rem;   /* „Öffnen“ unter den Karten der Store-Kachel: 22,8 + 21,2 + 2,4 */
+  --card-w: 50.4rem; --card-h: 15rem; --card-gap: 3.2rem; --card-r: 1.2rem; --card-pad-y: 2rem; --card-pad-x: 2.4rem;
+  --mini-pos: 4.8rem; --mini-size: 8rem; --mini-r: 1rem; --mini-title-top: 6.9rem; --mini-title-gap: 1rem; --ic-mini-tile: 4rem;
+  --hub-row-shift: -4rem;
+
+  /* Menü (Optionen, Ein/Aus) */
+  --menu-w: 54rem; --menu-left: 35.6rem; --menu-top: 12.6rem; --menu-item-h: 7.2rem; --menu-pad-x: 2.8rem;
+  --menu-inset: .4rem; --menu-r: .4rem; --menu-item-r: .3rem; --menu-gap: 1.8rem; --ic-menu: 3rem;
+  --menu-power-w: 60rem; --menu-power-bottom: 11.6rem;
+
+  /* Einstellungen */
+  --set-title-top: 7.5rem; --set-title-lh: 6rem; --set-title-w: 150rem;
+  --set-root-left: 29.6rem; --set-root-w: 132.6rem; --set-root-top: 18.7rem; --set-root-row: 10rem;
+  --set-root-pad: 3.2rem; --set-root-gap: 2.8rem; --ic-list: 4rem; --set-root-view: 80rem;
+  --set-left-x: 16.7rem; --set-left-top: 18.1rem; --set-left-w: 39.8rem; --set-left-row: 10.4rem; --set-left-pad: 3rem;
+  --set-left-view: 80.9rem;
+  --set-right-x: 67.2rem; --set-right-w: 106rem; --set-right-top: 18.5rem; --set-right-view: 80.5rem;
+  --row-h: 9.8rem; --row-pad: 1.6rem; --row-gap: 2.4rem; --row-value-w: 50rem; --row-desc-pad: 2.2rem;
+  --row-hint-gap: .4rem; --row-indent: 6.4rem;
+  --section-shift: -1.6rem; --section-mt: 4.4rem; --section-mb: 1.4rem;
+  --toggle-w: 6.4rem; --toggle-h: 3.2rem; --toggle-r: 1.6rem; --knob: 2.4rem; --knob-inset: .4rem; --knob-ring: .2rem;
+  --knob-travel: 3.2rem;
+  --slider-w: 24rem; --slider-h: .4rem; --slider-knob: 1.8rem; --slider-gap: 2rem; --slider-val-w: 9rem;
+  /* --picker-pad: 07 4.3 Haken bei x≈788, Text ab x=824 bei Tafel x=744 (Innenabstand .4 + 7.6) */
+  --picker-w: 50.4rem; --picker-item-h: 7.2rem; --picker-check: 2.4rem; --picker-pad: 7.6rem; --picker-gap: 1.2rem;
+  --picker-offset: 8.8rem; --picker-max-h: 80rem; --picker-view-margin: 6rem;
+  --scroll-x: 176rem; --scroll-w: .4rem; --scroll-r: .2rem;
+  --ic-chevron: 2.6rem;
+  --hints-right: 17.2rem; --hints-bottom: 4rem; --hints-gap: 3.2rem; --hint-key: 3rem; --hint-key-gap: 1rem;
+
+  /* Spielebibliothek */
+  --lib-icon-pos: 4.8rem; --lib-icon-size: 8rem; --lib-icon-r: 1.2rem; --ic-lib-head: 4rem;
+  --lib-title-top: 6.9rem; --lib-tabs-top: 14.4rem; --lib-tab-gap: 6.6rem; --lib-tab-lh: 3.8rem;
+  --lib-count-top: 23.6rem; --lib-count-lh: 3.4rem;
+  /* Raster: sechs Cover im Hochformat (2:3), die Fassung art.cover des Kerns; zwei volle Zeilen sichtbar */
+  --lib-grid-top: 29.2rem; --cover: 24.6rem; --cover-h: 36.9rem; --cover-gap: 2rem; --cover-pitch: 38.9rem; --cover-r: 0rem;
+  --cover-pad: 1.6rem; --lib-clip-margin: 1.2rem;
+
+  /* Dialog */
+  --dialog-w: 88rem; --dialog-pad: 4.8rem; --dialog-r: 1.2rem; --dialog-gap: 2.4rem; --dialog-btn-gap: 1.6rem;
+  --dialog-btn-w: 38.4rem; --dialog-log-h: 42rem; --dialog-log-w: 132rem; --dialog-log-pad: 2.4rem; --dialog-log-r: .8rem;
+  --dialog-info-row: 5.6rem; --dialog-info-label-w: 30rem; --dialog-info-pad-y: 1.2rem;
+  --progress-h: .4rem; --progress-r: .2rem;
+
+  /* Ladebild */
+  --load-cover: 29.6rem; --load-cover-r: 2.4rem; --load-cover-top: 27rem; --load-w: 140rem;
+  --load-text-gap: 1.6rem; --load-bar-w: 48rem; --load-bar-top: 3.6rem; --load-hint-bottom: 6rem;
+  --load-scale-from: .6;
+
+  /* Mitteilung */
+  --toast-w: 65.2rem; --toast-min-h: 15.4rem; --toast-right: 3.2rem; --toast-top: 3rem; --toast-r: .8rem;
+  --toast-pad: 2.4rem; --toast-icon: 6.4rem; --toast-icon-r: .8rem; --toast-gap: 2rem; --toast-lh: 4.2rem;
+  --toast-title-lh: 2.8rem; --toast-shift: 4rem; --ic-toast: 3.6rem;
+
+  /* Control Center */
+  --cc-bar-bottom: 4rem; --cc-bar-h: 5.6rem; --ic-cc: 3.6rem; --cc-thumb: 5.6rem; --cc-thumb-r: .8rem;   /* Raster der Symbole: 112 = --cc-icon-w + 2 x --cc-icon-gap */
+  --cc-dot: 1rem; --cc-dot-top: .2rem; --cc-label-bottom: 10.6rem; --cc-label-h: 4rem;
+  --cc-label-pad: 1.6rem; --cc-label-r: .6rem; --cc-label-w: 40rem;
+  --cc-cards-left: 8.4rem; --cc-cards-bottom: 19rem; --cc-card-w: 36rem; --cc-card-h: 39.6rem;
+  --cc-card-w-f: 43.2rem; --cc-card-h-f: 52rem; --cc-card-gap: 1.6rem; --cc-card-r: 1.2rem; --cc-card-pad: 2.4rem;
+  --cc-card-art-r: .8rem; --cc-card-gap-in: .6rem;
+  --cc-panel-w: 78.4rem; --cc-panel-h: 81rem; --cc-panel-top: 8rem; --cc-panel-r: 1.2rem; --cc-panel-pad: 2.4rem;
+  --cc-panel-title-top: 2.2rem; --cc-panel-title-lh: 3.6rem; --cc-panel-body-top: 7.6rem; --cc-panel-margin: 3.2rem;
+  --cc-panel-view: 71rem;
+  --cc-item-art: 7.2rem; --cc-item-art-r: .8rem;
+  --cc-in-bar: 4rem; --cc-in-cards: 6rem;
+
+
+
+  /* Bildschirmtastatur */
+  --osk-left: 36rem; --osk-w: 120rem; --osk-bottom: 5.6rem; --osk-r: 1.6rem; --osk-pad-y: 2.4rem; --osk-pad-x: 6.5rem;
+  --key-w: 9rem; --key-h: 7.2rem; --key-gap: .8rem; --key-r: .8rem; --key-w2: 18.8rem; --key-w4: 38.4rem;
+  --key-hint-right: .7rem; --key-hint-top: .4rem; --ic-key: 3.2rem;
+  --osk-field-h: 7.2rem; --osk-field-r: 3.6rem; --osk-field-pad: 2.8rem; --osk-field-mb: 1.6rem; --osk-title-mb: 1rem;
+  --caret-w: .3rem; --caret-h: 3.6rem; --osk-shift: 6rem;
+  --osk-more-w: 36rem; --osk-more-right: 62.1rem; --osk-more-bottom: 16rem;
+
+  /* Hinweis-Tafeln im Overlay (Controller getrennt, Spiel wird beendet) */
+  --notice-w: 76rem; --notice-pad: 4.8rem; --notice-r: 1.2rem; --ic-notice: 9.6rem; --notice-gap: 2rem;
+  --ringp-size: 16rem; --ringp-stroke: 6;
+
+  /* Maßstäbe der Übergänge */
+  --scale-screen-in: 1.02; --scale-menu-in: .97; --scale-bg-in: 1.04;
+  --shift-tab: 4rem; --shift-sub: 2.4rem;
+
+  /* ---------------------------------------------------------------- Zeiten (07 Abschnitt 7) */
+  --t-focus: 150ms; --t-row: 250ms; --t-row-fast: 110ms;
+  --t-title-out: 80ms; --t-title-in: 150ms;
+  --t-bg-out: 200ms; --t-bg-in: 600ms; --t-bg-delay: 350ms;
+  --t-tab: 300ms; --t-hub: 300ms; --t-screen: 300ms; --t-sub: 200ms;
+  --t-overlay-in: 250ms; --t-overlay-out: 180ms; --t-saver-in: 2000ms; --t-cards-delay: 60ms;
+  --t-menu-in: 150ms; --t-menu-out: 120ms;
+  --t-toast-in: 250ms; --t-toast-out: 200ms; --t-toast-stay: 5000ms;
+  --t-toggle: 120ms; --t-ring: 4s; --t-launch: 500ms; --t-reduced: 120ms; --t-caret: 1100ms;
+  --t-idle: 6000ms;          /* danach stehen Ring-Schimmer und Schreibmarke */
+  --ease-out: cubic-bezier(.2,.8,.2,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-std: cubic-bezier(.4,0,.2,1);
+
+  /* Ergänzungen einzelner Bausteine */
+  --ic-size: 1em; --ring-full: 360deg; --ph-angle: 135deg;
+  --tab-pad: 1.2rem; --tab-r: .8rem; --run-dot: 1.6rem; --mini-title-w: 130rem;
+  --lib-cols: 6; --cover-name-top: 4rem; --cover-name-gap: .8rem;
+  --load-title-gap: 4rem; --load-text-h: 3.4rem; --busy-part: 30%; --busy-end: 334%; --t-busy: 1400ms;
+  --cc-icon-w: 7.2rem; --cc-icon-gap: 2rem; --cc-icon-r: 1.2rem; --cc-on-inset: 2rem; --cc-dot-right: 1.2rem;
+  --cc-panel-inset: .8rem; --cc-panel-side: 38rem;
+  --cc-panel-w-dl: 96rem; --dl-bar-gap: .8rem;   /* Downloads: Platz für lange Dateinamen, Balken in eigener Zeile (2026-10-24) */
+  --c-osk: #17191e; --key-lock: .8rem; --c-key-done-hint: #666666; --ringp-rot: -90deg;
+
+  /* ---------------------------------------------------------------- Bibliothek, Hub, Hintergrund, Installer (web-library) */
+  /* Bewegter Hintergrund (E33): Lichtflächen ohne Bild, Fahrt und Überblendung mit Bild */
+  --t-bd-fade: 700ms; --t-bd-rest: 300ms;
+  --c-bd-a: rgba(74,92,150,.58); --c-bd-b: rgba(156,120,112,.36); --c-bd-c: rgba(48,112,134,.38);
+  --bd-blob-w: 150rem; --bd-blob-h: 112rem; --bd-blob-x: -75rem; --bd-blob-y: -56rem;
+  --g-art-text: radial-gradient(100rem 64rem at 8% 82%, rgba(0,0,0,.74) 0, rgba(0,0,0,.48) 44%, rgba(0,0,0,0) 78%);
+  --g-art-head: linear-gradient(to bottom, rgba(0,0,0,.50) 0, rgba(0,0,0,0) 30%);
+  --glow-logo: drop-shadow(0 0 .3rem rgba(255,255,255,.42)) drop-shadow(0 .4rem 1.8rem rgba(0,0,0,.6));
+  --home-note-right: 17.2rem; --home-note-bottom: 3.2rem; --home-warn-top: 9.2rem; --ic-home-note: 2.4rem;
+  /* Marken und Zustände auf Kacheln */
+  --tile-flag: 3.6rem; --ic-tile-flag: 2.2rem; --c-flag: rgba(11,12,18,.82); --mark-gap: .8rem;
+  --c-mark: rgba(255,255,255,.16); --c-mark-warn: rgba(245,166,35,.92); --c-mark-warn-text: #1a1206;
+  --hub-logo-h-note: 12.6rem; --hub-sub-top-note: 13.2rem; --hub-note-top: 17.6rem;
+  /* Bibliothek: Rundknöpfe links, Suchzeile */
+  /* Store (E68): vier Kacheln im Querformat (Kopfbild 460x215 des Shops), Seite eines Spiels */
+  --st-cols: 4; --st-card-w: 37.6rem; --st-img-h: 17.6rem; --st-card-h: 27.6rem; --st-gap: 2.4rem; --st-pitch: 30rem;
+  --st-pad: 1.6rem; --st-name-top: 1.2rem; --st-account-top: 5.4rem; --st-account-gap: 1.2rem; --st-account-pad: 2.4rem;
+  --st-hero-h: 64rem; --st-page-top: 30rem; --st-text-w: 110rem; --st-gap-s: 1.6rem; --st-facts-w: 157.6rem;
+  --st-lower-shift: 48rem; --st-bottom-room: 15rem; --st-shot-w: 37.6rem; --st-shot-h: 21.2rem;
+  --tile-move-w: .6rem; --tile-move-dim: .55;
+  /* Sieben Shops (E100): schmalere Pillen, die Zeile beginnt näher an der Überschrift */
+  --st-stores-x: 30rem; --st-store-h: 5.2rem; --st-store-pad: 2rem; --st-stores-gap: 1rem; --st-top-gap: 2.4rem;
+  /* itch.io (E100): Cover ganz in der Kachel vor unscharfem Grund; auf der Seite scharf rechts oben (315x250) */
+  --st-fit-blur: 2.4rem; --st-fit-dim: .55; --st-fit-scale: 1.15; --st-hero-blur: 4rem;
+  --st-cover-top: 12rem; --st-cover-w: 44.8rem; --st-cover-h: 35.6rem;
+  --c-st-disc: #4c6b22; --c-st-disc-text: #beee11; --c-st-installed: rgba(30,215,96,.9); --c-st-installed-text: #06210f;
+  --c-st-fact: rgba(255,255,255,.08);
+  --g-sc-shade: linear-gradient(to top, rgba(8,9,13,.92) 0, rgba(8,9,13,.7) 55%, rgba(8,9,13,0) 100%);
+  --g-st-shade: linear-gradient(to bottom, rgba(10,11,16,.25) 0, rgba(10,11,16,.75) 40%, #0a0b10 62%);
+  --lib-side-x: 5.2rem; --lib-side-pitch: 10.4rem; --lib-query-gap: 2.4rem; --cover-cap-h: 12.3rem;
+  --cover-state-h: 4rem;
+  /* Ladebild */
+  --o-load-hero: .38; --load-note-w: 110rem; --load-note-gap: 2.4rem;
+  /* Geführte Abläufe (Installer, Dateiauswahl, Papierkorb, Bilder): Überschrift oben links, Inhalt ab x=172 */
+  --flow-sub-top: 13.6rem; --flow-sub-w: 157.6rem; --flow-top: 19.6rem; --flow-view: 70.2rem; --flow-w: 160.8rem;
+  --ex-view-inset: 6rem 8rem; --ex-view-gap: 2.4rem; --ex-view-img-h: 88vh;
+  --flow-side-x: 122rem; --flow-side-w: 53rem; --saves-gap: 1.6rem; --saves-pad: 2rem; --saves-path-h: 40rem; --flow-btn-bottom: 10.8rem; --flow-preview: 53rem; --flow-preview-h: 36rem;
+  --flow-list-w: 100rem; --prog-top: 30rem; --prog-w: 157.6rem; --prog-gap: 3.2rem; --fs-prog: 9.6rem; --lh-prog: 11rem;
+  --prog-bar-h: .8rem; --prog-bar-r: .4rem; --prog-actions-top: 6.4rem; --done-icon: 12rem; --c-danger: #ff5c5c;
+  --thumb-w: 12.8rem; --thumb-h: 7.2rem; --thumb-r: .6rem; --spin: 6.4rem; --spin-w: .5rem; --t-spin: 1100ms;
+  --menu-max-h: 86rem;
+
+  /* Ebenen */
+  --z-bg: 0; --z-content: 1; --z-head: 2; --z-layer: 10; --z-toast: 30;
+}
+
+/* ---------------------------------------------------------------- Einstellungen, Control Center, Overlay (web-settings) */
+:root {
+  /* Einstellungen: Weg zur Unterseite über dem Titel, Marke für ein System-Update */
+  --set-crumb-top: 4.4rem; --set-dot-right: 2.4rem; --set-dot: 1rem;
+  /* Auswahlliste mit Erklärung je Wert */
+  --picker-note-pad: .8rem;
+  /* Rückfrage mit Countdown */
+  --dialog-timer-w: 12rem;
+  /* Anzeigebereich prüfen: Eckmarken genau am Bildrand */
+  --area-line: .2rem; --area-mark: 12rem; --area-mark-w: .8rem; --area-box-w: 104rem; --c-area-line: rgba(255,255,255,.55);
+  --area-gap: 2.4rem;
+  /* Mitteilungen untereinander, Marke am Zahnrad */
+  --toast-stack-gap: 1.6rem; --status-dot-inset: .4rem;
+  /* Hinweis-Karte (Belegung des Maus-Modus) */
+  --hintcard-bottom: 5.6rem; --hintcard-w: 132rem; --hintcard-pad: 3.2rem; --ic-hintcard: 4.8rem; --hintcard-gap: 2rem;
+  --hintcard-col-gap: 4.8rem; --hintcard-row: 5.2rem; --hintcard-key-w: 22rem; --hintcard-shift: 4rem;
+  /* Bildschirmtastatur: Auge im Kennwortfeld */
+  --osk-eye: 5.6rem; --osk-eye-pull: 1.6rem; --osk-sugg-pad: 2.4rem; --osk-sugg-max: 36rem;
+  /* Ein/Aus-Menü: Erklärung zum Eintrag im Fokus */
+  --power-note-pad: 1.6rem;
+  /* Karten im Control Center: Fortschritt mit Prozent; Netz als Text oben rechts; Hinweis am Maus-Symbol */
+  --cc-card-pct-gap: 1.2rem; --status-gap: 3.2rem; --status-net-w: 46rem; --cc-keyhint-bottom: 15.6rem; --cc-legend-row: 4.6rem;
+}
+
+/* ---------------------------------------------------------------- Nachträge nach den Prüfungen (Block fix-web) */
+:root {
+  /* Hinweis „Die Konsole wird ausgeschaltet …“ (components/ending.js): über allem, Eingabe gesperrt */
+  --c-ending-dim: rgba(5,6,10,.90); --ending-w: 120rem; --ending-gap: 2.4rem; --t-ending-hold: 2500ms;
+  /* Ein/Aus-Menü des Home: unter dem Symbol in der Kopfzeile; Optionsmenü 16 neben der Kachel */
+  --menu-power-top: 9.8rem; --menu-anchor-gap: 1.6rem;
+  /* Großer Titel im Hub: Platz für seinen Schatten, damit er nicht als Kante am Kasten endet; Nebenknopf */
+  --hub-title-pad: 2.8rem; --btn-second-w: 37.6rem;
+  /* Einstellungen: Liste der Wurzel mit Symbolen (07 4.1; Maße --set-root-* oben), ihr Rollbalken;
+     Ausblendung oben und unten beim Rollen */
+  --set-root-scroll-x: 164.2rem;
+  --rows-fade: 3rem;
+  --g-fade-top: linear-gradient(to bottom, rgba(0,0,0,0) 0, #000 var(--rows-fade));
+  --g-fade-bottom: linear-gradient(to top, rgba(0,0,0,0) 0, #000 var(--rows-fade));
+  --g-fade-both: linear-gradient(to bottom, rgba(0,0,0,0) 0, #000 var(--rows-fade), #000 calc(100% - var(--rows-fade)), rgba(0,0,0,0) 100%);
+  /* Auswahlliste: Laufschrift für zu lange Einträge im Fokus (07 10.2: nach 1,5 s) */
+  --t-marquee-delay: 1500ms; --marquee-step: 8rem;   /* Laufschrift: so weit je Sekunde */
+  /* „Bild ändern“: Abstand der Beschriftung zu ihrem Bild */
+  --art-label-gap: 1rem;
+  /* Rückfrage mit langer Beschriftung (components/dialog.js is-roomy): breiter statt gekürzt;
+     zwei Knöpfe füllen die Innenbreite (108 - 2 x 4,8 = 2 x 48,4 + 1,6) */
+  --dialog-w-roomy: 108rem; --dialog-btn-w-roomy: 48.4rem;
+  /* Tafeln im Overlay-Fenster deckend (overlay.css): dieselben Farben wie --c-toast, --c-dialog, --c-menu */
+  --c-toast-solid: #1e2226; --c-dialog-solid: #1c1f24; --c-menu-solid: #181b20;
+}
+
+/* Textgröße (Einstellungen › Barrierefreiheit, state.ui.scale 1.1 | 1.2): nur Schrift und
+   Zeilenhöhen wachsen, das Raster der Bildschirme bleibt (Werte auf 0,1 rem gerundet) */
+html[data-ui-scale="1.1"] {
+  --fs-display: 4.8rem; --fs-tab: 3.7rem; --fs-body: 3.3rem; --fs-button: 3.1rem; --fs-panel: 2.9rem;
+  --fs-value: 2.6rem; --fs-caption: 2.4rem; --fs-hint: 2.2rem; --fs-small: 2rem; --fs-tiny: 1.7rem;
+  --lh-body: 4.6rem; --lh-value: 3.7rem; --lh-caption: 3.3rem; --lh-small: 2.9rem; --lh-card-title: 3.5rem;
+  --lh-notice: 5.3rem; --toast-lh: 4.6rem; --toast-title-lh: 3.1rem; --cc-panel-title-lh: 4rem; --set-title-lh: 6.2rem;
+}
+html[data-ui-scale="1.2"] {
+  --fs-display: 5.3rem; --fs-tab: 4.1rem; --fs-body: 3.6rem; --fs-button: 3.4rem; --fs-panel: 3.1rem;
+  --fs-value: 2.9rem; --fs-caption: 2.6rem; --fs-hint: 2.4rem; --fs-small: 2.2rem; --fs-tiny: 1.8rem;
+  --lh-body: 5rem; --lh-value: 4.1rem; --lh-caption: 3.6rem; --lh-small: 3.1rem; --lh-card-title: 3.8rem;
+  --lh-notice: 5.8rem; --toast-lh: 5rem; --toast-title-lh: 3.4rem; --cc-panel-title-lh: 4.3rem; --set-title-lh: 6.6rem;
+}
+
+/* ---------------------------------------------------------------- Startanimation (E92, seit E103 „Polarlicht“: components/intro.js, intro-sky.js)
+   Aus dem Schwarz zieht eine Lichtnaht, öffnet sich als Vorhang, dahinter fließt das Polarlicht; die Ziffern
+   laufen mit kurzer Spur zusammen, ein Glanz läuft darüber, „LAUNCHER“ zieht sich zusammen. Bewegt wird nur
+   über registrierte Eigenschaften, die ein JS-Zeitplan je Bild setzt (Lage des Glanzes, Sperrung der
+   Unterzeile, Strichstärke --in-w im Block E103-intro). Farben und Maße des Polarlichts: Block E103-intro. */
+@property --in-sweep { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+@property --in-ls { syntax: "<length>"; inherits: false; initial-value: 0px; }
+:root {
+  --c-intro-bg: #000;
+  /* Glanz: ein heller Streifen mit Pfirsich-Rand läuft über den Schriftzug */
+  --g-intro-shine: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 38%, rgba(255,214,196,.85) 45%, #ffffff 50%, rgba(255,214,196,.85) 55%, rgba(255,255,255,0) 62%, rgba(255,255,255,0) 100%);
+  --c-intro-logo: #f4f1fb;
+  --intro-glow: 0 0 2.4rem rgba(255,214,196,.42), 0 0 7rem rgba(170,130,255,.36);
+  --fs-intro: 17rem; --lh-intro: 19rem; --ls-intro: .06em;
+  --fs-intro-sub: 2.4rem; --lh-intro-sub: 3rem; --intro-sub-gap: 1.2rem; --c-intro-sub: rgba(244,238,255,.80);
+  --ls-intro-sub-from: 2.6rem; --ls-intro-sub: 1.2rem;
+  --intro-out-scale: 1.07;     /* Ausgang: der Schriftzug kommt ein wenig näher */
+  --t-intro-hold: 3200ms;      /* frühestens dann ins Home (der Klang ist da fast verklungen) */
+  --t-intro-max: 8000ms;       /* spätestens dann, auch wenn die Bibliothek noch fehlt */
+  --t-intro-out: 900ms; --t-intro-skip: 350ms; --t-intro-sound-wait: 450ms;
+  --t-intro-calm: 1600ms;      /* „Bewegung reduzieren“: Polarlicht und Schriftzug blenden nur ein */
+  --z-intro: 50;
+}
+:root { --st-genre-max: 18rem; }   /* Store: Breite des gewählten Genres im Kopf (E94) */
+
+/* ================================================================ Blöcke der Runde E103 (Bauplan docs/research/e103/SPEC.md 3.3)
+   Je Teil ein Block: neue Variablen eines Teils mit Vorgabe nur in seinem Block (:root { … } bzw.
+   @property für Werte, die ein Skript je Bild setzt). Ein Teil ändert nur seinen Block. */
+/* ================================================================ Block E103-intro (Startanimation „Polarlicht“, P1) */
+/* Startanimation „Polarlicht“ (E103): Farbwelt des Home (E33-Lichtflächen Indigo, Rosé, Petrol; Fokusring
+   Pfirsich und Lavendel), für das Polarlicht satt und leuchtend; kein Konsolen-Blau. Zeitplan in
+   components/intro.js, Zahlen des Shaders in components/intro-sky.js. */
+@property --in-w { syntax: "<number>"; inherits: false; initial-value: 480; }
+:root {
+  /* Polarlicht (Shader-Farben): Grund oben/unten, Dunst, Bänder fern/mitte/nah je zwei Töne, Lichter */
+  --c-intro-sky-top: #110920; --c-intro-sky-bottom: #040306; --c-intro-fog: #22123c;
+  --c-intro-far-a: #5a44e0; --c-intro-far-b: #b08aff;
+  --c-intro-mid-a: #0b8296; --c-intro-mid-b: #3fe0cc;
+  --c-intro-near-a: #f4557d; --c-intro-near-b: #ffc196;
+  --c-intro-hi: #fff4ec; --c-intro-warm: #ffd2bd;
+  /* Rückfall ohne WebGL: dieselben Farben als weiche Lichtflächen (nur transform, wie E33) */
+  --g-intro-deep: linear-gradient(to bottom, #110920 0, #0a0614 55%, #040306 100%);
+  --intro-blob-inset: -18vh -12vw;     /* Ebenen ragen über den Rand: 124vw x 136vh */
+  /* weiche schräge Bänder (fern Violett, mitte Türkis, nah Rosé → Pfirsich) und Licht in der Mitte */
+  --g-intro-blob-a: linear-gradient(186deg, rgba(90,68,224,0) 17%, rgba(90,68,224,.34) 25%, rgba(176,138,255,.52) 29%, rgba(90,68,224,.30) 33%, rgba(90,68,224,0) 42%);
+  --g-intro-blob-b: linear-gradient(164deg, rgba(11,130,150,0) 41%, rgba(11,130,150,.42) 47%, rgba(63,224,204,.66) 50%, rgba(11,130,150,.38) 53%, rgba(11,130,150,0) 59%);
+  --g-intro-blob-c: linear-gradient(184deg, rgba(244,85,125,0) 57%, rgba(244,85,125,.50) 64%, rgba(255,160,150,.72) 68%, rgba(250,110,130,.36) 72%, rgba(244,85,125,0) 78%);
+  --g-intro-blob-d: radial-gradient(28% 22% at 50% 50%, rgba(255,210,189,.26), rgba(255,210,189,0));
+  --g-intro-blob-mask: radial-gradient(closest-side, #000 55%, rgba(0,0,0,0) 100%);
+  /* Lichtnaht (Pfirsich → Weiß → Lavendel), ihr Hof, Vorhang mit weicher Kante */
+  --g-intro-seam: linear-gradient(to right, rgba(169,171,196,0) 0, rgba(169,171,196,.55) 18%, #f2ddd2 38%, #ffffff 50%, #f2ddd2 62%, rgba(169,171,196,.55) 82%, rgba(169,171,196,0) 100%);
+  --g-intro-seam-glow: radial-gradient(closest-side, rgba(255,246,240,.55), rgba(242,221,210,.18) 45%, rgba(0,0,0,0) 100%);
+  --intro-seam-w: 100vw; --intro-seam-h: .2rem; --intro-seam-glow-w: 150rem; --intro-seam-glow-h: 26rem;
+  --intro-feather: 24rem;
+  --g-intro-curtain-top: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--intro-feather)), rgba(0,0,0,0) 100%);
+  --g-intro-curtain-bottom: linear-gradient(to top, #000 0, #000 calc(100% - var(--intro-feather)), rgba(0,0,0,0) 100%);
+  /* Licht hinter dem Schriftzug: warmer Kern, violetter Hof */
+  --g-intro-halo: radial-gradient(closest-side, rgba(255,222,206,.50), rgba(255,170,170,.20) 32%, rgba(154,114,255,.16) 60%, rgba(0,0,0,0) 100%);
+  --intro-halo-w: 120rem; --intro-halo-h: 60rem;
+  /* Schriftzug: variable Noto Sans (fonts.css), Spuren, Glanz, Unterzeile. Strichstärke 400 → 480 statt
+     200 → 340 (Bauplan): die beigelegte Datei hat die Gewichtsachse 400–700 (fvar gelesen 2026-10-24) */
+  --font-intro: "PC5 Intro", "Noto Sans", sans-serif;
+  --intro-wght-from: 400; --intro-wght: 480;
+  --c-intro-trail: #e9e2ff; --intro-shine-size: 300%;
+  --w-intro-sub: 400; --intro-sub-rise: 1rem; --intro-sub-glow: 0 0 1.6rem rgba(170,130,255,.45);
+  --intro-out-lift: .6rem;
+  --t-intro-calm-out: 450ms;   /* Ruhefassung: Ausblenden ins Home */
+  --t-intro-sound-fade: 250ms; /* Überspringen und Ruhefassung: so schnell geht der Ton aus */
+}
+/* Ende Block E103-intro */
+/* ================================================================ Block E104-portable (Kern portabel, P3) */
+/* Seitenverhältnis (E104 c): 1rem = das Kleinere aus Höhe/108 und Breite/192 (Zeile 6). 16:9 und
+   breiter füllen das Bild wie bisher; schmaler (Steam Deck 1280x800, 16:10) liegt die Fläche von
+   192 x 108 rem senkrecht mittig, darüber und darunter bleibt der dunkle Grund des Home (base.css). */
+:root { --frame-top: 0px; --frame-h: 100%; }
+@media not all and (min-aspect-ratio: 16/9) {
+  :root { --frame-h: 108rem; --frame-top: calc((100vh - 108rem) / 2); }
+}
+/* Ende Block E104-portable */
+/* ================================================================ Block E105-setup (Einrichtungs-Assistent, P5) */
+/* Bildschirme setup-* (css/setup.css): Kopf wie die anderen Abläufe (Titel 75, Inhalt ab x=172),
+   darunter Einleitung und Liste als Spalte; Knöpfe unten rechts wie im Archiv-Installer */
+:root {
+  --setup-pad-top: 7.5rem;          /* Oberkante des Titels (= --set-title-top) */
+  --setup-pad-bottom: 20.4rem;      /* Knopfzeile (10,8 + 7,2) und Abstand 2,4 */
+  --setup-sub-gap: .8rem; --setup-lead-gap: 1.6rem; --setup-lead-w: 157.6rem; --setup-body-gap: 3.2rem;
+  --setup-side-gap: 6.4rem;         /* Liste 100 breit, rechte Spalte ab x=122 wie --flow-side-x */
+  --setup-side-pad: 1.6rem; --setup-tip-gap: 2.4rem; --setup-foot-w: 84rem;
+  /* Schrittanzeige oben rechts: sieben Striche */
+  --setup-dot-w: 4rem; --setup-dot-h: .6rem; --setup-dot-gap: 1rem; --setup-dot-r: .3rem;
+  --c-setup-dot: rgba(255,255,255,.16); --c-setup-dot-done: rgba(255,255,255,.45); --c-setup-dot-now: #fff;
+  --c-setup-warn: #ff8a7a;          /* „Flatpak fehlt“, „Nicht installiert: …“ (wie --c-danger, auf dem Verlauf lesbar) */
+}
+/* Ende Block E105-setup */
+/* ================================================================ Block E106-backup (Sichern und Übernehmen, P11) */
+:root {
+  /* Seitenleiste rechts wie bei den Spielständen (installer.css .flow-side, --saves-*) */
+  --bk-gap: 1.6rem; --bk-block-gap: 3.2rem; --bk-path-pad: 1.6rem;
+}
+/* Ende Block E106-backup */
+/* ================================================================ Block E107-timer (Ruhemodus-Timer, P8) */
+/* Statusleiste: Mond und Restzeit links vom Download-Symbol, Abstand wie dort (components/statusbar.js) */
+:root { --status-timer-gap: var(--status-dl-gap); }
+/* Ende Block E107-timer */
+/* ================================================================ Block E108-stats (Spielzeit-Rückblick, P9) */
+:root {
+  /* Kopf: Zeiträume oben rechts, auf Höhe der Überschrift */
+  --rb-tabs-top: 8.6rem; --rb-tab-gap: 4rem; --rb-tab-line: .4rem; --rb-tab-line-gap: .8rem;
+  /* links die Übersicht, rechts die Liste der Spiele (Kante wie der Rollbalken der Abläufe, --scroll-x) */
+  --rb-panel-w: 88rem; --rb-list-x: 113rem; --rb-list-w: 61.6rem;
+  --fs-rb-total: 7.2rem; --lh-rb-total: 8.6rem; --rb-compare-gap: .8rem;
+  --rb-chart-gap: 4.4rem; --rb-chart-h: 30rem; --rb-bar-gap: 2rem; --rb-bar-gap-many: .5rem; --rb-bar-r: .6rem;
+  --rb-bar-min: .4rem; --rb-day-gap: 1.2rem; --rb-day-h: 2.6rem; --rb-peak-gap: 3.6rem; --rb-line-gap: 1.2rem;
+  --c-rb-bar: var(--c-ring-b); --c-rb-bar-now: var(--c-ring-a); --c-rb-bar-empty: var(--c-line);
+  /* Bibliothek: vierter Rundknopf „Statistik“ unter „Spiel installieren“ (library.css: --lib-side-pitch) */
+  --rb-side-row: 3;
+}
+/* Ende Block E108-stats */
+/* ================================================================ Block E109-keymap (Tastenbelegung je Spiel, P12) */
+/* Ende Block E109-keymap */
+/* ================================================================ Block E110-cleanup (Platz schaffen, P13) */
+:root {
+  --cl-confirm-gap: 0.8rem;          /* Rückfrage: Abstand zwischen Größe und Pfad (cleanup.css) */
+}
+/* Ende Block E110-cleanup */

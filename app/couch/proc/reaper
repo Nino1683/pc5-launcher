@@ -1,0 +1,229 @@
+#!/usr/bin/python3 -I
+"""reaper SteamLaunch AppId=<N> -- <befehl> [argumente...]
+
+Startet <befehl> so, dass Gamescope (mit --steam) allen Fenstern des gesamten Prozessbaums
+von selbst die App-ID <N> gibt (E4). Kein Nachtaggen von Fenstern nötig, kein Wettlauf.
+
+Warum das wirkt (gamescope src/Utils/Process.cpp, GetAppIdFromReaper): Für jedes neue
+X-Fenster läuft Gamescope die Elternkette des Fenster-Prozesses hoch. Trifft es auf einen
+Prozess, dessen Name (comm) genau "reaper" ist und dessen Kommandozeile vor "--" die
+Argumente "SteamLaunch" und danach "AppId=<N>" enthält, nimmt es <N> als App-ID.
+Der Dateiname dieses Skripts MUSS deshalb "reaper" bleiben (der Kernel setzt comm bei
+Skripten auf den Dateinamen); zur Sicherheit setzen wir ihn zusätzlich per prctl.
+
+Der Prozess ist "Subreaper": verwaiste Enkel (wineserver, Launcher, die sich abnabeln)
+hängen sich an ihn statt an systemd und behalten so Elternkette und App-ID. Er wartet, bis
+ALLE Nachkommen beendet sind, und gibt den Rückgabewert des Hauptkindes zurück (128 + n,
+wenn ein Signal es beendet hat). Prozessgruppe und cgroup des Aufrufers bleiben, wie sie sind.
+
+Signale (der reaper selbst wird nie angehalten, er kann also immer antworten):
+  SIGTERM  höfliches Beenden (E5): geht nur an das Hauptkind (umu-run reicht es selbst an
+           seine Nachkommen weiter). Stirbt das Hauptkind daran, ohne das Signal zu
+           behandeln (einfaches Startskript), bekommen die übrigen Nachkommen SIGTERM
+           nachgereicht. Lebt das Hauptkind nicht mehr, geht es gleich an alle.
+  SIGINT, SIGHUP  an alle Nachkommen.
+
+Vorab-Befehle: COUCH_PRELAUNCH (JSON, Liste von Befehlen) läuft vor <befehl>, jeder höchstens
+COUCH_PRELAUNCH_TIMEOUT Sekunden (Vorgabe 15; Zeit im angehaltenen Zustand zählt nicht).
+Ein Fehler oder Zeitlimit dort wird gemeldet, der Start geht weiter; nur ein von außen
+beendeter Vorab-Befehl (Signal) bricht den Start ab. Beide Variablen gehen nicht an die Kinder.
+
+Python läuft mit -I: PYTHONPATH und Ähnliches aus der Umgebung eines Spiels dürfen den
+reaper nicht verbiegen. Nur Standardbibliothek.
+"""
+import ctypes
+import json
+import os
+import signal
+import sys
+import time
+
+PR_SET_NAME = 15
+PR_SET_CHILD_SUBREAPER = 36
+PRELAUNCH_TIMEOUT = 15.0
+
+
+def say(text):
+    sys.stderr.write("reaper: %s\n" % text)
+    sys.stderr.flush()
+
+
+def proc_stat(pid):
+    """(ppid, zustand) aus /proc/<pid>/stat oder None."""
+    try:
+        with open("/proc/%d/stat" % pid, "rb") as f:
+            raw = f.read()
+        rest = raw[raw.rindex(b")") + 2:].split()
+        return int(rest[1]), rest[0].decode("ascii", "replace")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def descendants(root):
+    """Alle lebenden Nachkommen von root (über /proc, ohne Fremdbibliothek)."""
+    kids = {}
+    for name in os.listdir("/proc"):
+        if name.isdigit():
+            st = proc_stat(int(name))
+            if st is not None:
+                kids.setdefault(st[0], []).append(int(name))
+    out, todo = [], [root]
+    while todo:
+        for kid in kids.get(todo.pop(), ()):
+            out.append(kid)
+            todo.append(kid)
+    return out
+
+
+def send_all(root, signum):
+    for pid in descendants(root):
+        try:
+            os.kill(pid, signum)
+        except OSError:
+            pass
+
+
+def spawn(cmd):
+    pid = os.fork()
+    if pid == 0:
+        try:
+            # Kinder bekommen die üblichen Signal-Vorgaben zurück, nicht unsere Weiterleitung
+            for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+                signal.signal(s, signal.SIG_DFL)
+            os.execvp(cmd[0], cmd)
+        except OSError as e:
+            say("%s: %s" % (cmd[0], e))
+        finally:
+            os._exit(127)
+    return pid
+
+
+class State:
+    main_pid = 0          # Hauptkind, 0 solange keins läuft
+    pre_pid = 0           # laufender Vorab-Befehl
+    stop = False          # jemand hat um das Ende gebeten
+
+
+def run_prelaunch(state, cmd, limit):
+    """Führt einen Vorab-Befehl aus. False = Start abbrechen."""
+    state.pre_pid = pid = spawn(cmd)
+    used, step = 0.0, 0.05
+    while True:
+        try:
+            done, status = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            break
+        if done == pid:
+            state.pre_pid = 0
+            code = os.waitstatus_to_exitcode(status)
+            if code < 0:
+                say("Vorab-Befehl %s durch Signal %d beendet, Start abgebrochen" % (cmd[0], -code))
+                return False
+            if code:
+                say("Vorab-Befehl %s endete mit %d, Start geht weiter" % (cmd[0], code))
+            return not state.stop
+        time.sleep(step)
+        st = proc_stat(pid)
+        if st is None or st[1] != "T":      # angehalten (Home hat eingefroren) zählt nicht
+            used += step
+        if used >= limit:
+            say("Vorab-Befehl %s nach %.0f s abgebrochen, Start geht weiter" % (cmd[0], limit))
+            for victim in [p for p in descendants(pid)] + [pid]:
+                try:
+                    os.kill(victim, signal.SIGKILL)
+                except OSError:
+                    pass
+            try:
+                os.waitpid(pid, 0)
+            except ChildProcessError:
+                pass
+            break
+    state.pre_pid = 0
+    return not state.stop
+
+
+def main():
+    argv = sys.argv
+    if "--" not in argv:
+        sys.stderr.write(__doc__)
+        return 2
+    cmd = argv[argv.index("--") + 1:]
+    if not cmd:
+        say("kein Befehl nach --")
+        return 2
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.prctl(PR_SET_NAME, b"reaper", 0, 0, 0)
+    libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
+
+    prelaunch = []
+    raw = os.environ.pop("COUCH_PRELAUNCH", "")
+    if raw:
+        try:
+            prelaunch = [[str(a) for a in c] for c in json.loads(raw) if c]
+        except (ValueError, TypeError):
+            say("COUCH_PRELAUNCH ist kein gültiges JSON, wird übergangen")
+    try:
+        limit = float(os.environ.pop("COUCH_PRELAUNCH_TIMEOUT", "") or PRELAUNCH_TIMEOUT)
+    except ValueError:
+        limit = PRELAUNCH_TIMEOUT
+
+    state = State()
+    me = os.getpid()
+
+    def on_term(_signum, _frame):
+        state.stop = True
+        target = state.main_pid or state.pre_pid
+        if target:
+            try:
+                os.kill(target, signal.SIGTERM)
+                return
+            except OSError:
+                pass
+        send_all(me, signal.SIGTERM)
+
+    def on_forward(signum, _frame):
+        send_all(me, signum)
+
+    signal.signal(signal.SIGTERM, on_term)
+    signal.signal(signal.SIGINT, on_forward)
+    signal.signal(signal.SIGHUP, on_forward)
+
+    for pre in prelaunch:
+        if not run_prelaunch(state, pre, limit):
+            send_all(me, signal.SIGTERM)       # Reste des Vorab-Befehls nicht liegen lassen
+            code = 143
+            break
+    else:
+        if state.stop:
+            code = 143                         # die Bitte ums Ende kam vor dem Start: gar nicht erst starten
+        else:
+            code = 0
+            state.main_pid = spawn(cmd)
+            if state.stop:                     # ... oder genau währenddessen
+                try:
+                    os.kill(state.main_pid, signal.SIGTERM)
+                except OSError:
+                    pass
+
+    main_pid = state.main_pid
+    while True:
+        try:
+            pid, status = os.wait()
+        except ChildProcessError:
+            break                              # keine Nachkommen mehr
+        except InterruptedError:
+            continue
+        if pid == main_pid:
+            state.main_pid = 0
+            code = os.waitstatus_to_exitcode(status)
+            if code < 0:
+                # durch Signal beendet: Hat es unser SIGTERM nicht selbst behandelt, hat es
+                # auch seine Kinder nicht benachrichtigt.
+                if state.stop and -code == signal.SIGTERM:
+                    send_all(me, signal.SIGTERM)
+                code = 128 - code
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

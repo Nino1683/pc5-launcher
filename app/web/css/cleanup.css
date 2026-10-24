@@ -1,0 +1,7 @@
+/* Platz schaffen (E110, Teil P13), Bildschirm cleanup. Zahlenwerte nur in tokens.css (Block E110-cleanup).
+   Die Liste ist das Gerüst der Abläufe (.flow aus screens/file-browser.js); eigen ist nur die Rückfrage:
+   Größe und voller Pfad, der Pfad umbrochen statt gekürzt (auch mehrere Teile eines Archivs). */
+.cl-confirm { display: flex; flex-direction: column; gap: var(--cl-confirm-gap); }
+.cl-confirm-size { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text); font-variant-numeric: tabular-nums; }
+.cl-confirm-path { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); white-space: pre-line;
+  overflow-wrap: anywhere; }

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PC5 Launcher – Spielmodus an
+Name[en]=PC5 Launcher – game mode on
+Comment=Der nächste Start des Spielmodus nimmt wieder den PC5 Launcher.
+Comment[en]=The next game mode start uses PC5 Launcher again.
+Exec=@CTL@ on
+Icon=applications-games
+Terminal=false
+Categories=Game;

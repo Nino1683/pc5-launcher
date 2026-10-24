@@ -1,0 +1,55 @@
+/* Geführte Abläufe: Archiv-Installer, Dateiauswahl, Papierkorb, Bilder (07 Abschnitt 11.6:
+   Überschrift oben links, Inhalt ab x=172, Hauptknopf unten rechts). Zahlenwerte: tokens.css. */
+.flow { background: var(--g-settings); }
+.flow-title { position: absolute; left: var(--m-head); top: var(--set-title-top); max-width: var(--set-title-w); font-size: var(--fs-display);
+  font-weight: var(--w-light); line-height: var(--set-title-lh); }
+.flow-sub { position: absolute; left: var(--m-head); top: var(--flow-sub-top); max-width: var(--flow-sub-w); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+/* Liste: der Kasten ragt um den Innenabstand über den Text hinaus (Text bei x=172) */
+.flow-list { position: absolute; left: calc(var(--m-content) - var(--row-pad)); top: var(--flow-top); width: var(--flow-w); }
+.flow-list .rows { height: var(--flow-view); }
+.flow.has-preview .flow-list, .flow.has-side .flow-list { width: var(--flow-list-w); }
+.flow-scroll { left: var(--scroll-x); top: var(--flow-top); }
+.flow.has-preview .flow-scroll, .flow.has-side .flow-scroll { left: calc(var(--m-content) - var(--row-pad) + var(--flow-list-w) + var(--row-pad)); }
+/* Hauptknopf unten rechts */
+.flow-main { position: absolute; right: var(--m-content); bottom: var(--flow-btn-bottom); width: var(--btn-w-wide); max-width: var(--btn-w-wide); }
+/* Rechte Spalte: Vorschau des fokussierten Bildes bzw. die Bilder, wie sie gerade sind */
+.flow-preview, .flow-side { position: absolute; left: var(--flow-side-x); top: var(--flow-top); width: var(--flow-side-w); }
+.flow-preview { height: var(--flow-preview-h); border-radius: var(--card-r); background: var(--c-black); overflow: hidden; }
+.flow-preview > img { width: 100%; height: 100%; object-fit: contain; }
+/* Bildbetrachter des Datei-Explorers (E62) */
+.ex-viewer { position: absolute; inset: var(--ex-view-inset); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ex-view-gap); }
+.ex-image { max-width: 100%; max-height: var(--ex-view-img-h); object-fit: contain; border-radius: var(--card-r); background: var(--c-black); }
+.ex-caption { max-width: 100%; font-size: var(--fs-value); color: var(--c-text-2); }
+/* Spielstände (E63): der Ordner als ganzer Pfad, umbrochen */
+.saves-side { display: flex; flex-direction: column; gap: var(--saves-gap); }
+.saves-label { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+.saves-path { padding: var(--saves-pad); border-radius: var(--card-r); background: var(--c-black); font-family: monospace;
+  font-size: var(--fs-value); line-height: var(--lh-value); word-break: break-all; white-space: pre-line; max-height: var(--saves-path-h); overflow: hidden; }
+.saves-path.is-none { font-family: inherit; color: var(--c-text-2); word-break: normal; overflow-wrap: anywhere; }
+.saves-path.is-small { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); }
+.saves-stats { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); margin-bottom: var(--saves-gap); }
+.art-now { display: flex; flex-direction: column; gap: var(--card-gap); }
+/* Beschriftung dicht über ihrem Bild (der Abstand der Spalte gilt zwischen den Paaren) */
+.art-now-label { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); margin-bottom: calc(var(--art-label-gap) - var(--card-gap)); }
+.art-now-tile { position: relative; width: var(--cover); height: var(--cover); border-radius: var(--tile-r); overflow: hidden; box-shadow: var(--shadow-tile); }
+.art-now-hero { position: relative; width: var(--flow-side-w); aspect-ratio: 16 / 9; border-radius: var(--card-r); overflow: hidden; background: var(--c-black); }
+.art-now-hero > img { width: 100%; height: 100%; object-fit: cover; }
+.art-now-none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: var(--fs-caption); color: var(--c-text-3); }
+/* Vorschaubilder in der Liste (Bilddateien, Treffer) */
+.flow .row-art { width: var(--thumb-w); height: var(--thumb-h); border-radius: var(--thumb-r); }
+.flow .row-art .art > img { object-fit: cover; }
+/* Ladeanzeige während eines langen Aufrufs (Suche nach Treffern) */
+.spinner { position: absolute; right: var(--m-content); top: var(--set-title-top); width: var(--spin); height: var(--spin); border-radius: 50%;
+  border: var(--spin-w) solid var(--c-slider-rest); border-top-color: var(--c-text); animation: spin var(--t-spin) linear infinite; }
+@keyframes spin { to { transform: rotate(var(--ring-full)); } }
+
+/* Fortschritt einer Installation, danach Ergebnis */
+.prog { position: absolute; left: var(--m-content); top: var(--prog-top); width: var(--prog-w); }
+.prog-percent { font-size: var(--fs-prog); font-weight: var(--w-light); line-height: var(--lh-prog); font-variant-numeric: tabular-nums; }
+.prog-bar { margin-top: var(--prog-gap); height: var(--prog-bar-h); border-radius: var(--prog-bar-r); }
+.prog-file { margin-top: var(--prog-gap); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); min-height: var(--lh-value); }
+.prog-time { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-3); }
+.prog-message { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--c-text-2); white-space: pre-line; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.prog-actions { margin-top: var(--prog-actions-top); display: flex; gap: var(--btn-gap); }
+.prog-actions .btn { min-width: var(--btn-w); }

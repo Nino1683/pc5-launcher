@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PC5 Launcher – Spielmodus aus
+Name[en]=PC5 Launcher – game mode off
+Comment=Der nächste Start des Spielmodus nimmt reines Steam (Notschalter).
+Comment[en]=The next game mode start uses plain Steam (kill switch).
+Exec=@CTL@ off
+Icon=applications-games
+Terminal=false
+Categories=Game;

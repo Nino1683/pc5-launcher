@@ -1,0 +1,454 @@
+#!/usr/bin/python3 -I
+"""couch-setup-flatpak – Hilfsprogramm des Einrichtungs-Assistenten (E105, Bauplan 8.6).
+
+Installiert Emulatoren und Apps aus Flathub, immer in die Nutzer-Installation von Flatpak (wie
+EmuDeck auf dem Steam Deck): kein Root, kein Kennwort, nichts unter /var oder /usr. Ein eigener
+Prozess, damit libflatpak nie die Hauptschleife des Home aufhält; gibt JSON-Zeilen auf stdout aus:
+
+  couch-setup-flatpak remote-ensure     → {"ev":"remote","ok":true,"added":false}
+  couch-setup-flatpak plan <id>…        → {"ev":"plan","ops":[{"ref","kind":"app"|"runtime","download",
+                                           "installed"}],"skipped":[{"id","installation"}],"exact":bool}
+  couch-setup-flatpak install <id>…     → {"ev":"skip","id","ref","installation"} … {"ev":"op-start","ref",
+                                           "index","total"} {"ev":"progress","ref","percent","bytes"}
+                                           {"ev":"op-done","ref"} | {"ev":"op-error","ref","code","message"}
+                                           … {"ev":"end","ok","cancelled"}
+
+Rückgabewert 0 = in Ordnung, 1 = Fehler, 3 = abgebrochen (SIGTERM: Gio.Cancellable bzw. Ende des Kinds).
+Fehlercodes: no-network, no-space, not-found, eol (eingestellt mit Nachfolger: nur melden, nie selbst
+wechseln), locked (ein anderer Flatpak-Vorgang: 30 s warten, dann melden), cancelled, failed.
+Schon installiert (in der System- oder der Nutzer-Installation) = übersprungen.
+
+Mit der Python-Anbindung (GI Flatpak 1.0) eine Transaktion für alle (geteilte Laufzeiten einmal);
+Probelauf: im Signal „ready“ die Operationen lesen und mit False vor jedem Download abbrechen
+(Abbruchverhalten unbestätigt). Ohne sie (oder mit COUCH_SETUP_FLATPAK_CLI=1) die Kommandozeile,
+eine App nach der anderen, Fortschritt nur „n von m“; vor jeder fragt ``flatpak remote-info`` (nur lesend)
+nach einem Nachfolger (End-of-life-rebase → eol, nie selbst wechseln).
+
+Bewusst nie: die System-Installation beschreiben, etwas entfernen, Rechte ändern, andere Apps
+aktualisieren (tests/features/setup/test_guard.py prüft den Quelltext).
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+
+REMOTE = "flathub"
+FLATHUB_URL = "https://dl.flathub.org/repo/flathub.flatpakrepo"
+SYSTEM_ROOT = "/var/lib/flatpak"
+LOCK_WAIT_S = 30.0
+_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$")
+_STOP = threading.Event()
+
+
+def emit(obj: dict) -> None:
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def user_root() -> str:
+    return os.environ.get("FLATPAK_USER_DIR") or os.path.join(
+        os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local/share"), "flatpak")
+
+
+def system_root() -> str:
+    """Ordner der System-Installation (nur gelesen); in Prüfläufen (COUCH_TEST_ROOT) über COUCH_SETUP_SYSTEM_ROOT
+    umstellbar, damit Tests nicht davon abhängen, was auf dem Rechner installiert ist."""
+    if os.environ.get("COUCH_TEST_ROOT") and os.environ.get("COUCH_SETUP_SYSTEM_ROOT"):
+        return os.environ["COUCH_SETUP_SYSTEM_ROOT"]
+    return SYSTEM_ROOT
+
+
+def installed_where(app_id: str) -> str:
+    """"system" | "user" | "" – nur am Ordner (wie library/apps.py), ohne die System-Installation zu öffnen."""
+    for root, name in ((system_root(), "system"), (user_root(), "user")):
+        if os.path.isdir(os.path.join(root, "app", app_id, "current", "active")):
+            return name
+    return ""
+
+
+def classify(text: str) -> str:
+    low = (text or "").lower()
+    if any(w in low for w in ("space", "enospc", "speicherplatz")):
+        return "no-space"
+    if any(w in low for w in ("resolve", "network", "unreachable", "timed out", "timeout", "connect",
+                              "netzwerk", "verbindung")):
+        return "no-network"
+    if any(w in low for w in ("nothing matches", "no remote refs", "not found", "ref_not_found", "nicht gefunden")):
+        return "not-found"
+    if "end-of-life" in low or "end of life" in low or "eol" in low.split():
+        return "eol"
+    if "lock" in low:
+        return "locked"
+    if "abort" in low or "cancel" in low:
+        return "cancelled"
+    return "failed"
+
+
+MESSAGES = {
+    "no-network": "Keine Verbindung zu Flathub. Prüfe das Netzwerk und versuche es noch einmal.",
+    "no-space": "Zu wenig Platz auf dem internen Speicher.",
+    "not-found": "%s gibt es bei Flathub nicht mehr.",
+    "eol": "%s wird bei Flathub nicht mehr gepflegt. Der Nachfolger wird nicht von selbst installiert.",
+    "locked": "Gerade läuft ein anderer Flatpak-Vorgang. Versuche es gleich noch einmal.",
+    "cancelled": "Abgebrochen. Fertige Teile bleiben installiert.",
+    "failed": "Die Installation von %s ist nicht gelungen.",
+}
+
+
+def message(code: str, name: str) -> str:
+    text = MESSAGES.get(code, MESSAGES["failed"])
+    return text % name if "%s" in text else text
+
+
+# ---------------------------------------------------------------- Quelle flathub (Nutzer)
+def has_user_remote() -> bool:
+    try:
+        with open(os.path.join(user_root(), "repo", "config"), encoding="utf-8", errors="replace") as fh:
+            return '[remote "%s"]' % REMOTE in fh.read(256 * 1024)
+    except OSError:
+        return False
+
+
+def remote_ensure() -> int:
+    if has_user_remote():
+        emit({"ev": "remote", "ok": True, "added": False})
+        return 0
+    try:
+        r = subprocess.run(["flatpak", "remote-add", "--user", "--if-not-exists", REMOTE, FLATHUB_URL],
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        emit({"ev": "remote", "ok": False, "added": False, "code": "failed", "message": str(e)[:300]})
+        return 1
+    if r.returncode != 0:
+        code = classify(r.stderr)
+        emit({"ev": "remote", "ok": False, "added": False, "code": code,
+              "message": message(code, "Flathub") if code != "failed" else (r.stderr or "").strip()[:300]})
+        return 1
+    emit({"ev": "remote", "ok": True, "added": True})
+    return 0
+
+
+# ---------------------------------------------------------------- libflatpak
+def load_gi():
+    if os.environ.get("COUCH_SETUP_FLATPAK_CLI") == "1":
+        return None
+    try:
+        import gi
+        gi.require_version("Flatpak", "1.0")
+        from gi.repository import Flatpak, Gio, GLib   # noqa: F401
+        return {"Flatpak": Flatpak, "Gio": Gio, "GLib": GLib}
+    except (ImportError, ValueError):
+        return None
+
+
+def app_ref(fp, app_id: str) -> str:
+    return "app/%s/%s/stable" % (app_id, fp["Flatpak"].get_default_arch())
+
+
+def _gi_code(fp, err) -> str:
+    """Fehlercode aus einem GLib.Error von libflatpak."""
+    Flatpak = fp["Flatpak"]
+    try:
+        domain = err.domain if isinstance(err.domain, str) else fp["GLib"].quark_to_string(err.domain)
+    except Exception:  # noqa: BLE001
+        domain = ""
+    code = getattr(err, "code", -1)
+    if "flatpak-error" in str(domain):
+        if code == Flatpak.Error.OUT_OF_SPACE:
+            return "no-space"
+        if code in (Flatpak.Error.REF_NOT_FOUND, Flatpak.Error.REMOTE_NOT_FOUND, Flatpak.Error.RUNTIME_NOT_FOUND):
+            return "not-found"
+        if code == Flatpak.Error.ABORTED:
+            return "cancelled"
+        if code == Flatpak.Error.ALREADY_INSTALLED:
+            return "already"
+    if "resolver" in str(domain):
+        return "no-network"
+    return classify(getattr(err, "message", "") or str(err))
+
+
+def _watch_term(cancellable) -> None:
+    """SIGTERM sauber: ein eigener Thread wartet darauf und bricht die Transaktion ab (die Python-Signale
+    kämen erst nach dem blockierenden run() an)."""
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
+
+    def wait() -> None:
+        signal.sigwait({signal.SIGTERM, signal.SIGINT})
+        _STOP.set()
+        if cancellable is not None:
+            cancellable.cancel()
+    threading.Thread(target=wait, daemon=True).start()
+
+
+def gi_transaction(fp, cancellable):
+    Flatpak = fp["Flatpak"]
+    inst = Flatpak.Installation.new_user(cancellable)
+    t = Flatpak.Transaction.new_for_installation(inst, cancellable)
+    t.set_no_interaction(True)
+    return t
+
+
+def gi_plan(fp, ids: list, cancellable=None) -> int:
+    skipped, wanted = _split(ids)
+    ops: list = []
+    if wanted:
+        t = gi_transaction(fp, cancellable)
+        for app_id in wanted:
+            t.add_install(REMOTE, app_ref(fp, app_id), None)
+
+        def ready(tr) -> bool:
+            for op in tr.get_operations():
+                ref = str(op.get_ref())
+                ops.append({"ref": ref, "kind": "runtime" if ref.startswith("runtime/") else "app",
+                            "download": int(op.get_download_size() or 0),
+                            "installed": int(op.get_installed_size() or 0)})
+            return False                        # vor jedem Download abbrechen
+        t.connect("ready", ready)
+        try:
+            t.run(cancellable)
+        except Exception as e:  # noqa: BLE001  (der Abbruch im „ready“ kommt als Fehler zurück)
+            code = _gi_code(fp, e)
+            if not ops and code != "cancelled":
+                emit({"ev": "plan", "ops": [], "skipped": skipped, "exact": False, "code": code,
+                      "message": message(code, "Flathub")})
+                return 1
+    emit({"ev": "plan", "ops": ops, "skipped": skipped, "exact": True})
+    return 0
+
+
+def gi_install(fp, ids: list, cancellable=None, sleep=time.sleep) -> int:
+    skipped, wanted = _split(ids)
+    for s in skipped:
+        emit({"ev": "skip", **s})
+    if not wanted:
+        emit({"ev": "end", "ok": True, "cancelled": False})
+        return 0
+    for attempt in (1, 2):
+        state = {"index": 0, "total": 0, "errors": 0, "started": 0, "fatal": ""}
+        t = gi_transaction(fp, cancellable)
+        for app_id in wanted:
+            t.add_install(REMOTE, app_ref(fp, app_id), None)
+
+        def ready(tr) -> bool:
+            state["total"] = len(tr.get_operations())
+            return True
+
+        def new_operation(tr, op, progress) -> None:
+            state["index"] += 1
+            state["started"] += 1
+            ref = str(op.get_ref())
+            emit({"ev": "op-start", "ref": ref, "index": state["index"], "total": state["total"]})
+            try:
+                progress.set_update_frequency(500)
+            except Exception:  # noqa: BLE001
+                pass
+            last = {"p": -1}
+
+            def changed(p) -> None:
+                pct = int(p.get_progress())
+                if pct != last["p"]:
+                    last["p"] = pct
+                    emit({"ev": "progress", "ref": ref, "percent": pct, "bytes": int(p.get_bytes_transferred())})
+            progress.connect("changed", changed)
+
+        def done(tr, op, commit, result) -> None:
+            emit({"ev": "op-done", "ref": str(op.get_ref())})
+
+        def error(tr, op, err, details) -> bool:
+            code = _gi_code(fp, err)
+            ref = str(op.get_ref())
+            if code == "already":
+                emit({"ev": "op-done", "ref": ref, "skipped": True})
+                return True
+            state["errors"] += 1
+            name = ref.split("/")[1] if "/" in ref else ref
+            emit({"ev": "op-error", "ref": ref, "code": code, "message": message(code, name)})
+            fatal = bool(int(details) & int(fp["Flatpak"].TransactionErrorDetails.FATAL))
+            return not fatal                    # die übrigen laufen weiter
+
+        def eol_rebase(tr, remote, ref, reason, rebased_to, previous) -> bool:
+            name = str(ref).split("/")[1] if "/" in str(ref) else str(ref)
+            state["errors"] += 1
+            emit({"ev": "op-error", "ref": str(ref), "code": "eol", "message": message("eol", name),
+                  "rebase": str(rebased_to or "")})
+            return False                        # nie selbst auf den Nachfolger wechseln
+
+        t.connect("ready", ready)
+        t.connect("new-operation", new_operation)
+        t.connect("operation-done", done)
+        t.connect("operation-error", error)
+        try:
+            t.connect("end-of-lifed-with-rebase", eol_rebase)
+        except TypeError:
+            pass
+        try:
+            t.run(cancellable)
+        except Exception as e:  # noqa: BLE001
+            code = _gi_code(fp, e)
+            if _STOP.is_set() or code == "cancelled":
+                emit({"ev": "end", "ok": False, "cancelled": True})
+                return 3
+            if code == "locked" and attempt == 1 and not state["started"]:
+                sleep(LOCK_WAIT_S)              # ein anderer Flatpak-Vorgang: einmal warten
+                if _STOP.is_set():
+                    emit({"ev": "end", "ok": False, "cancelled": True})
+                    return 3
+                continue
+            if not state["errors"]:
+                emit({"ev": "op-error", "ref": "", "code": code, "message": message(code, "Flathub")})
+            emit({"ev": "end", "ok": False, "cancelled": False})
+            return 1
+        ok = state["errors"] == 0
+        emit({"ev": "end", "ok": ok, "cancelled": False})
+        return 0 if ok else 1
+    return 1
+
+
+# ---------------------------------------------------------------- Kommandozeile
+def _split(ids: list) -> tuple:
+    skipped, wanted = [], []
+    for app_id in ids:
+        where = installed_where(app_id)
+        if where:
+            skipped.append({"id": app_id, "ref": "app/%s" % app_id, "installation": where})
+        elif app_id not in wanted:
+            wanted.append(app_id)
+    return skipped, wanted
+
+
+def cli_plan(ids: list) -> int:
+    skipped, _wanted = _split(ids)
+    emit({"ev": "plan", "ops": [], "skipped": skipped, "exact": False})
+    return 0
+
+
+REMOTE_INFO_S = 60.0                    # Zeitgrenze der Abfrage vor der Installation (nur lesend)
+_REBASE = re.compile(r"^\s*End-of-life-rebase:\s*(\S+)", re.M)
+
+
+def _child(argv: list, capture: bool = False, timeout: float | None = None, env: dict | None = None):
+    """Kindprozess starten und warten; bei SIGTERM bzw. nach timeout beenden (nur dieses Kind, über sein
+    Popen). → (returncode, stdout, stderr); returncode None = Zeitgrenze; None = abgebrochen. OSError reicht durch."""
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                            stderr=subprocess.PIPE, text=True, errors="replace", env=env)
+    end = time.monotonic() + timeout if timeout else None
+    while True:
+        try:
+            out, err = proc.communicate(timeout=0.5)
+            return proc.returncode, out or "", err or ""
+        except subprocess.TimeoutExpired:
+            if _STOP.is_set() or (end is not None and time.monotonic() > end):
+                proc.terminate()
+                try:
+                    proc.wait(10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                return None if _STOP.is_set() else (None, "", "")
+
+
+def cli_rebased(app_id: str):
+    """Nachbesserung zu 8.6: Ist die App bei Flathub eingestellt und hat einen Nachfolger (End-of-life-rebase)?
+    Nur lesend über flatpak remote-info. Sonst bejahte -y beim Installieren die Frage „Replace it with …?“
+    selbst (aus dem Verhalten der Kommandozeile abgeleitet, unbestätigt) – der Assistent wechselt nie von selbst.
+    → Nachfolger | "" (gepflegt, unbekannt oder Abfrage gescheitert: dann entscheidet die Installation) | None
+    (abgebrochen)."""
+    try:
+        got = _child(["flatpak", "remote-info", "--user", REMOTE, app_id], capture=True, timeout=REMOTE_INFO_S,
+                     env=dict(os.environ, LC_ALL="C", LANGUAGE=""))           # englische Feldnamen
+    except OSError:
+        return ""
+    if got is None:
+        return None
+    rc, out, _err = got
+    hit = _REBASE.search(out) if rc == 0 else None
+    return hit.group(1) if hit else ""
+
+
+def cli_install(ids: list, sleep=time.sleep) -> int:
+    skipped, wanted = _split(ids)
+    for s in skipped:
+        emit({"ev": "skip", **s})
+    errors = 0
+    for index, app_id in enumerate(wanted, 1):
+        ref = "app/%s" % app_id
+        emit({"ev": "op-start", "ref": ref, "index": index, "total": len(wanted)})
+        successor = cli_rebased(app_id)
+        if successor is None or _STOP.is_set():
+            emit({"ev": "end", "ok": False, "cancelled": True})
+            return 3
+        if successor:
+            errors += 1
+            emit({"ev": "op-error", "ref": ref, "code": "eol", "message": message("eol", app_id),
+                  "rebase": successor})
+            continue
+        for attempt in (1, 2):
+            if _STOP.is_set():
+                emit({"ev": "end", "ok": False, "cancelled": True})
+                return 3
+            try:
+                got = _child(["flatpak", "install", "--user", "--noninteractive", "-y", REMOTE, app_id])
+            except OSError as e:
+                emit({"ev": "op-error", "ref": ref, "code": "failed", "message": str(e)[:300]})
+                errors += 1
+                break
+            if got is None:
+                emit({"ev": "end", "ok": False, "cancelled": True})
+                return 3
+            returncode, _out, err = got
+            if returncode == 0:
+                emit({"ev": "op-done", "ref": ref})
+                break
+            code = classify(err or "")
+            if "already installed" in (err or "").lower():
+                emit({"ev": "op-done", "ref": ref, "skipped": True})
+                break
+            if code == "locked" and attempt == 1:
+                _wait(sleep, LOCK_WAIT_S)
+                continue
+            errors += 1
+            emit({"ev": "op-error", "ref": ref, "code": code, "message": message(code, app_id)})
+            break
+    emit({"ev": "end", "ok": errors == 0, "cancelled": False})
+    return 0 if errors == 0 else 1
+
+
+def _wait(sleep, seconds: float) -> None:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end and not _STOP.is_set():
+        sleep(min(0.5, max(0.0, end - time.monotonic())))
+
+
+def _on_term(signum, frame) -> None:
+    _STOP.set()
+
+
+def main(argv: list) -> int:
+    if len(argv) < 2 or argv[1] not in ("remote-ensure", "plan", "install"):
+        sys.stderr.write("Aufruf: couch-setup-flatpak remote-ensure | plan <id>… | install <id>…\n")
+        return 2
+    cmd, ids = argv[1], argv[2:]
+    bad = [i for i in ids if not _ID.match(i) or len(i) > 255]
+    if bad or (cmd != "remote-ensure" and not ids):
+        sys.stderr.write("Ungültige Kennung: %s\n" % ", ".join(bad or ["(keine)"]))
+        return 2
+    if cmd == "remote-ensure":
+        return remote_ensure()
+    fp = load_gi()
+    if fp is None:
+        signal.signal(signal.SIGTERM, _on_term)
+        signal.signal(signal.SIGINT, _on_term)
+        return cli_plan(ids) if cmd == "plan" else cli_install(ids)
+    cancellable = fp["Gio"].Cancellable()
+    _watch_term(cancellable)
+    return gi_plan(fp, ids, cancellable) if cmd == "plan" else gi_install(fp, ids, cancellable)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

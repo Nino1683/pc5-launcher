@@ -1,0 +1,87 @@
+/* Store (Bauplan E68). Zahlenwerte: tokens.css. Übersicht wie die Bibliothek (Kopf, Reiter),
+   Raster aus Kacheln im Querformat; Seite eines Spiels mit großem Bild wie der Hub. */
+/* Kopfzeile neben der Überschrift: links die Shops, rechts Genre und Anmeldung. Eine Zeile (E100): Bei
+   sieben Shops wird das gewählte Genre gekürzt, statt dass die Knöpfe über den Shops liegen */
+.st-top { position: absolute; left: var(--st-stores-x); right: var(--m-content); top: var(--st-account-top); height: var(--btn-h);
+  display: flex; align-items: center; gap: var(--st-top-gap); }
+/* Shop-Wahl: Steam | GOG | … | itch.io */
+.st-stores { display: flex; flex: none; gap: var(--st-stores-gap); }
+.st-store { height: var(--st-store-h); padding: 0 var(--st-store-pad); border-radius: var(--st-store-h); --r: var(--st-store-h);
+  background: var(--c-st-fact); color: var(--c-text-2); font-size: var(--fs-value); font-weight: var(--w-strong); line-height: var(--st-store-h); }
+.st-store.is-active { background: var(--c-btn); color: var(--c-btn-text); }
+/* Oben rechts in der Zeile der Shop-Wahl (mittig dazu): Genre (E70) und Anmeldung. Auf Höhe der Reiter
+   verdeckten sie bei vielen Reitern (Epic: sieben) die rechten (Wunsch 2026-10-19) */
+.st-head-btns { display: flex; flex: 0 1 auto; min-width: 0; margin-left: auto; gap: var(--btn-gap); }
+/* Gewähltes Genre: höchstens so breit, sonst gekürzt (die Shops links brauchen den Platz, E94) */
+.st-genre .btn-label { max-width: var(--st-genre-max); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.store .st-account, .store .st-genre { gap: var(--st-account-gap); min-width: 0; padding: 0 var(--st-account-pad); }
+.store .st-account.is-in, .store .st-genre.is-in { color: var(--c-text-2); }
+.store .st-genre { flex: 0 1 auto; }
+.st-view { position: absolute; left: calc(var(--m-content) - var(--lib-clip-margin)); right: calc(var(--m-content) - var(--lib-clip-margin));
+  top: calc(var(--lib-grid-top) - var(--lib-clip-margin)); bottom: 0; overflow: hidden; }
+.st-grid { position: absolute; left: var(--lib-clip-margin); top: var(--lib-clip-margin); display: grid;
+  grid-template-columns: repeat(var(--st-cols), var(--st-card-w)); gap: var(--st-gap);
+  --fx-y: calc(var(--top, 0) * -1 * var(--st-pitch)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-row) var(--ease-out); will-change: transform; }
+/* Kein overflow: hidden an der Kachel: der Fokusring liegt außen und würde abgeschnitten (E69) */
+.st-card { position: relative; width: var(--st-card-w); height: var(--st-card-h); border-radius: var(--card-r); --r: var(--card-r);
+  background: var(--c-tile-sys-solid); }
+.st-img { position: relative; width: 100%; height: var(--st-img-h); background: var(--c-black); overflow: hidden;
+  border-radius: var(--card-r) var(--card-r) 0 0; }
+.st-img > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.st-ph { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: var(--st-pad);
+  font-size: var(--fs-value); font-weight: var(--w-strong); text-align: center; color: var(--c-text-2); }
+.st-card.is-noimg .st-ph { display: flex; }
+.st-card.is-noimg .st-img > img { display: none; }
+/* itch.io (E100): Cover 315x250 ganz (contain), dahinter dasselbe Bild unscharf und dunkler */
+.st-card.is-fit .st-img > img.st-pic { object-fit: contain; }
+.st-img > img.st-blur { filter: blur(var(--st-fit-blur)) brightness(var(--st-fit-dim)); transform: scale(var(--st-fit-scale)); }
+.st-name { position: absolute; left: var(--st-pad); right: var(--st-pad); top: calc(var(--st-img-h) + var(--st-name-top)); font-size: var(--fs-value); line-height: var(--lh-value); overflow: hidden; }
+.st-price-row { position: absolute; left: var(--st-pad); right: var(--st-pad); bottom: var(--st-pad); display: flex; align-items: center; gap: var(--mark-gap);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); white-space: nowrap; }
+.st-disc { padding: 0 var(--tile-badge-pad); border-radius: var(--badge-r); background: var(--c-st-disc); color: var(--c-st-disc-text); font-weight: var(--w-strong); }
+.st-old { color: var(--c-text-3); text-decoration: line-through; }
+.st-price { font-weight: var(--w-strong); }
+.st-flag { position: absolute; left: var(--st-pad); top: var(--st-pad); height: var(--tile-badge-h); padding: 0 var(--tile-badge-pad); border-radius: var(--badge-r);
+  background: var(--c-flag); font-size: var(--tile-badge-fs); font-weight: var(--w-strong); line-height: var(--tile-badge-h); }
+.st-flag[data-kind="installed"] { background: var(--c-st-installed); color: var(--c-st-installed-text); }
+.st-flag[data-kind="loading"] { background: var(--c-accent); }
+/* Karte „Erneut versuchen“ am Ende einer Liste, deren Seite nicht kam (E99): darunter der Grund */
+.st-retry .st-img { display: flex; align-items: center; justify-content: center; background: none; font-size: var(--ic-tile); color: var(--c-text-2); }
+.st-retry-why { position: absolute; left: var(--st-pad); right: var(--st-pad); bottom: var(--st-pad); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+.st-retry.is-busy .st-img { opacity: var(--o-dim); }
+
+/* Seite eines Spiels */
+.store-item { background: var(--g-library); overflow: hidden; }
+.st-hero { position: absolute; left: 0; top: 0; width: 100%; height: var(--st-hero-h); object-fit: cover; }
+.st-shade { position: absolute; inset: 0; background: var(--g-st-shade); }
+/* itch.io (E100): Kopfbild ist das kleine Cover, darum unscharf; scharf steht es rechts oben und rückt mit der Seite */
+.store-item.is-fit .st-hero { filter: blur(var(--st-hero-blur)) brightness(var(--st-fit-dim)); transform: scale(var(--st-fit-scale)); }
+.st-cover { position: absolute; right: 0; top: calc(var(--st-cover-top) - var(--st-page-top)); width: var(--st-cover-w); height: var(--st-cover-h);
+  object-fit: contain; border-radius: var(--card-r); }
+.st-page { position: absolute; left: var(--m-content); right: var(--m-content); top: var(--st-page-top);
+  transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-row) var(--ease-out); }
+.st-page.is-lower { --fx-y: calc(-1 * var(--st-lower-shift)); }
+.st-title { max-width: var(--st-text-w); font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--w-strong); }
+.st-short { max-width: var(--st-text-w); margin-top: var(--st-gap-s); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.st-price-big { display: flex; align-items: center; gap: var(--mark-gap); margin-top: var(--st-gap-s); min-height: var(--lh-body); font-size: var(--fs-body); }
+/* „Zahl, was du willst“ neben dem Preis (itch.io, E100) */
+.st-pwyw { padding: 0 var(--tile-badge-pad); border-radius: var(--badge-r); background: var(--c-st-fact); color: var(--c-text-2);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.st-buttons { display: flex; align-items: center; gap: var(--btn-gap); margin-top: var(--st-gap-s); }
+.st-main { min-width: var(--btn-w); }
+.st-note { max-width: var(--st-text-w); margin-top: var(--st-gap-s); min-height: var(--lh-caption); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+.st-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--st-gap-s) var(--st-gap); margin-top: var(--st-gap); max-width: var(--st-facts-w); }
+.st-fact { display: flex; flex-direction: column; min-width: 0; padding: var(--st-pad); border-radius: var(--card-r); background: var(--c-st-fact); }
+.st-fact > span { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-3); }
+.st-fact > b { font-size: var(--fs-value); line-height: var(--lh-value); font-weight: var(--w-strong); }
+.st-lower { margin-top: var(--st-gap); }
+.st-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); margin-bottom: var(--st-gap-s); }
+.st-shots { display: grid; grid-template-columns: repeat(4, var(--st-shot-w)); gap: var(--st-gap-s); }
+/* Ohne overflow: hidden: Der Fokusring liegt außen (::after mit negativem Rand) und wurde sonst
+   ganz abgeschnitten (Wunsch 2026-10-21: keine Markierung in den Screenshots); das Bild rundet selbst ab */
+.st-shot { width: var(--st-shot-w); height: var(--st-shot-h); border-radius: var(--card-r); --r: var(--card-r); background: var(--c-black); }
+.st-shot > img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.st-more { margin-top: var(--st-gap); gap: var(--st-account-gap); }
+.st-about-box { height: var(--dialog-log-h); overflow: hidden; position: relative; }
+.st-about { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); white-space: pre-line;
+  --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }

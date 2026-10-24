@@ -1,0 +1,339 @@
+#!/usr/bin/bash
+# couch-desktop – KDE-Desktop im Fenster unter Gamescope, bedient mit dem Pad als Maus.
+#
+# Eigene Fassung des Nutzer-Skripts ~/.local/bin/nested-desktop (das bleibt unverändert liegen). Gleicher
+# Ablauf wie dort und wie /usr/bin/steamos-nested-desktop, zusätzlich:
+#   - KWin-Plugin "gamecontroller" gesperrt aus: Sonst bewegen KWin und unser Maus-Modus
+#     (padmouse) beide den Zeiger, jede Eingabe käme doppelt.
+#   - Gamescopes Vulkan-Schicht ausdrücklich aus (DISABLE_GAMESCOPE_WSI=1): Im verschachtelten
+#     KWin findet sie keine Gamescope-Oberfläche und löst eine Lawine aus zenity-Fenstern aus.
+#   - Eigener Laufzeit-Unterordner $XDG_RUNTIME_DIR/couch_desktop (kurzer Pfad: Socket-Namen
+#     dürfen höchstens 107 Zeichen haben) und eigener Override-Ordner ~/.config/couch/desktop-xdg,
+#     damit sich diese Fassung und das nested-desktop des Nutzers nicht in die Quere kommen.
+#   - Start nur auf einem Gamescope-Xwayland, nie als Fenster auf einem anderen Bildschirm.
+#   - "couch-desktop --logout" meldet Plasma in der laufenden Sitzung im Fenster höflich ab
+#     (über deren eigenen Sitzungsbus, nie über einen anderen). Rückgabe 0 = abgemeldet,
+#     3 = keine Sitzung gefunden, 1 = gescheitert, 2 = Aufruffehler.
+#
+# Der verschachtelte Desktop teilt sich ~/.config mit dem echten Desktop am Schreibtisch.
+# Was nur hier gelten soll, steht deshalb als gesperrter Eintrag ([$i]) in einem eigenen
+# Systemkonfig-Ordner, der nur dieser Sitzung über XDG_CONFIG_DIRS vorgesetzt wird:
+#   - Leisten immer sichtbar. Das Dock weicht am Schreibtisch Fenstern aus; hier bliebe es
+#     hinter jedem maximierten Fenster verschwunden.
+#   - Keine Fenster der letzten Schreibtisch-Sitzung wieder öffnen.
+#   - Bildschirmtastatur (Plasma Keyboard) eingeschaltet; sie erscheint bei jedem Textfeld.
+#   - Controller-Plugin von KWin aus (siehe oben).
+# ~/.config selbst wird nur gelesen (Nummern der Leisten).
+#
+# Größe: Auflösung des Bildschirms, auf dem Gamescope dieses Fenster zeigt, ab 4K mit
+# Skalierung 2. Abweichend per COUCH_DESKTOP_WIDTH / _HEIGHT / _SCALE (ersatzweise gelten
+# die Variablen NESTED_DESKTOP_* aus ~/.config/environment.d/62-nested-desktop.conf).
+#
+# Stand: Die Funktionen sind einzeln mit Attrappen geprüft (Aufräumen, Overrides, Größe). Als
+# Ganzes ist dieses Skript noch nie gelaufen; das ist am Fernseher zu prüfen.
+set -u
+
+# ---------------------------------------------------------------------------------------------
+# Funktionen. Tests binden die Datei mit "source" ein und rufen sie einzeln auf.
+
+# Läuft DISPLAY in einer Gamescope-Sitzung? Erkannt an GAMESCOPE_XWAYLAND_SERVER_ID, das nur
+# Gamescope selbst an die Wurzel schreibt (andere GAMESCOPE_*-Eigenschaften setzt Steam auch
+# auf dem KDE-Desktop).
+in_gamescope() {
+  [[ -n "${DISPLAY:-}" ]] || return 1
+  if command -v xprop >/dev/null 2>&1; then
+    xprop -root GAMESCOPE_XWAYLAND_SERVER_ID 2>/dev/null | grep -q '= [0-9]'
+  else
+    [[ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" || "${XDG_CURRENT_DESKTOP:-}" == gamescope ]]
+  fi
+}
+
+# write_overrides <Benutzer-Konfigordner (nur lesen)> <Override-Ordner (schreiben)>
+write_overrides() {
+  local cfg="$1" ovr="$2"
+  mkdir -p "$ovr" || return 1
+
+  # Leisten-Nummern ändern sich, wenn eine Leiste neu angelegt wird: jedes Mal frisch auslesen
+  awk -F'[][]' '
+    /^\[Containments\]\[[0-9]+\]$/ { id = $4; next }
+    /^\[/                          { id = "" }
+    id != "" && $0 == "plugin=org.kde.panel" { printf "[PlasmaViews][Panel %s]\npanelVisibility[$i]=0\n\n", id }
+  ' "$cfg/plasma-org.kde.plasma.desktop-appletsrc" > "$ovr/plasmashellrc" 2>/dev/null
+
+  cat > "$ovr/ksmserverrc" <<'EOF'
+[General]
+loginMode[$i]=emptySession
+EOF
+
+  cat > "$ovr/kwinrc" <<'EOF'
+[Wayland]
+InputMethod[$i]=/usr/share/applications/org.kde.plasma.keyboard.desktop
+VirtualKeyboardEnabled[$i]=true
+VirtualKeyboardMode[$i]=2
+
+[Plugins]
+gamecontrollerEnabled[$i]=false
+EOF
+}
+
+# Setzt W, H, SCALE (Bildpunkte, Skalierung) und LW, LH (Fenstergröße in skalierten Punkten).
+compute_size() {
+  # Gamescope meldet die Auflösung, in der es dieses "Spiel" darstellt
+  read -r W H < <(xrandr --current 2>/dev/null | sed -n 's/.*current \([0-9]*\) x \([0-9]*\).*/\1 \2/p' | head -1)
+  W="${COUCH_DESKTOP_WIDTH:-${NESTED_DESKTOP_WIDTH:-${W:-1920}}}"
+  H="${COUCH_DESKTOP_HEIGHT:-${NESTED_DESKTOP_HEIGHT:-${H:-1080}}}"
+  if [[ -n "${COUCH_DESKTOP_SCALE:-${NESTED_DESKTOP_SCALE:-}}" ]]; then SCALE="${COUCH_DESKTOP_SCALE:-${NESTED_DESKTOP_SCALE:-}}"
+  elif (( W >= 3200 )); then SCALE=2
+  else SCALE=1
+  fi
+  # KWin erwartet die Fenstergröße in skalierten Punkten: 3840x2160 bei Skalierung 2 = 1920x1080
+  read -r LW LH < <(awk -v w="$W" -v h="$H" -v s="$SCALE" 'BEGIN { printf "%d %d\n", w / s + 0.5, h / s + 0.5 }')
+}
+
+# Ist NEW_XDG_RUNTIME_DIR wirklich unser Ordner? Name beginnt mit couch_desktop und er liegt
+# direkt im Laufzeitordner RUNTIME_PARENT. Alles andere fassen cleanup und prepare nicht an.
+own_runtime_dir() {
+  [[ -n "${RUNTIME_PARENT:-}" && "$RUNTIME_PARENT" == /* ]] || return 1
+  [[ -n "${NEW_XDG_RUNTIME_DIR:-}" ]] || return 1
+  [[ "${NEW_XDG_RUNTIME_DIR%/*}" == "$RUNTIME_PARENT" ]] || return 1
+  [[ "${NEW_XDG_RUNTIME_DIR##*/}" == couch_desktop* ]] || return 1
+}
+
+# Räumt den Laufzeitordner dieser Sitzung ab. Braucht RUNTIME_PARENT und NEW_XDG_RUNTIME_DIR.
+# Rückgabe 2: der Ordner ist nicht unserer, nichts wurde angefasst.
+#
+# ACHTUNG, Datenverlust-Stelle: Das Dokumenten-Portal hängt unter .../doc ein FUSE-Dateisystem
+# ein, das auf die Dateien des Nutzers zeigt, und es überlebt die Sitzung. Ein "rm -rf" ohne
+# --one-file-system durch diese Einhängung hat am 2026-10-12 88 GB Spieldateien gelöscht.
+# Reihenfolge deshalb genau so: erst alle Einhängungen unter dem Ordner lazy aushängen, dann
+# nachsehen, ob wirklich keine mehr auf oder unter ihm liegt, erst dann rm mit
+# --one-file-system (das hält einen Bind-Mount desselben Dateisystems NICHT auf). Liegt noch
+# eine Einhängung da (Aushängen gescheitert, der Ordner selbst ist eine) oder ist die Liste
+# nicht lesbar, wird nichts gelöscht: Der Ordner bleibt liegen und prepare_runtime_dir fängt
+# daneben frisch an.
+
+# mounts_on <ordner>: Einhängepunkte auf oder unter dem Ordner, tiefste zuerst. findmnt -r
+# schreibt Leerzeichen und Ähnliches als \xHH; ohne Entschlüsseln scheiterte das Aushängen still.
+# Rückgabe 1, wenn die Liste nicht lesbar ist.
+mounts_on() {
+  local list m
+  list="$(findmnt -rno TARGET 2>/dev/null)" || return 1
+  while IFS= read -r m; do
+    [[ -n "$m" ]] || continue
+    printf -v m '%b' "$m"
+    [[ "$m" == "$1" || "$m" == "$1"/* ]] && printf '%s\n' "$m"
+  done <<<"$list" | sort -r
+  return 0
+}
+
+cleanup() {
+  own_runtime_dir || return 2
+  local m left
+  while IFS= read -r m; do
+    [[ -n "$m" && "$m" != "$NEW_XDG_RUNTIME_DIR" ]] || continue   # den Ordner selbst nie aushängen
+    fusermount3 -u -z "$m" 2>/dev/null || umount -l "$m" 2>/dev/null
+  done < <(mounts_on "$NEW_XDG_RUNTIME_DIR")
+  # Nachkontrolle vor dem Löschen
+  left="$(mounts_on "$NEW_XDG_RUNTIME_DIR")" || return 1
+  [[ -z "$left" ]] || return 1
+  rm -rf --one-file-system "$NEW_XDG_RUNTIME_DIR" 2>/dev/null
+}
+
+# Legt den Laufzeitordner frisch an (Rechte 0700). Kann NEW_XDG_RUNTIME_DIR ändern.
+prepare_runtime_dir() {
+  own_runtime_dir || return 1
+  cleanup
+  if ! mkdir --mode 0700 "$NEW_XDG_RUNTIME_DIR" 2>/dev/null; then
+    # Reste einer früheren Sitzung ließen sich nicht entfernen: daneben frisch anfangen
+    NEW_XDG_RUNTIME_DIR="$(mktemp -d "$RUNTIME_PARENT/couch_desktop.XXXXXX")" || return 1
+  fi
+}
+
+# --- höflich beenden (E29) -------------------------------------------------------------------
+# Die Sitzung im Fenster hat ihren eigenen Sitzungsbus (dbus-run-session). Seine Adresse legt
+# der Start in <Laufzeitordner>/bus-address ab; "couch-desktop --logout" meldet Plasma darüber
+# ab, so wie es der Knopf „Abmelden“ täte. Ohne das bekäme das Skript ein SIGTERM und räumte
+# auf, während Plasma noch läuft.
+BUS_FILE=bus-address
+
+# Gibt die Adresse des Sitzungsbusses der laufenden couch-Desktop-Sitzung aus. Rückgabe 1, wenn
+# es keine gibt. Gesucht wird nur in den eigenen Laufzeitordnern direkt unter RUNTIME_PARENT
+# (couch_desktop und, falls der Start ausweichen musste, couch_desktop.XXXXXX); bei mehreren
+# gilt die jüngste Datei. Verweise zählen nicht, fremde Dateien auch nicht.
+desktop_bus_address() {
+  [[ -n "${RUNTIME_PARENT:-}" && "$RUNTIME_PARENT" == /* ]] || return 1
+  local f dir newest="" addr=""
+  for f in "$RUNTIME_PARENT"/couch_desktop/"$BUS_FILE" "$RUNTIME_PARENT"/couch_desktop.*/"$BUS_FILE"; do
+    dir="${f%/*}"
+    [[ -d "$dir" && ! -L "$dir" && -f "$f" && ! -L "$f" && -O "$f" ]] || continue
+    [[ -z "$newest" || "$f" -nt "$newest" ]] && newest="$f"
+  done
+  [[ -n "$newest" ]] || return 1
+  IFS= read -r addr < "$newest" || true
+  [[ -n "$addr" ]] || return 1
+  printf '%s\n' "$addr"
+}
+
+# Ist das wirklich der Bus unserer Sitzung im Fenster? Nie der Bus, an dem der Aufrufer selbst
+# hängt, und nie der Benutzerbus <Laufzeitordner>/bus: Darüber abzumelden träfe am Schreibtisch
+# den echten Desktop des Nutzers.
+nested_bus() {
+  local addr="${1:-}" core own
+  [[ "$addr" == unix:* ]] || return 1
+  core="${addr%%,*}"
+  own="${DBUS_SESSION_BUS_ADDRESS:-}"
+  [[ -z "$own" || "$core" != "${own%%,*}" ]] || return 1
+  [[ "$core" != "unix:path=${RUNTIME_PARENT:-}/bus" ]] || return 1
+  [[ "$core" != "unix:path=${XDG_RUNTIME_DIR:-}/bus" ]] || return 1
+}
+
+# Meldet Plasma in der Sitzung im Fenster ab und wartet kurz, bis sie geendet hat.
+# Rückgabe: 0 = Abmeldung angenommen, 3 = keine eigene Sitzung gefunden (nichts zu beenden),
+# 1 = der Aufruf ist gescheitert. Im Prüfmodus (COUCH_TEST_ROOT) wird nur notiert.
+logout_desktop() {
+  local addr rc=0 waited=0 limit
+  addr="$(desktop_bus_address)" || { echo "couch-desktop: keine laufende Desktop-Sitzung gefunden"; return 3; }
+  if ! nested_bus "$addr"; then
+    echo "couch-desktop: Die abgelegte Bus-Adresse gehört nicht zur Sitzung im Fenster, nichts getan" >&2
+    return 3
+  fi
+  # org.kde.Shutdown.logout: abmelden ohne Rückfrage (wie der Knopf im Startmenü)
+  local -a call=(busctl "--address=$addr" --timeout=5 call org.kde.Shutdown /Shutdown org.kde.Shutdown logout)
+  if [[ -n "${COUCH_TEST_ROOT:-}" ]]; then
+    mkdir -p "$COUCH_TEST_ROOT/state" &&
+      printf '%s couch-desktop: %s\n' "$(date '+%F %T')" "${call[*]}" >> "$COUCH_TEST_ROOT/state/writes.log"
+    echo "couch-desktop: Prüfmodus, Abmeldung nur notiert"
+    return 0
+  fi
+  if command -v busctl >/dev/null 2>&1; then
+    DBUS_SESSION_BUS_ADDRESS="$addr" "${call[@]}" || rc=1
+  elif command -v dbus-send >/dev/null 2>&1; then
+    dbus-send "--bus=$addr" --type=method_call --dest=org.kde.Shutdown /Shutdown org.kde.Shutdown.logout || rc=1
+  else
+    echo "couch-desktop: weder busctl noch dbus-send gefunden" >&2
+    rc=1
+  fi
+  if (( rc != 0 )); then
+    echo "couch-desktop: Abmelden über den Sitzungsbus ist gescheitert" >&2
+    return 1
+  fi
+  echo "couch-desktop: Plasma wird abgemeldet"
+  # Der Start leert die Datei, sobald die Sitzung geendet hat. So lange hier bleiben, damit der
+  # Aufrufer Plasma nicht mitten im Abmelden ein SIGTERM hinterherschickt.
+  limit=25                                                # 5 s, geprüft wird alle 0,2 s
+  [[ "${COUCH_DESKTOP_LOGOUT_WAIT:-}" =~ ^[0-9]+$ ]] && limit=$(( COUCH_DESKTOP_LOGOUT_WAIT * 5 ))
+  while (( waited < limit )); do
+    desktop_bus_address >/dev/null || break
+    sleep 0.2
+    waited=$(( waited + 1 ))
+  done
+  return 0
+}
+
+# Wer die Datei nur einbindet, bekommt die Funktionen und sonst nichts.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
+
+# ---------------------------------------------------------------------------------------------
+# Ab hier der Start.
+
+if [[ "${1:-}" == "--logout" ]]; then
+  if [[ -z "${XDG_RUNTIME_DIR:-}" || ! -d "$XDG_RUNTIME_DIR" ]]; then
+    echo "couch-desktop: XDG_RUNTIME_DIR fehlt" >&2
+    exit 2
+  fi
+  RUNTIME_PARENT="$(realpath -e -- "$XDG_RUNTIME_DIR")" || exit 2
+  logout_desktop
+  exit $?
+fi
+if (( $# > 0 )); then
+  echo "couch-desktop: unbekanntes Argument: $1 (möglich: --logout)" >&2
+  exit 2
+fi
+
+if [[ -z "${DISPLAY:-}" ]]; then
+  echo "couch-desktop: DISPLAY fehlt (nicht unter Gamescope gestartet?)" >&2
+  exit 2
+fi
+if [[ -z "${COUCH_DESKTOP_ANY_DISPLAY:-}" ]] && ! in_gamescope; then
+  # Nichts darf ein Fenster außerhalb von Gamescope öffnen (SAFETY 13)
+  echo "couch-desktop: $DISPLAY gehört zu keiner Gamescope-Sitzung, kein Start" >&2
+  exit 3
+fi
+if [[ -z "${XDG_RUNTIME_DIR:-}" || ! -d "$XDG_RUNTIME_DIR" ]]; then
+  echo "couch-desktop: XDG_RUNTIME_DIR fehlt" >&2
+  exit 2
+fi
+
+# --- Umgebung des Game-Mode ablegen -------------------------------------------------------
+# gamescope-session-plus setzt QT_QPA_PLATFORM=xcb für Steam. Erbt Plasma das, laufen Leisten
+# und Programme als X11-Fenster und erscheinen nie (der Startbildschirm bleibt stehen).
+unset QT_QPA_PLATFORM QT_IM_MODULE GTK_IM_MODULE XCURSOR_THEME XCURSOR_SCALE
+unset LD_PRELOAD MANGOHUD MANGOHUD_CONFIGFILE ENABLE_GAMESCOPE_WSI ENABLE_HDR_WSI DXVK_HDR
+unset WINEDLLOVERRIDES mesa_glthread vk_xwayland_wait_ready VKD3D_SWAPCHAIN_LATENCY_FRAMES
+unset SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS RADV_FORCE_VRS_CONFIG_FILE
+# GDK_BACKEND=x11 (so läuft unser Home) schickte GTK-Programme an KWin vorbei; mit einem
+# geerbten WAYLAND_DISPLAY nähme KWin statt des Gamescope-Fensters einen fremden Compositor
+unset GDK_BACKEND WAYLAND_DISPLAY
+export DISABLE_GAMESCOPE_WSI=1
+# Steam startet Verknüpfungen mit den Bibliotheken seiner Laufzeit; hier zählt das System
+if [[ -n "${SYSTEM_LD_LIBRARY_PATH+x}" ]]; then
+  if [[ -n "$SYSTEM_LD_LIBRARY_PATH" ]]; then export LD_LIBRARY_PATH="$SYSTEM_LD_LIBRARY_PATH"; else unset LD_LIBRARY_PATH; fi
+fi
+
+# --- gesperrte Einstellungen nur für diese Sitzung ----------------------------------------
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
+if [[ -n "${COUCH_TEST_ROOT:-}" ]]; then
+  OVR="$COUCH_TEST_ROOT/config/desktop-xdg"      # Prüfmodus: nichts unter ~/.config anlegen
+else
+  OVR="$CFG/couch/desktop-xdg"
+fi
+write_overrides "$CFG" "$OVR" || exit 1
+export XDG_CONFIG_DIRS="$OVR:${XDG_CONFIG_DIRS:-/etc/xdg}"
+
+# --- Größe ----------------------------------------------------------------------------------
+compute_size
+
+# --- Sitzung starten (Ablauf wie steamos-nested-desktop) ------------------------------------
+# Aufgelöster Pfad: findmnt nennt Einhängungen mit ihrem echten Pfad
+RUNTIME_PARENT="$(realpath -e -- "$XDG_RUNTIME_DIR")" || exit 1
+NEW_XDG_RUNTIME_DIR="$RUNTIME_PARENT/couch_desktop"
+trap cleanup EXIT
+prepare_runtime_dir || exit 1
+
+# Ton läuft über die Hauptsitzung
+mkdir --mode 0700 "$NEW_XDG_RUNTIME_DIR/pulse"
+ln -s "$RUNTIME_PARENT/pulse/native" "$NEW_XDG_RUNTIME_DIR/pulse/native"
+ln -s "$RUNTIME_PARENT"/pipewire* "$NEW_XDG_RUNTIME_DIR/."
+
+# plasma-session ruft kwin_wayland_wrapper ohne Größenangaben auf: eigenen davorsetzen
+mkdir "$NEW_XDG_RUNTIME_DIR/bin"
+cat > "$NEW_XDG_RUNTIME_DIR/bin/kwin_wayland_wrapper" <<EOF
+#!/usr/bin/bash
+exec /usr/bin/kwin_wayland_wrapper --width $LW --height $LH --scale $SCALE --no-lockscreen "\$@"
+EOF
+chmod a+x "$NEW_XDG_RUNTIME_DIR/bin/kwin_wayland_wrapper"
+export PATH="$NEW_XDG_RUNTIME_DIR/bin:$PATH"
+
+export XDG_RUNTIME_DIR="$NEW_XDG_RUNTIME_DIR"
+
+# KWin merkt sich die Skalierung der Ausgabe "X11-0" in ~/.config/kwinoutputconfig.json und
+# zieht den gemerkten Wert der Option --scale vor. Deshalb nach dem Start ausdrücklich setzen.
+(
+  for _ in $(seq 60); do [[ -S "$XDG_RUNTIME_DIR/wayland-0" ]] && break; sleep 0.5; done
+  sleep 3
+  WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland KSCREEN_BACKEND_INPROCESS=1 \
+    kscreen-doctor "output.X11-0.scale.$SCALE" >/dev/null 2>&1
+) &
+
+# Eigener Sitzungsbus; seine Adresse für "couch-desktop --logout" und die Bildschirmtastatur
+# ablegen (nur für uns lesbar). Endet die Sitzung, wird die Datei geleert: Wer auf das Ende
+# wartet, sieht es daran, auch wenn sich der Ordner danach nicht entfernen lässt.
+dbus-run-session -- bash -c '
+  ( umask 077; printf "%s\n" "$DBUS_SESSION_BUS_ADDRESS" > "$1" )
+  exec startplasma-wayland
+' couch-desktop "$XDG_RUNTIME_DIR/$BUS_FILE"
+rc=$?
+{ : > "$XDG_RUNTIME_DIR/$BUS_FILE"; } 2>/dev/null
+exit "$rc"

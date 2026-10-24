@@ -1,0 +1,59 @@
+/* Spielebibliothek (07 Abschnitt 5). Zahlenwerte: tokens.css. */
+.library { background: var(--g-library); }
+.lib-icon { position: absolute; left: var(--lib-icon-pos); top: var(--lib-icon-pos); width: var(--lib-icon-size); height: var(--lib-icon-size);
+  border-radius: var(--lib-icon-r); background: var(--c-tile-sys-solid); display: flex; align-items: center; justify-content: center; font-size: var(--ic-lib-head); }
+.lib-title { position: absolute; left: var(--m-content); top: var(--lib-title-top); font-size: var(--fs-body); line-height: var(--rowlabel-lh); }
+.lib-tabs { position: absolute; left: var(--m-content); top: var(--lib-tabs-top); display: flex; gap: var(--lib-tab-gap); font-size: var(--fs-body); line-height: var(--lib-tab-lh); }
+.lib-tab { position: relative; padding: 0 var(--tab-pad); margin: 0 calc(-1 * var(--tab-pad)); border-radius: var(--tab-r); --r: var(--tab-r); color: var(--c-text-3); white-space: nowrap; }
+.lib-tab.is-active { color: var(--c-text); }
+.lib-head { position: absolute; left: var(--m-content); right: var(--m-content); top: var(--lib-count-top); display: flex; justify-content: space-between; gap: var(--lib-query-gap);
+  font-size: var(--fs-value); line-height: var(--lib-count-lh); color: var(--c-text-2); }
+.lib-sort { flex: none; white-space: nowrap; }
+.lib-empty { position: absolute; left: var(--m-content); top: var(--lib-grid-top); font-size: var(--fs-body); color: var(--c-text-3); }
+
+/* Rundknöpfe links neben dem Raster (07 Abschnitt 5: Ø 72 bei x=52): Sortieren/Filtern, Suche, Installieren */
+.lib-side { position: absolute; left: var(--lib-side-x); top: var(--lib-grid-top); width: var(--btn-h); }
+.lib-side-btn { position: absolute; left: 0; }
+.lib-side-btn[data-id="sort"] { top: 0; }
+.lib-side-btn[data-id="search"] { top: var(--lib-side-pitch); }
+.lib-side-btn[data-id="install"] { top: calc(2 * var(--lib-side-pitch)); }
+/* Was der fokussierte Knopf tut, steht als kleine Tafel daneben (über dem Raster) */
+.lib-side-label { position: absolute; left: calc(var(--btn-h) + var(--btn-gap)); top: calc((var(--btn-h) - var(--cc-label-h)) / 2); height: var(--cc-label-h); padding: 0 var(--cc-label-pad);
+  border-radius: var(--cc-label-r); background: var(--c-menu); box-shadow: var(--shadow-panel); font-size: var(--fs-hint); font-weight: var(--w-strong); line-height: var(--cc-label-h);
+  white-space: nowrap; z-index: var(--z-head); }
+.lib-side-label[data-at="search"] { top: calc(var(--lib-side-pitch) + (var(--btn-h) - var(--cc-label-h)) / 2); }
+.lib-side-label[data-at="install"] { top: calc(2 * var(--lib-side-pitch) + (var(--btn-h) - var(--cc-label-h)) / 2); }
+
+/* Sichtfenster: gerollte Zeilen verschwinden unter dem Kopf. Etwas größer als das Raster, damit
+   der Fokusring der Randkacheln nicht abgeschnitten wird. */
+.lib-view { position: absolute; left: calc(var(--m-content) - var(--lib-clip-margin)); right: calc(var(--m-content) - var(--lib-clip-margin));
+  top: calc(var(--lib-grid-top) - var(--lib-clip-margin)); bottom: 0; overflow: hidden; }
+.lib-grid { position: absolute; left: var(--lib-clip-margin); top: var(--lib-clip-margin); display: grid;
+  grid-template-columns: repeat(var(--lib-cols), var(--cover)); gap: var(--cover-gap);
+  --fx-y: calc(var(--top, 0) * -1 * var(--cover-pitch)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-row) var(--ease-out); will-change: transform; }
+.cover { position: relative; width: var(--cover); height: var(--cover-h); border-radius: var(--cover-r); --r: var(--cover-r); }
+.cover .art-title { font-size: var(--fs-value); line-height: var(--lh-value); top: var(--cover-pad); left: var(--cover-pad); right: var(--cover-pad); -webkit-line-clamp: 5; }
+/* Quadratische Kachel statt Cover: Bild oben, darunter der Titel */
+.cover .art.is-square > img { height: auto; aspect-ratio: 1 / 1; }
+.art-cap { position: absolute; left: var(--cover-pad); right: var(--cover-pad); top: calc(var(--cover) + var(--cover-name-gap)); font-size: var(--fs-caption); font-weight: var(--w-strong);
+  line-height: var(--lh-cover); color: var(--c-text-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.cover-marks { position: absolute; left: var(--cover-pad); right: var(--cover-pad); bottom: var(--cover-pad); display: flex; gap: var(--mark-gap); overflow: hidden; z-index: var(--z-content); }
+.cover-badge, .cover-marks > .mark { flex: none; height: var(--tile-badge-h); padding: 0 var(--tile-badge-pad); border-radius: var(--badge-r);
+  font-size: var(--tile-badge-fs); font-weight: var(--w-strong); letter-spacing: var(--ls-badge); line-height: var(--tile-badge-h); white-space: nowrap; }
+.cover-badge { background: var(--c-badge); color: var(--c-badge-text); }
+.cover-marks > .mark { background: var(--c-flag); }
+/* Zustand quer über die Kachel: nicht verfügbar, nicht installiert */
+.cover-state { position: absolute; left: 0; right: 0; top: 0; height: var(--cover-state-h); padding: 0 var(--cover-pad); background: var(--c-mark-warn); color: var(--c-mark-warn-text);
+  font-size: var(--fs-small); font-weight: var(--w-strong); line-height: var(--cover-state-h); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: var(--z-content); }
+.cover .tile-run { right: var(--cover-pad); top: var(--cover-pad); z-index: var(--z-content); }
+.cover.is-running .tile-run { opacity: 1; }
+/* Name als Überlagerung, solange die Kachel den Fokus hat */
+.cover-name { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--cover-name-top) var(--cover-pad) calc(var(--cover-pad) + var(--tile-badge-h) + var(--cover-name-gap));
+  background: var(--g-cover-shade); font-size: var(--fs-caption); font-weight: var(--w-strong); line-height: var(--lh-cover); --fx-o: 0; opacity: var(--fx-o);
+  transition: --fx-o var(--t-focus) var(--ease-out); }
+.cover.is-focus .cover-name { --fx-o: 1; }
+/* Platzhalter (des Kerns oder ohne Bild) tragen Titel und Marke schon: nichts darüberlegen, auch
+   nicht im Fokus; „nicht verfügbar“ zeigt dann nur die Dimmung des Bildes */
+.cover.is-titled .cover-name, .cover.is-titled .cover-marks, .cover.is-titled .cover-state { display: none; }
+/* Sortier- und Filtermenü: neben den Rundknöpfen, Oberkante wie die Reiter */
+.menu-lib { left: var(--m-content); top: var(--lib-tabs-top); }

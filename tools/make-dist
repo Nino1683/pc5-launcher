@@ -1,0 +1,559 @@
+#!/usr/bin/python3
+"""make-dist – baut das Paket des PC5 Launchers reproduzierbar aus einem git-Commit (E104 a, Bauplan 7.2).
+
+  tools/make-dist [--rev REV] [--check-only] [--from-worktree] [--out DIR]
+
+  --rev REV         Commit, aus dem gebaut wird (Vorgabe HEAD); Quelle ist "git archive REV"
+  --from-worktree   statt des Commits die Dateien des Arbeitsordners (verfolgte und nicht ignorierte); auch mit
+                    ungespeicherten Änderungen. Die Fassung heißt dann <v>-dirty: nie veröffentlichen.
+  --check-only      nur prüfen (Erlaubnisliste, Sperrlisten, Prüfungen), keine Ausgabe; Rückgabewert 1 bei Fund
+  --out DIR         Ausgabeordner (Vorgabe <projekt>/dist); darin entstehen pc5-launcher-<v>/,
+                    pc5-launcher-<v>.tar.gz und pc5-launcher-<v>.tar.gz.sha256
+
+Ohne --from-worktree bricht das Werkzeug ab, wenn "git status --porcelain -- app session packaging VERSION"
+etwas meldet. Hinein kommt nur die Erlaubnisliste app/**, session/**, VERSION, packaging/** (packaging/ ist die
+Wurzel des Pakets); app/web/dev/ (Attrappe der Oberfläche, nur für Tests) bleibt draußen. Abbruch mit Liste
+bei verbotenen Pfaden (Sony-Töne, tests/, docs/, .arbeit/, .scratch/, Bytecode, *.o, *.so, ELF, Verweise,
+über 2 MB) und verbotenen Inhalten. Die Muster für persönliche Daten ermittelt es zur Laufzeit auf dem
+bauenden Rechner (HOME, Nutzername, git-Adresse, Steam-Konten, Bluetooth-Adressen); im Werkzeug steht keins.
+PC5_SYSROOT stellt nur den Ort von /sys/class/bluetooth um (Tests).
+
+Reproduzierbar: SOURCE_DATE_EPOCH = Zeit des Commits, Einträge sortiert, uid/gid 0 ohne Namen, Rechte
+0644/0755, gzip mit mtime 0. Zwei Läufe auf demselben Commit ergeben dieselbe sha256.
+Nur Standardbibliothek. Schreibt nur unter --out; löscht dort nur, was es selbst gebaut hat (Datei für Datei
+nach dem MANIFEST.sha256 bzw. der Liste des Laufs).
+"""
+import fnmatch
+import glob
+import gzip
+import hashlib
+import io
+import json
+import os
+import pwd
+import re
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+TOOLS = os.path.dirname(os.path.realpath(__file__))
+PROJECT = os.path.dirname(TOOLS)
+NAME = "pc5-launcher"
+ROOTS = ("app", "session", "packaging", "VERSION")
+LEFT_OUT = ("app/web/dev/",)                     # Erlaubnisliste: bleibt draußen, kein Fund
+SIZE_LIMIT = 2 * 1024 * 1024
+# Dateien über SIZE_LIMIT: (Pfad, Begründung). Keine nötig (Schrift 712 KB, Klang 688 KB, Wortliste).
+SIZE_EXCEPTIONS = ()
+BAD_COMPONENTS = ("tests", "docs", ".arbeit", ".scratch", "__pycache__")
+BAD_SUFFIXES = (".pyc", ".pyo", ".o", ".so")
+# Feste Inhaltsmuster (Groß-/Kleinschreibung egal)
+FIXED_PATTERNS = (
+    ("sony-hinweis", r"All sounds belong to Sony"),
+    ("sony-ordner", r"PS5_Sounds"),
+    ("valve-toene", r"deck_ui_"),
+    ("privater-schluessel", r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
+    ("refresh-token", r'refresh_token"\s*:\s*"[^"]{8,}'),
+)
+# Ausnahmen: (Pfad im Paket, Muster-Name, Begründung)
+CONTENT_EXCEPTIONS = ()
+LICENSES = (
+    # (Datei oder Ordner im Paket, nötige Lizenzdatei im Paket, Stichworte in THIRD-PARTY.md)
+    ("app/couch/terminal/page/vendor/xterm.js", "app/couch/terminal/page/vendor/LICENSE-xterm", ("xterm.js", "MIT")),
+    ("app/web/data/words-de.txt", None, ("words-de.txt", "CC BY-SA 4.0", "FrequencyWords")),
+    ("app/web/fonts/NotoSans-VF.ttf", "app/web/fonts/OFL.txt", ("Noto Sans", "OFL")),
+)
+VENDOR = "app/couch/terminal/page/vendor"
+# Wie "python3 -m compileall", aber ohne Bytecode zu schreiben: jede .py-Datei und jedes Python-Skript
+# (Kopfzeile) mit compile() übersetzen. So bleibt nichts liegen, was wieder weggeräumt werden müsste.
+COMPILE = r"""
+import os, sys
+bad = 0
+for top in sys.argv[1:]:
+    for folder, dirs, files in os.walk(top):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for name in sorted(files):
+            path = os.path.join(folder, name)
+            if not name.endswith(".py"):
+                try:
+                    with open(path, "rb") as f:
+                        head = f.readline(200)
+                except OSError:
+                    continue
+                if not (head.startswith(b"#!") and b"python" in head):
+                    continue
+            try:
+                with open(path, "rb") as f:
+                    compile(f.read(), path, "exec", dont_inherit=True)
+            except (SyntaxError, ValueError) as e:
+                bad += 1
+                print("%s: %s" % (path, e))
+sys.exit(1 if bad else 0)
+"""
+
+
+class Abort(Exception):
+    pass
+
+
+def say(text):
+    print("make-dist: " + text, flush=True)
+
+
+def git(*args, cwd=PROJECT, binary=False):
+    # nur lesend: GIT_OPTIONAL_LOCKS=0 verhindert, dass "git status" nebenbei .git/index auffrischt
+    env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
+    proc = subprocess.run(["git", "-C", cwd] + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, timeout=300, env=env)
+    if proc.returncode != 0:
+        raise Abort("git %s: %s" % (" ".join(args), proc.stderr.decode("utf-8", "replace").strip()))
+    return proc.stdout if binary else proc.stdout.decode("utf-8", "replace")
+
+
+# ----------------------------------------------------------------------------- Quelle
+def from_archive(rev):
+    """{Pfad im Repo: (Art, Daten, ausführbar)} aus git archive. Art "file" oder "link"."""
+    data = git("archive", "--format=tar", rev, "--", *ROOTS, binary=True)
+    out = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as tar:
+        for member in tar:
+            if member.isdir() or member.name == "pax_global_header":
+                continue
+            name = member.name
+            if member.issym():
+                out[name] = ("link", member.linkname.encode("utf-8"), False)
+            elif member.isfile():
+                out[name] = ("file", tar.extractfile(member).read(), bool(member.mode & 0o111))
+            else:
+                out[name] = ("other", b"", False)
+    return out
+
+
+def from_worktree():
+    listed = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *ROOTS).split("\0")
+    out = {}
+    for name in sorted(x for x in listed if x):
+        path = os.path.join(PROJECT, name)
+        try:
+            st = os.lstat(path)
+        except FileNotFoundError:
+            continue                              # gelöscht, aber noch verfolgt
+        if os.path.islink(path):
+            out[name] = ("link", os.readlink(path).encode("utf-8"), False)
+        elif os.path.isfile(path):
+            with open(path, "rb") as f:
+                out[name] = ("file", f.read(), bool(st.st_mode & 0o111))
+        else:
+            out[name] = ("other", b"", False)
+    return out
+
+
+def package_path(name):
+    """Pfad im Paket: packaging/<x> wird <x>, alles andere bleibt."""
+    return name[len("packaging/"):] if name.startswith("packaging/") else name
+
+
+# ----------------------------------------------------------------------------- Sperrlisten
+def personal_patterns(repo):
+    """Muster für persönliche Daten dieses Rechners, zur Laufzeit ermittelt (nie im Werkzeug)."""
+    found = []
+    home = os.path.expanduser("~")
+    try:
+        user = pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        user = os.environ.get("USER", "")
+    homes = {home, os.path.realpath(home)}
+    if user:
+        homes |= {"/var/home/" + user, "/home/" + user, "/run/media/" + user}
+    for value in sorted(homes):
+        if value and value not in ("/", "/root") and len(value) > 6:
+            found.append(("persoenlicher-pfad", re.escape(value) + r"(?![A-Za-z0-9_.-])"))
+    try:
+        email = git("config", "user.email", cwd=repo).strip()
+    except Abort:
+        email = ""
+    if email:
+        found.append(("git-adresse", re.escape(email)))
+    accounts = set()
+    for base in ("~/.local/share/Steam/userdata", "~/.steam/steam/userdata",
+                 "~/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata"):
+        try:
+            accounts |= {n for n in os.listdir(os.path.expanduser(base)) if n.isdigit() and len(n) >= 5}
+        except OSError:
+            pass
+    for account in sorted(accounts):
+        found.append(("steam-konto", r"(?<![0-9])%s(?![0-9])" % account))
+    sysroot = os.environ.get("PC5_SYSROOT") or "/"
+    for path in sorted(glob.glob(os.path.join(sysroot, "sys/class/bluetooth/hci*/address"))):
+        try:
+            with open(path, encoding="ascii", errors="replace") as f:
+                address = f.read().strip()
+        except OSError:
+            continue
+        if re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address) and address != "00:00:00:00:00:00":
+            found.append(("bluetooth-adresse", re.escape(address)))
+            found.append(("bluetooth-adresse", re.escape(address.replace(":", "_"))))
+    return found
+
+
+def path_findings(files):
+    out = []
+    for name, (kind, data, _exe) in sorted(files.items()):
+        parts = name.split("/")
+        if name.startswith("app/web/sounds/pc5/"):
+            out.append((name, "Sonys Töne (E58)"))
+        if any(p in BAD_COMPONENTS for p in parts[:-1]):
+            out.append((name, "verbotener Ordner (%s)" % ", ".join(p for p in parts[:-1] if p in BAD_COMPONENTS)))
+        base = parts[-1]
+        if base.endswith(BAD_SUFFIXES) or ".so." in base:
+            out.append((name, "Bytecode bzw. Bibliothek"))
+        if kind == "link":
+            out.append((name, "Verweis (-> %s); install.sh nimmt nur Dateien" % data.decode("utf-8", "replace")))
+        elif kind != "file":
+            out.append((name, "keine gewöhnliche Datei"))
+        elif data[:4] == b"\x7fELF":
+            out.append((name, "ELF-Programm"))
+        elif len(data) > SIZE_LIMIT and name not in dict(SIZE_EXCEPTIONS):
+            out.append((name, "größer als 2 MB (%d Byte)" % len(data)))
+    return out
+
+
+def content_findings(files, patterns):
+    compiled = [(label, re.compile(p.encode("utf-8"), re.IGNORECASE)) for label, p in patterns]
+    allowed = {(path, label) for path, label, _why in CONTENT_EXCEPTIONS}
+    out = []
+    for name, (kind, data, _exe) in sorted(files.items()):
+        if kind != "file":
+            continue
+        pkg = package_path(name)
+        for label, rx in compiled:
+            if (pkg, label) in allowed:
+                continue
+            m = rx.search(data)
+            if m:
+                line = data[:m.start()].count(b"\n") + 1
+                out.append((name, "%s in Zeile %d" % (label, line)))
+    return out
+
+
+# ----------------------------------------------------------------------------- Prüfungen im Arbeitsordner
+def run(argv, env=None, timeout=300, cwd=None):
+    try:
+        proc = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              env=env, timeout=timeout, cwd=cwd, text=True, errors="replace")
+        return proc.returncode == 0, proc.stdout
+    except subprocess.TimeoutExpired:
+        return False, "Zeitgrenze von %d s überschritten" % timeout
+    except OSError as e:
+        return False, str(e)
+
+
+def shell_scripts(tree, names):
+    found = []
+    for rel in names:
+        path = os.path.join(tree, rel)
+        with open(path, "rb") as f:
+            first = f.readline(200)
+        if (first.startswith(b"#!") and re.search(rb"\b(ba)?sh\b", first)) or rel.endswith(".sh") \
+                or fnmatch.fnmatch(rel, "session/sessions.d-*"):
+            found.append(path)
+    return found
+
+
+def tree_checks(tree, names):
+    problems, notes = [], []
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith(("COUCH_", "PC5_"))}
+    for path in shell_scripts(tree, names):
+        ok, out = run(["bash", "-n", path], timeout=30)
+        if not ok:
+            problems.append("bash -n %s: %s" % (os.path.relpath(path, tree), out.strip()[:300]))
+    ok, out = run([sys.executable, "-I", "-c", COMPILE, "app", "session", "installer"], cwd=tree, env=clean_env)
+    if not ok:
+        problems.append("Python übersetzen: " + out.strip()[-800:])
+    ok, out = run([sys.executable, "-I", os.path.join(tree, "session", "supervisor.py"), "--selftest"], timeout=30,
+                  env={"PATH": os.environ.get("PATH", os.defpath)})
+    if not ok or out.strip() != "ok":
+        problems.append("Selbsttest des Supervisors: " + out.strip()[:300])
+    depcheck = os.path.join(tree, "app", "couch", "depcheck.py")
+    if os.path.isfile(depcheck):
+        proc = subprocess.run([sys.executable, "-I", depcheck, "--json"], stdin=subprocess.DEVNULL, env=clean_env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180, text=True)
+        try:
+            json.loads(proc.stdout)
+            notes.append("depcheck --json läuft (Ergebnis auf diesem Rechner: %s)"
+                         % ("ok" if proc.returncode == 0 else "Lücken"))
+        except ValueError:
+            problems.append("depcheck --json lieferte kein JSON: " + proc.stderr.strip()[-300:])
+    else:
+        problems.append("app/couch/depcheck.py fehlt")
+    problems += vendor_check(tree, notes)
+    problems += license_check(tree)
+    return problems, notes
+
+
+def vendor_check(tree, notes):
+    folder = os.path.join(tree, VENDOR)
+    if not os.path.isdir(folder):
+        return []
+    herkunft = os.path.join(folder, "HERKUNFT.txt")
+    try:
+        with open(herkunft, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return ["%s/HERKUNFT.txt fehlt" % VENDOR]
+    sums = {}
+    for m in re.finditer(r"(?im)^\s*(?:sha256\s+)?([0-9a-f]{64})\s+\*?(\S+)\s*$", text):
+        sums[os.path.basename(m.group(2))] = m.group(1).lower()
+    if not sums:
+        notes.append("WARNUNG %s/HERKUNFT.txt nennt keine sha256 der Dateien (nur sha1 der npm-Archive): "
+                     "nicht geprüft" % VENDOR)
+        return []
+    problems = []
+    for name in sorted(os.listdir(folder)):
+        if name == "HERKUNFT.txt" or name.startswith("LICENSE"):
+            continue
+        with open(os.path.join(folder, name), "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+        if name not in sums:
+            problems.append("%s/%s steht nicht in HERKUNFT.txt" % (VENDOR, name))
+        elif sums[name] != digest:
+            problems.append("%s/%s: sha256 stimmt nicht mit HERKUNFT.txt" % (VENDOR, name))
+    return problems
+
+
+def license_check(tree):
+    problems = []
+    try:
+        with open(os.path.join(tree, "THIRD-PARTY.md"), encoding="utf-8") as f:
+            third = f.read()
+    except OSError:
+        return ["THIRD-PARTY.md fehlt"]
+    for part, license_file, words in LICENSES:
+        if not os.path.exists(os.path.join(tree, part)):
+            continue
+        if license_file and not os.path.isfile(os.path.join(tree, license_file)):
+            problems.append("Lizenzdatei fehlt: %s (für %s)" % (license_file, part))
+        for word in words:
+            if word not in third:
+                problems.append("THIRD-PARTY.md nennt „%s“ nicht (für %s)" % (word, part))
+    for rel in ("LICENSE", "README.md", "README.en.md", "CHANGELOG.md", "install.sh", "uninstall.sh",
+                "installer/pc5_install.py"):
+        if not os.path.isfile(os.path.join(tree, rel)):
+            problems.append("fehlt im Paket: " + rel)
+    return problems
+
+
+# ----------------------------------------------------------------------------- Bauen
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def write_tree(work, entries):
+    """entries: {Pfad im Paket: (Daten, ausführbar)}. Liefert die Liste der geschriebenen Dateien."""
+    written = []
+    for rel in sorted(entries):
+        data, exe = entries[rel]
+        path = os.path.join(work, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "xb") as f:
+            f.write(data)
+        os.chmod(path, 0o755 if exe else 0o644)
+        written.append(rel)
+    return written
+
+
+def remove_listed(root, files):
+    """Nur die genannten Dateien, dann die leer gewordenen Ordner darunter (tiefste zuerst). Nichts Fremdes:
+    Bleibt etwas übrig, bleibt der Ordner stehen (False). Keine Verweise, keine Einhängungen."""
+    root = os.path.abspath(root)
+    if os.path.islink(root) or not os.path.isdir(root):
+        return False
+    device = os.lstat(root).st_dev
+    folders = set()
+    for rel in files:
+        path = os.path.join(root, rel)
+        if not os.path.abspath(path).startswith(root + os.sep):
+            continue
+        try:
+            st = os.lstat(path)
+        except FileNotFoundError:
+            continue
+        if st.st_dev != device or os.path.isdir(path) and not os.path.islink(path):
+            continue
+        os.unlink(path)
+        folder = os.path.dirname(path)
+        while folder != root and folder.startswith(root + os.sep):
+            folders.add(folder)
+            folder = os.path.dirname(folder)
+    for folder in sorted(folders, key=lambda f: -f.count(os.sep)):
+        try:
+            os.rmdir(folder)
+        except OSError:
+            pass
+    try:
+        os.rmdir(root)
+        return True
+    except OSError:
+        return False
+
+
+def remove_old_output(target):
+    """Eine frühere Ausgabe pc5-launcher-<v>/ nur entfernen, wenn alles darin im eigenen MANIFEST.sha256 steht."""
+    if not os.path.lexists(target):
+        return
+    manifest = os.path.join(target, "MANIFEST.sha256")
+    try:
+        with open(manifest, encoding="utf-8") as f:
+            listed = [line.split("  ", 1)[1] for line in f.read().splitlines() if "  " in line]
+    except OSError:
+        raise Abort("%s gibt es schon, aber ohne MANIFEST.sha256: bitte selbst wegräumen" % target)
+    present = []
+    for folder, dirs, names in os.walk(target, followlinks=False):
+        for name in names:
+            present.append(os.path.relpath(os.path.join(folder, name), target))
+        for name in dirs:
+            if os.path.islink(os.path.join(folder, name)):
+                present.append(os.path.relpath(os.path.join(folder, name), target))
+    extra = sorted(set(present) - set(listed) - {"MANIFEST.sha256"})
+    if extra:
+        raise Abort("%s enthält fremde Dateien (%s …): bitte selbst wegräumen" % (target, ", ".join(extra[:3])))
+    if not remove_listed(target, listed + ["MANIFEST.sha256"]):
+        raise Abort("%s ließ sich nicht vollständig entfernen" % target)
+
+
+def make_tar(entries, top, epoch):
+    raw = io.BytesIO()
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as gz:
+        with tarfile.open(fileobj=gz, mode="w", format=tarfile.GNU_FORMAT) as tar:
+            dirs = {top}
+            for rel in entries:
+                parts = rel.split("/")[:-1]
+                for i in range(1, len(parts) + 1):
+                    dirs.add(top + "/" + "/".join(parts[:i]))
+            items = [(d, None) for d in dirs] + [(top + "/" + rel, rel) for rel in entries]
+            for name, rel in sorted(items):
+                info = tarfile.TarInfo(name)
+                info.mtime = epoch
+                info.uid = info.gid = 0
+                info.uname = info.gname = ""
+                if rel is None:
+                    info.type = tarfile.DIRTYPE
+                    info.mode = 0o755
+                    tar.addfile(info)
+                else:
+                    data, exe = entries[rel]
+                    info.size = len(data)
+                    info.mode = 0o755 if exe else 0o644
+                    tar.addfile(info, io.BytesIO(data))
+    return raw.getvalue()
+
+
+def main(argv):
+    rev, out, check_only, worktree = "HEAD", None, False, False
+    args = argv[1:]
+    while args:
+        arg = args.pop(0)
+        if arg == "--rev" and args:
+            rev = args.pop(0)
+        elif arg == "--out" and args:
+            out = os.path.abspath(args.pop(0))
+        elif arg == "--check-only":
+            check_only = True
+        elif arg == "--from-worktree":
+            worktree = True
+        else:
+            sys.stderr.write(__doc__)
+            return 2
+    out = out or os.path.join(PROJECT, "dist")
+    try:
+        return build(rev, out, check_only, worktree)
+    except Abort as e:
+        say("ABBRUCH: %s" % e)
+        return 1
+
+
+def build(rev, out, check_only, worktree):
+    if worktree:
+        files = from_worktree()
+        epoch = int(git("log", "-1", "--format=%ct", "HEAD").strip() or 0)
+        source = "Arbeitsordner (Stand HEAD %s)" % git("rev-parse", "--short", "HEAD").strip()
+    else:
+        dirty = git("status", "--porcelain", "--", *ROOTS).strip()
+        if dirty:
+            raise Abort("ungespeicherte Änderungen unter app/, session/, packaging/ oder VERSION (mit "
+                        "--from-worktree trotzdem bauen, als <v>-dirty):\n" + "\n".join(dirty.splitlines()[:20]))
+        files = from_archive(rev)
+        epoch = int(git("log", "-1", "--format=%ct", rev).strip())
+        source = "Commit %s" % git("rev-parse", "--short", rev).strip()
+    left_out = sorted(n for n in files if n.startswith(LEFT_OUT))
+    for name in left_out:
+        del files[name]
+    clash = [n for n in files if n.startswith("packaging/") and package_path(n).split("/")[0] in
+             ("app", "session", "VERSION", "MANIFEST.sha256")]
+    findings = path_findings(files) + content_findings(files, list(FIXED_PATTERNS) + personal_patterns(PROJECT))
+    findings += [(n, "packaging/ überschreibt einen Teil des Pakets") for n in clash]
+    if "VERSION" not in files:
+        findings.append(("VERSION", "fehlt"))
+    say("Quelle: %s, %d Dateien, ausgelassen: %d (%s)" % (source, len(files), len(left_out), ", ".join(LEFT_OUT)))
+    if findings:
+        for name, why in findings:
+            say("FUND  %s: %s" % (name, why))
+        raise Abort("%d Fund(e); nichts gebaut" % len(findings))
+
+    version = files["VERSION"][1].decode("utf-8", "replace").strip().splitlines()[0].strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,40}", version):
+        raise Abort("VERSION ist unbrauchbar: %r" % version)
+    if worktree:
+        version += "-dirty"
+    entries = {package_path(n): (data, exe) for n, (_kind, data, exe) in files.items()}
+    entries["VERSION"] = ((version + "\n").encode("utf-8"), False)
+    manifest = "".join("%s  %s\n" % (sha256(entries[rel][0]), rel) for rel in sorted(entries))
+    entries["MANIFEST.sha256"] = (manifest.encode("utf-8"), False)
+
+    os.makedirs(os.path.join(out, ".work"), exist_ok=True)
+    work = tempfile.mkdtemp(prefix="%s-" % os.getpid(), dir=os.path.join(out, ".work"))
+    os.chmod(work, 0o755)                          # wird zu pc5-launcher-<v>/ (mkdtemp legt 0700 an)
+    written = []
+    moved = False
+    top = "%s-%s" % (NAME, version)
+    target = os.path.join(out, top)
+    try:
+        written = write_tree(work, entries)
+        problems, notes = tree_checks(work, sorted(entries))
+        for note in notes:
+            say(note)
+        if problems:
+            for problem in problems:
+                say("FEHLER  " + problem)
+            raise Abort("Prüfung im Arbeitsordner nicht bestanden; nichts gebaut")
+        size = sum(len(d) for d, _e in entries.values())
+        if check_only:
+            say("Prüfung bestanden: %d Dateien, %.1f MB, keine Funde" % (len(entries), size / 1e6))
+            return 0
+        blob = make_tar(entries, top, epoch)
+        digest = sha256(blob)
+        remove_old_output(target)
+        os.rename(work, target)
+        moved = True
+        tarball = os.path.join(out, top + ".tar.gz")
+        for path, data in ((tarball, blob), (tarball + ".sha256", ("%s  %s\n" % (digest, top + ".tar.gz")).encode())):
+            tmp = path + ".tmp-%d" % os.getpid()
+            with open(tmp, "wb") as f:
+                f.write(data)
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, path)
+        say("gebaut: %s (%d Dateien, %.1f MB entpackt, %.1f MB gepackt)" % (target, len(entries), size / 1e6,
+                                                                            len(blob) / 1e6))
+        say("sha256: %s  %s" % (digest, top + ".tar.gz"))
+        return 0
+    finally:
+        if not moved and os.path.isdir(work):
+            remove_listed(work, written)
+        try:
+            os.rmdir(os.path.join(out, ".work"))
+        except OSError:
+            pass
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

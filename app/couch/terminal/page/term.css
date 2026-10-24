@@ -1,0 +1,71 @@
+:root {
+  --bg: #0b0c10;
+  --panel: #171a22;
+  --item: #232733;
+  --item-on: #f2f3f5;
+  --text: #e8e9ec;
+  --dim: #9aa0ab;
+  --accent: #3d8bff;
+  --bar-h: 56px;
+  --cross: #7fa8ff;
+  --circle: #ff6f7d;
+  --square: #e48bd8;
+  --triangle: #3fd2b0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: "Noto Sans", sans-serif; }
+[hidden] { display: none !important; }
+
+#term { position: absolute; left: 24px; right: 16px; top: 14px; bottom: calc(var(--bar-h) + 8px); }
+.xterm .xterm-viewport { background: var(--bg) !important; }
+
+/* Leiste mit der Belegung */
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: var(--bar-h); display: flex; align-items: center;
+  gap: 30px; padding: 0 28px; background: #12141a; border-top: 1px solid #222632; font-size: 19px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; }
+.bar .state { margin-left: auto; color: var(--text); }
+.b { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 7px;
+  margin-right: 7px; border-radius: 15px; background: #262a35; color: var(--text); font-size: 17px; font-weight: 600; }
+.b + .b { margin-left: -2px; }
+.b-cross { color: var(--cross); }
+.b-circle { color: var(--circle); }
+.b-square { color: var(--square); }
+.b-triangle { color: var(--triangle); }
+.b-text { font-size: 15px; }
+
+/* Startauswahl und Befehle */
+.layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 7, 10, 0.78); }
+.panel { width: 760px; max-width: calc(100vw - 80px); max-height: calc(100vh - 60px); padding: 40px 44px 34px;
+  border-radius: 28px; background: var(--panel); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6); overflow: hidden; }
+.panel.wide { width: 1500px; }
+.title { font-size: 40px; font-weight: 300; margin-bottom: 6px; }
+.sub { font-size: 20px; color: var(--dim); margin-bottom: 26px; }
+.note { font-size: 20px; color: var(--dim); margin-top: 20px; min-height: 26px; }
+.note.is-warn { color: #ffb067; }
+.list { display: flex; flex-direction: column; gap: 12px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+.item { display: flex; flex-direction: column; justify-content: center; min-height: 72px; padding: 10px 26px; border-radius: 16px;
+  background: var(--item); transition: transform 120ms ease-out; }
+.item .label { font-size: 25px; }
+.item .desc { font-size: 17px; color: var(--dim); margin-top: 3px; }
+.item.is-off { opacity: 0.4; }
+.item.is-focus { background: var(--item-on); color: #0b0c10; transform: scale(1.02);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25); }
+.item.is-focus .desc { color: #4a4f5a; }
+.grid .item { min-height: 92px; }
+.grid .group { grid-column: 1 / -1; font-size: 18px; color: var(--dim); letter-spacing: 0.04em; margin: 10px 0 0 4px; }
+.grid .group:first-child { margin-top: 0; }
+
+/* Schreibfeld oben: die Bildschirmtastatur der Konsole liegt unten */
+.compose { position: absolute; left: 50%; top: 28px; transform: translateX(-50%); width: 1500px; max-width: calc(100vw - 60px);
+  padding: 22px 28px 18px; border-radius: 24px; background: var(--panel); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65);
+  border: 2px solid var(--accent); }
+.compose-title { font-size: 20px; color: var(--dim); margin-bottom: 10px; }
+.compose textarea { width: 100%; resize: none; border: none; outline: none; border-radius: 14px; padding: 14px 18px;
+  background: #0f1117; color: var(--text); font: 26px/1.35 "Noto Sans", sans-serif; caret-color: var(--accent); }
+.compose-hint { font-size: 18px; color: var(--dim); margin-top: 12px; display: flex; align-items: center; gap: 6px; }
+.compose-hint .b { margin-left: 14px; }
+.compose-hint .b:first-child { margin-left: 0; }

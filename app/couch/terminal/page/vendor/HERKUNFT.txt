@@ -1,0 +1,10 @@
+xterm.js 5.5.0 (@xterm/xterm) und @xterm/addon-fit 0.10.0 aus dem npm-Verzeichnis,
+Prüfsummen (sha1) gegen registry.npmjs.org geprüft am 2026-10-19:
+  xterm-5.5.0.tgz       275fb8f6e14afa6e8a0c05d4ebc94523ff775396
+  addon-fit-0.10.0.tgz  bebf87fadd74e3af30fdcdeef47030e2592c6f55
+Lizenz: MIT (LICENSE-xterm).
+sha256 der Dateien, wie sie hier liegen (am 2026-10-24 aus diesem Ordner berechnet; gegen npm geprüft
+ist nur die sha1 der Archive oben). tools/make-dist bricht ab, wenn eine abweicht oder fehlt (E104):
+sha256 1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495 xterm.js
+sha256 bdaefa370b1bfc42ee88d46fe6072400902a4d4b2d45cd93438dda9b23c97089 addon-fit.js
+sha256 ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6 xterm.css

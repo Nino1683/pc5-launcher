@@ -1,0 +1,39 @@
+/* Spielzeit-Rückblick (E108, Teil P9), Bildschirm stats. Zahlenwerte nur in tokens.css (Block E108-stats).
+   Kopf und Tastenhinweise wie die Abläufe (installer.css .flow-title, .flow-sub; base.css .hints): links
+   Gesamtzeit, Vergleich, Balken je Tag und die Sitzungen, rechts die meistgespielten und neuen Spiele als
+   Zeilenliste (components/rows.js). Die Balken stehen über die Laufzeit-Variable --p, ohne Bewegung. */
+.rb-tabs { position: absolute; right: var(--m-content); top: var(--rb-tabs-top); display: flex; gap: var(--rb-tab-gap);
+  font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-3); }
+.rb-tab { position: relative; white-space: nowrap; }
+.rb-tab.is-active { color: var(--c-text); }
+.rb-tab.is-active::after { content: ""; position: absolute; left: 0; right: 0; bottom: calc(-1 * var(--rb-tab-line-gap));
+  height: var(--rb-tab-line); border-radius: var(--rb-tab-line); background: var(--c-text); }
+
+.rb-panel { position: absolute; left: var(--m-content); top: var(--flow-top); width: var(--rb-panel-w); }
+.rb-total { font-size: var(--fs-rb-total); line-height: var(--lh-rb-total); font-weight: var(--w-strong); }
+.rb-compare { margin-top: var(--rb-compare-gap); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.rb-compare:empty { display: none; }
+
+.rb-chart { display: flex; align-items: flex-end; gap: var(--rb-bar-gap); margin-top: var(--rb-chart-gap); }
+.rb-chart.is-many { gap: var(--rb-bar-gap-many); }
+.rb-bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; }
+.rb-bar-box { height: var(--rb-chart-h); display: flex; flex-direction: column; justify-content: flex-end; }
+.rb-bar-fill { height: calc(var(--p) * 100%); min-height: var(--rb-bar-min); border-radius: var(--rb-bar-r);
+  background: var(--c-rb-bar); }
+.rb-bar.is-empty .rb-bar-fill { background: var(--c-rb-bar-empty); }
+.rb-bar.is-now .rb-bar-fill { background: var(--c-rb-bar-now); }
+.rb-day { height: var(--rb-day-h); margin-top: var(--rb-day-gap); font-size: var(--fs-small); line-height: var(--rb-day-h);
+  color: var(--c-text-3); text-align: center; white-space: nowrap; }
+.rb-bar.is-now .rb-day { color: var(--c-text); }
+
+.rb-peak { margin-top: var(--rb-peak-gap); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.rb-sessions { margin-top: var(--rb-line-gap); font-size: var(--fs-value); line-height: var(--lh-value); }
+.rb-peak:empty, .rb-sessions:empty { display: none; }
+
+.rb-list { position: absolute; left: var(--rb-list-x); top: var(--flow-top); width: var(--rb-list-w); }
+.rb-list .rows { height: var(--flow-view); }
+.rb-scroll { left: var(--scroll-x); top: var(--flow-top); }
+
+/* Bibliothek: Rundknopf „Statistik“ als vierter unter den anderen (library.css) */
+.lib-side-btn[data-id="stats"] { top: calc(var(--rb-side-row) * var(--lib-side-pitch)); }
+.lib-side-label[data-at="stats"] { top: calc(var(--rb-side-row) * var(--lib-side-pitch) + (var(--btn-h) - var(--cc-label-h)) / 2); }

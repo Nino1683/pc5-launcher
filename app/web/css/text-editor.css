@@ -1,0 +1,41 @@
+/* Text-Editor des Datei-Explorers (E99, screens/text-editor.js). Gerüst wie die geführten Abläufe
+   (installer.css: .flow, .flow-sub, .flow-scroll; base.css: .hints): Kopf oben links, Zeilen ab x=172,
+   Tastenhinweise unten rechts. Zahlenwerte ausschließlich aus tokens.css. */
+
+/* Kopf: Dateiname, Marke „Geändert“, rechts klein Kodierung und Zeilenende */
+.te-head { position: absolute; left: var(--m-head); right: var(--m-content); top: var(--set-title-top); display: flex; align-items: center; gap: var(--chip-gap); }
+.te-name { flex: 0 1 auto; min-width: 0; font-size: var(--fs-display); font-weight: var(--w-light); line-height: var(--set-title-lh); }
+.te-mark { flex: none; height: var(--badge-h); padding: 0 var(--badge-pad); border-radius: var(--badge-r); background: var(--c-mark-warn); color: var(--c-mark-warn-text);
+  font-size: var(--fs-small); font-weight: var(--w-strong); line-height: var(--badge-h); letter-spacing: var(--ls-badge); white-space: nowrap; }
+.te-meta { flex: 0 1 auto; min-width: 0; margin-left: auto; font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-3); }
+/* Nur ansehen: Grund unter der Unterzeile (Schloss davor) */
+.te-note { position: absolute; left: var(--m-head); top: calc(var(--flow-sub-top) + var(--lh-value)); max-width: var(--flow-sub-w); display: flex; align-items: center; gap: var(--mark-gap);
+  font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-warn); }
+.te-note > .ic { font-size: var(--fs-small); }
+
+/* Zeilen: eine Zeile weniger als die Liste der Abläufe, darunter steht die abgeschnittene Zeile ganz */
+.te-list { position: absolute; left: calc(var(--m-content) - var(--row-pad)); top: var(--flow-top); width: var(--flow-w); height: calc(var(--flow-view) - var(--lh-body)); overflow: hidden; }
+.te-line { height: var(--lh-body); padding: 0 var(--row-pad); display: flex; align-items: center; gap: var(--row-gap); border-radius: var(--menu-r); --r: var(--menu-r); --ring-o: var(--ring-on);
+  font-family: monospace; font-size: var(--fs-value); white-space: pre; }
+.te-line.is-focus, .te-line.is-held { background: var(--c-hover); }
+.te-no { flex: none; overflow: hidden; text-align: right; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.te-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; color: var(--c-text); }
+/* ini: [Abschnitt] betont, bei „schlüssel = wert“ der Schlüssel gedimmt, Kommentare gedimmt */
+.te-text.is-section { color: var(--c-accent); font-weight: var(--w-strong); }
+.te-text.is-comment, .te-eq { color: var(--c-text-3); }
+.te-key { color: var(--c-text-2); }
+/* Laden, Fehler: eine Zeile in der Schrift der Oberfläche */
+.te-msg .te-text { font-family: var(--font); font-size: var(--fs-body); color: var(--c-text-2); }
+/* Feld für eine angesteckte Tastatur, in der Zeile */
+.te-line.is-editing .te-text { overflow: visible; }
+/* Der Text steht im Feld an derselben Stelle wie in der Zeile (Innenabstand nach links ausgeglichen) */
+.te-input { display: block; width: calc(100% + var(--mark-gap)); height: var(--lh-value); margin-left: calc(-1 * var(--mark-gap)); padding: 0 var(--mark-gap);
+  border: none; outline: none; border-radius: var(--menu-item-r);
+  background: var(--c-field); color: var(--c-text); caret-color: var(--c-text); font: inherit; user-select: text; -webkit-user-select: text; }
+
+/* Die gewählte Zeile ganz, wenn sie in der Liste abgeschnitten ist (höchstens zwei Zeilen) */
+.te-full { position: absolute; left: var(--m-content); top: calc(var(--flow-top) + var(--flow-view) - var(--lh-body) + var(--saves-gap)); width: calc(var(--flow-w) - 2 * var(--row-pad));
+  padding: var(--picker-note-pad) var(--row-pad); border-radius: var(--card-r); background: var(--c-field); color: var(--c-text-2);
+  font-family: monospace; font-size: var(--fs-small); line-height: var(--lh-small); }
+/* Kürzen am inneren Kasten: am äußeren lugte im unteren Innenabstand eine dritte Zeile hervor */
+.te-full-text { white-space: pre-wrap; word-break: break-all; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

@@ -1,0 +1,88 @@
+#!/usr/bin/bash
+# couch-session – Einstieg der Game-Mode-Sitzung (CLIENTCMD, siehe sessions.d-steam).
+#
+#   couch-session            normaler Start aus der Sitzung
+#   couch-session --status   Zustand anzeigen (Fassung, Sicherungen, Fehlstarts)
+#   couch-session --reset    Sicherungen löschen (nach einer Reparatur)
+# Rückgabewert 2: außerhalb der Game-Mode-Sitzung aufgerufen, nichts gestartet (nicht auf SteamOS:
+# mit COUCH_PLATFORM=steamos aus steamos-switch.sh gibt es dann den Rückfall, E104 d).
+#
+# Prüft nur, ob Python und der Supervisor brauchbar sind, und übergibt dann an
+# "python3 -I supervisor.py". Geht das nicht, startet stattdessen, was die Sitzung ohne couch
+# gestartet hätte (COUCH_FALLBACK_CMD). Dieses Skript endet bei Fehlern nie einfach:
+# gamescope-session-plus zählt Sitzungen unter 60 s, nach fünf davon läuft Steams Reparatur.
+set -u
+shopt -s execfail        # scheitert ein exec, läuft das Skript weiter bis zur Rückfallebene
+
+self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self="${BASH_SOURCE[0]}"
+here="${self%/*}"
+sup="$here/supervisor.py"
+# Das Python des Systems, nicht irgendeins weiter vorn im PATH (~/.local/bin, Homebrew)
+py="${COUCH_PYTHON:-}"
+if [[ -z "$py" ]]; then
+  if [[ -x /usr/bin/python3 ]]; then py=/usr/bin/python3; else py=python3; fi
+fi
+
+say() { echo "couch-session: $*" >&2; }
+
+limit() {  # Befehl mit Zeitgrenze, falls timeout vorhanden ist
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"; else "$@"; fi
+}
+
+python_ok() {
+  [[ -r "$sup" ]] || { say "supervisor.py fehlt: $sup"; return 1; }
+  limit 10 "$py" -I -c 'import sys' >/dev/null 2>&1 || { say "Python startet nicht ($py)"; return 1; }
+  # lädt alle Module des Supervisors und prüft seine Syntax, ohne etwas zu tun
+  limit 20 "$py" -I "$sup" --selftest >/dev/null 2>&1 || { say "Selbsttest des Supervisors gescheitert"; return 1; }
+}
+
+fallback() {
+  local cmd="${COUCH_FALLBACK_CMD:-}"
+  if [[ -n "${COUCH_TEST_ROOT:-}" || "${COUCH_TEST:-}" == 1 ]]; then
+    # Prüfmodus: nie das echte Steam, auch nicht aus Versehen
+    local first="${cmd%% *}"
+    if [[ -z "$cmd" || "${first##*/}" == steam ]]; then
+      say "Prüfmodus ohne Attrappe in COUCH_FALLBACK_CMD: nichts gestartet ($1)"
+      exit 0
+    fi
+  fi
+  [[ -n "$cmd" ]] || cmd="steam -gamepadui -steamos3 -steampal -steamdeck"
+  say "übergebe an: $cmd ($1)"
+  # Wortzerlegung gewollt (so ruft auch die Sitzung $CLIENTCMD auf); Umgebung unverändert
+  # shellcheck disable=SC2086
+  exec $cmd
+  say "Rückfall-Befehl nicht ausführbar: $cmd"
+  if [[ "${COUCH_PLATFORM:-}" == steamos && -z "${COUCH_TEST_ROOT:-}" && "${COUCH_TEST:-}" != 1 ]]; then
+    # E104 d: Ein schnelles Ende zählte Valves Kurzsitzungs-Zähler; zuletzt das Steam, das Valve startet
+    exec steam -steamos3 -steampal -steamdeck -gamepadui
+  fi
+  exit 1
+}
+
+case "${1:-}" in
+  --status|--reset)
+    python_ok || exit 1
+    exec "$py" -I "$sup" "$1"
+    exit 1 ;;
+  "") ;;
+  *) echo "Aufruf: couch-session [--status|--reset]" >&2; exit 2 ;;
+esac
+
+# Von Hand in einem Terminal gestartet (kein Gamescope drumherum): nichts tun. Sonst endete das
+# Home dreimal ohne Anzeige, die Sicherung fiele, und zuletzt startete Steam auf dem Desktop.
+# Die Sitzung selbst exportiert die Variable immer, bevor sie uns aufruft.
+if [[ -z "${GAMESCOPE_WAYLAND_DISPLAY:-}" && "${COUCH_PLATFORM:-}" == steamos ]]; then
+  # E104 d: Aus Valves Dienst gestartet (steamos-switch.sh), aber ohne Gamescope-Umgebung. Dort nie mit 2
+  # enden (Valves Zähler, Upholds=): Rückfall auf Valves Launcher.
+  fallback "SteamOS ohne GAMESCOPE_WAYLAND_DISPLAY"
+fi
+if [[ -z "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]]; then
+  say "keine Game-Mode-Sitzung (GAMESCOPE_WAYLAND_DISPLAY fehlt): nichts gestartet."
+  say "Zustand ansehen: couch-session --status"
+  exit 2
+fi
+
+python_ok || fallback "Python oder Supervisor unbrauchbar"
+exec "$py" -I "$sup"
+fallback "Supervisor ließ sich nicht starten"

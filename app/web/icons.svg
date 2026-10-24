@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<!-- Eigene Symbole (keine fremde Grafik). Raster 24x24, Linie 2, runde Enden, eine Farbe (currentColor).
+     Gefüllte Formen tragen class="ic-f". Die Zeichenregeln stehen in css/base.css (#sprite symbol …);
+     js/core/dom.js setzt diese Datei als Sprite ins Dokument, gezeichnet wird mit icon("name"). -->
+<symbol id="home" viewBox="0 0 24 24"><path class="ic-f" d="M12 3 2.5 11.2h2.7V20a1 1 0 0 0 1 1h4.3v-6h3v6h4.3a1 1 0 0 0 1-1v-8.8h2.7z"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" stroke-width="2.6"/><path d="m15.2 15.2 5.3 5.3" stroke-width="3"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><path class="ic-f" fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6 1.6.7 2.2-1.5 2.4 2.4-1.5 2.2.7 1.6 2.4.5v3.4l-2.6.5-.7 1.6 1.5 2.2-2.4 2.4-2.2-1.5-1.6.7-.5 2.6h-3.4l-.5-2.6-1.6-.7-2.2 1.5-2.4-2.4 1.5-2.2-.7-1.6L2 13.7v-3.4l2.6-.5.7-1.6-1.5-2.2 2.4-2.4 2.2 1.5 1.6-.7zM12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"/></symbol>
+<symbol id="user" viewBox="0 0 24 24"><circle class="ic-f" cx="12" cy="8.5" r="4"/><path class="ic-f" d="M4 20.5c.6-4 3.8-6 8-6s7.400 2 8 6z"/></symbol>
+<symbol id="library" viewBox="0 0 24 24"><path class="ic-f" d="M3 3h4v4H3zm5.500 0h4v4h-4zM14 3h4v4h-4zM3 8.500h4v4H3zm5.500 0h4v4h-4z"/><path class="ic-f" d="M11.500 14h9a1.500 1.500 0 0 1 1.500 1.400l.5 5.100a1.300 1.300 0 0 1-2.300.9L18.700 19.500h-5.400l-1.500 1.900a1.300 1.300 0 0 1-2.300-.9l.5-5.100a1.500 1.500 0 0 1 1.500-1.400z"/></symbol>
+<symbol id="apps" viewBox="0 0 24 24"><path class="ic-f" d="M3 3h5v5H3zm6.500 0h5v5h-5zM16 3h5v5h-5zM3 9.500h5v5H3zm6.500 0h5v5h-5zm6.500 0h5v5h-5zM3 16h5v5H3zm6.500 0h5v5h-5zm6.500 0h5v5h-5z"/></symbol>
+<symbol id="switcher" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v11"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><path class="ic-f" d="M12 2.500a1.500 1.500 0 0 1 1.500 1.500v.6a6 6 0 0 1 4.500 5.800v4.200l2 3v1H4v-1l2-3v-4.200a6 6 0 0 1 4.500-5.800V4A1.500 1.500 0 0 1 12 2.500zM9.800 20h4.400a2.200 2.200 0 0 1-4.400 0z"/></symbol>
+<symbol id="friends" viewBox="0 0 24 24"><circle class="ic-f" cx="8.500" cy="8" r="3.200"/><circle class="ic-f" cx="16.500" cy="9" r="2.600"/><path class="ic-f" d="M2.500 19c.4-3.400 2.800-5 6-5s5.600 1.600 6 5zM16 14c2.800 0 5 1.400 5.500 4.500h-5.200c-.2-1.800-.9-3.300-2.100-4.300.6-.1 1.200-.2 1.800-.2z"/></symbol>
+<symbol id="music" viewBox="0 0 24 24"><path d="M9 18V5.500l11-2.500v12.500"/><circle class="ic-f" cx="6.500" cy="18" r="2.800"/><circle class="ic-f" cx="17.500" cy="15.500" r="2.800"/></symbol>
+<symbol id="store" viewBox="0 0 24 24"><path class="ic-f" d="M5.200 7.500h13.600l1.100 12.300a1.500 1.500 0 0 1-1.500 1.700H5.600a1.500 1.500 0 0 1-1.500-1.700z"/><path d="M8.500 9.500V7a3.500 3.500 0 0 1 7 0v2.500"/></symbol>
+<symbol id="download" viewBox="0 0 24 24"><path d="M12 3v11m-4.500-4.500L12 14l4.500-4.500M4 17v2.500a1.500 1.500 0 0 0 1.500 1.500h13a1.500 1.500 0 0 0 1.500-1.500V17"/></symbol>
+<symbol id="sound" viewBox="0 0 24 24"><path class="ic-f" d="M3 9h4l5-4.500v15L7 15H3z"/><path d="M15.500 9a4.200 4.200 0 0 1 0 6m2.800-9a8.300 8.300 0 0 1 0 12"/></symbol>
+<symbol id="sound-off" viewBox="0 0 24 24"><path class="ic-f" d="M3 9h4l5-4.500v15L7 15H3z"/><path d="m16 9.500 5 5m0-5-5 5"/></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><rect class="ic-f" x="9" y="2.500" width="6" height="11.500" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21m-3.500 0h7"/></symbol>
+<symbol id="mic-off" viewBox="0 0 24 24"><rect class="ic-f" x="9" y="2.500" width="6" height="11.500" rx="3"/><path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21m-3.500 0h7M4 3l16 18"/></symbol>
+<symbol id="gamepad" viewBox="0 0 24 24"><path class="ic-f" fill-rule="evenodd" d="M7.200 6h9.600a3.500 3.500 0 0 1 3.400 2.900l1.300 7.200a2.300 2.300 0 0 1-4 1.900L15.300 15.500H8.700L6.500 18a2.300 2.300 0 0 1-4-1.900l1.300-7.200A3.500 3.500 0 0 1 7.200 6zM7 9v1.500H5.500v1.500H7v1.500h1.500V12H10v-1.500H8.500V9zm8.500.200a1.100 1.100 0 1 0 0 2.200 1.100 1.100 0 0 0 0-2.200zm2.300 2.300a1.100 1.100 0 1 0 0 2.200 1.100 1.100 0 0 0 0-2.200z"/></symbol>
+<symbol id="battery" viewBox="0 0 24 24"><rect x="2.500" y="7.500" width="17" height="9" rx="1.800"/><path d="M22 10.500v3"/><path class="ic-f" d="M5 10h3v4H5zm4.200 0h3v4h-3zm4.200 0h3v4h-3z"/></symbol>
+<symbol id="power" viewBox="0 0 24 24"><path d="M12 2.500v9" stroke-width="2.400"/><path d="M6.800 6.200a8 8 0 1 0 10.400 0" stroke-width="2.400"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path class="ic-f" d="M20.500 14.500A8.500 8.500 0 0 1 9.500 3.500a8.500 8.500 0 1 0 11 11z"/></symbol>
+<symbol id="restart" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.600-5.900M20 3.500v4h-4" stroke-width="2.400"/></symbol>
+<!-- Oberfläche neu starten: Bildschirm mit kleinem Kreispfeil (anders als „restart“ = ganzer Rechner) -->
+<symbol id="restart-screen" viewBox="0 0 24 24"><rect x="2.500" y="3.500" width="19" height="13" rx="1.800"/><path d="M8 20.500h8M12 16.500v4"/><path d="M15.300 10a3.300 3.300 0 1 1-1.100-2.500M15.500 6.300v2.200h-2.200" stroke-width="1.800"/></symbol>
+<symbol id="desktop" viewBox="0 0 24 24"><rect x="2.500" y="4" width="19" height="12.500" rx="1.800"/><path d="M8 20.500h8M12 16.500v4"/></symbol>
+<symbol id="terminal" viewBox="0 0 24 24"><rect x="2.500" y="4" width="19" height="16" rx="2.200"/><path d="m6.500 9 3 3-3 3M12 15.500h5"/></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path class="ic-f" d="M7 4.500v15a.8.800 0 0 0 1.200.7l12-7.500a.8.800 0 0 0 0-1.400l-12-7.500A.8.800 0 0 0 7 4.500z"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle class="ic-f" cx="5" cy="12" r="1.900"/><circle class="ic-f" cx="12" cy="12" r="1.900"/><circle class="ic-f" cx="19" cy="12" r="1.900"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m4.500 12.500 5 5 10-11" stroke-width="2.400"/></symbol>
+<symbol id="chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" stroke-width="2.400"/></symbol>
+<symbol id="sort" viewBox="0 0 24 24"><path d="M6 4v15m-3.500-3.500L6 19l3.500-3.500M13 6h8m-8 5h6m-6 5h4" stroke-width="2.200"/></symbol>
+<symbol id="archive" viewBox="0 0 24 24"><path d="M3.500 7.500h17v12a1.500 1.500 0 0 1-1.500 1.500H5a1.500 1.500 0 0 1-1.500-1.500zM2.500 3.500h19v4h-19zM12 10v6m-2.800-2.800L12 16l2.800-2.800"/></symbol>
+<symbol id="folder" viewBox="0 0 24 24"><path d="M2.500 6.500A1.500 1.500 0 0 1 4 5h5l2 2.500h9A1.500 1.500 0 0 1 21.500 9v9.500A1.500 1.500 0 0 1 20 20H4a1.500 1.500 0 0 1-1.500-1.500z"/></symbol>
+<symbol id="storage" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.700 3.600 3 8 3s8-1.300 8-3V6M4 12c0 1.700 3.600 3 8 3s8-1.300 8-3"/></symbol>
+<symbol id="network" viewBox="0 0 24 24"><path d="M2.500 9a14 14 0 0 1 19 0M5.800 12.700a9 9 0 0 1 12.400 0M9 16.200a4.300 4.300 0 0 1 6 0"/><circle class="ic-f" cx="12" cy="19.500" r="1.500"/></symbol>
+<symbol id="lan" viewBox="0 0 24 24"><rect x="8.500" y="2.500" width="7" height="5.500" rx="1"/><rect x="2" y="16" width="7" height="5.500" rx="1"/><rect x="15" y="16" width="7" height="5.500" rx="1"/><path d="M12 8v4M5.500 16v-4h13v4"/></symbol>
+<symbol id="bluetooth" viewBox="0 0 24 24"><path d="m6.500 7.500 11 9-5.500 4.500V3l5.500 4.500-11 9"/></symbol>
+<symbol id="screen" viewBox="0 0 24 24"><rect x="2.500" y="4.500" width="19" height="13" rx="1.800"/><path d="M7 21h10"/></symbol>
+<symbol id="system" viewBox="0 0 24 24"><rect x="7" y="2.500" width="10" height="19" rx="2"/><path d="M10.500 6h3"/><circle class="ic-f" cx="12" cy="17.500" r="1.200"/></symbol>
+<symbol id="access" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.500"/><circle class="ic-f" cx="12" cy="7" r="1.600"/><path d="M6.500 10h11M12 10v4.500m0 0-3 4.500m3-4.500 3 4.500" stroke-width="2.200"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.500"/><path d="M12 11v6" stroke-width="2.400"/><circle class="ic-f" cx="12" cy="7.500" r="1.400"/></symbol>
+<symbol id="warn" viewBox="0 0 24 24"><path d="M12 3.500 22 20.500H2z"/><path d="M12 10v5" stroke-width="2.400"/><circle class="ic-f" cx="12" cy="17.800" r="1.200"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 6.500h16M9.500 6.500V4h5v2.500M6 6.500l1 13.500a1.500 1.500 0 0 0 1.500 1.400h7a1.500 1.500 0 0 0 1.500-1.400l1-13.500M10 10.500v7m4-7v7"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.500"/><path d="M12 6.500V12l3.500 2.500" stroke-width="2.200"/></symbol>
+<symbol id="hdr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.500v3m0 13v3M2.500 12h3m13 0h3M5.300 5.300l2.100 2.100m9.200 9.200 2.100 2.100m0-13.400-2.100 2.100m-9.200 9.200-2.100 2.100"/></symbol>
+<symbol id="speed" viewBox="0 0 24 24"><path d="M3.500 17a9 9 0 1 1 17 0"/><path d="m12 14 4.500-5.500" stroke-width="2.400"/><circle class="ic-f" cx="12" cy="14" r="1.700"/></symbol>
+<symbol id="update" viewBox="0 0 24 24"><path d="M12 3.500v10m-4-4 4 4 4-4"/><path d="M4.500 13a7.500 7.500 0 0 0 15 0"/><path d="M7 21h10"/></symbol>
+<symbol id="keyboard" viewBox="0 0 24 24"><rect x="2" y="5.500" width="20" height="13" rx="2"/><path d="M6 9.500h.01M10 9.500h.01M14 9.500h.01M18 9.500h.01M6 12.500h.01M10 12.500h.01M14 12.500h.01M18 12.500h.01M8 15.500h8"/></symbol>
+<symbol id="backspace" viewBox="0 0 24 24"><path d="M8.500 5.500h11A1.500 1.500 0 0 1 21 7v10a1.500 1.500 0 0 1-1.500 1.500h-11L3 12zM11.500 9.500l5 5m0-5-5 5"/></symbol>
+<symbol id="shift" viewBox="0 0 24 24"><path d="M12 3.500 3.500 12.500H8v7h8v-7h4.500z"/></symbol>
+<symbol id="space" viewBox="0 0 24 24"><path d="M4 10v5h16v-5"/></symbol>
+<symbol id="enter" viewBox="0 0 24 24"><path d="M19 5v7a2 2 0 0 1-2 2H5m4-4-4 4 4 4" stroke-width="2.200"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path class="ic-f" d="m12 2.800 2.800 5.900 6.400.8-4.700 4.500 1.200 6.400L12 17.300l-5.700 3.100 1.200-6.400L2.800 9.500l6.400-.8z"/></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><rect class="ic-f" x="4.500" y="10.500" width="15" height="11" rx="2"/><path d="M8 10.500V7.500a4 4 0 0 1 8 0v3" stroke-width="2.400"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19" stroke-width="2.400"/></symbol>
+<symbol id="tv" viewBox="0 0 24 24"><rect x="2.500" y="5.500" width="19" height="12.500" rx="1.800"/><path d="m8.500 2.500 3.500 3 3.500-3M7.500 21h9"/></symbol>
+<symbol id="film" viewBox="0 0 24 24"><rect x="3" y="3.500" width="18" height="17" rx="2"/><path d="M7.500 3.500v17m9-17v17M3 8h4.500M3 12h4.500M3 16h4.500m9-8H21m-4.500 4H21m-4.500 4H21"/></symbol>
+<symbol id="emulator" viewBox="0 0 24 24"><rect x="5.500" y="2.500" width="13" height="19" rx="2"/><rect x="8" y="5" width="8" height="6" rx=".8"/><path d="M8.500 15.500h3m-1.500-1.500v3"/><circle class="ic-f" cx="15" cy="15" r="1"/><circle class="ic-f" cx="13.500" cy="17.500" r="1"/></symbol>
+<symbol id="steam" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.500"/><circle cx="15" cy="9.500" r="2.800"/><path d="m3 13.500 5.500 2.300M12.300 11.800 10 14.500"/><circle class="ic-f" cx="8.500" cy="16" r="2"/></symbol>
+<symbol id="network-off" viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.800 12.700a9 9 0 0 1 12.400 0M9 16.200a4.300 4.300 0 0 1 6 0M4 3l16 18"/><circle class="ic-f" cx="12" cy="19.500" r="1.500"/></symbol>
+<symbol id="mouse" viewBox="0 0 24 24"><path class="ic-f" d="M5 2.800v16.400a.6.600 0 0 0 1 .4l4-3.800 2.500 5.600a.7.700 0 0 0 .9.300l1.900-.8a.7.700 0 0 0 .3-.9l-2.400-5.500h5.400a.6.600 0 0 0 .4-1L6 2.400a.6.600 0 0 0-1 .4z"/></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path class="ic-f" d="M6.500 4.500h3.500v15H6.500zm7.500 0h3.500v15H14z"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12c2.500-4.500 6-6.500 10-6.500s7.500 2 10 6.500c-2.500 4.500-6 6.500-10 6.500S4.500 16.500 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="eye-off" viewBox="0 0 24 24"><path d="M2 12c2.500-4.500 6-6.500 10-6.500s7.500 2 10 6.500c-2.500 4.500-6 6.500-10 6.500S4.500 16.500 2 12zM4 3l16 18"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="btn-cross" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8.200 8.200 7.600 7.600m0-7.600-7.600 7.600"/></symbol>
+<symbol id="btn-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4.600"/></symbol>
+<symbol id="btn-triangle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6.800 16.800 15H7.200z"/></symbol>
+<symbol id="btn-square" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 8h8v8H8z"/></symbol>
+</svg>

@@ -1,0 +1,14 @@
+#!/bin/sh
+# couch-open-url <adresse> – Links aus Programmen unter Wine (Launcher von Battle.net, Ubisoft,
+# Rockstar) öffnen sich im Browser des PC5 Launchers (Bauplan E94). Wine ruft dieses Skript statt
+# xdg-open auf (Registry HKCU\Software\Wine\WineBrowser "Browsers", store/launchers.route_urls), z. B.
+# für „Mit Google anmelden“ in Battle.net. Läuft im Container der Steam-Runtime: nur sh.
+# Übergabe als Datei; das Home holt sie ab (wiring_launchers) und zeigt die Adresse im Browser.
+dir="${COUCH_OPEN_URL_DIR:-$HOME/.local/state/couch/open-url}"
+case "$1" in
+  http://*|https://*) ;;
+  *) echo "couch-open-url: nur http(s)-Adressen" >&2; exit 1 ;;
+esac
+mkdir -p "$dir" || exit 1
+tmp="$dir/.$$.neu"
+printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$dir/$(date +%s)-$$.url"

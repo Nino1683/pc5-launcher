@@ -1,0 +1,39 @@
+#!/usr/bin/bash
+# couch-epic-game <app> [argumente …] – startet ein Epic-Spiel aus dem Store (Bauplan E73).
+# legendary (COUCH_LEGENDARY, Anmeldung in LEGENDARY_CONFIG_PATH) holt die Anmeldung für das Spiel
+# und startet seine Startdatei mit umu-run; Prefix, Proton, HDR usw. stehen schon in der Umgebung
+# (launch/proton.py). legendary startet das Spiel und endet; das Spiel bleibt unter dem reaper der
+# Konsole. Ohne Netz oder mit abgelaufener Anmeldung gibt es einen zweiten Versuch ohne Netz
+# (geht bei Spielen ohne Online-Zwang). Gründe fürs Aufgeben stehen als Zeile „MELDUNG: …“ am Ende
+# (der Fehlerdialog der Shell zeigt sie statt „… bevor ein Bild kam“, E57/E99).
+# Weitere Argumente sind die Startoptionen aus den Spieleinstellungen (E99): legendary reicht, was es
+# nicht selbst kennt, an das Spiel weiter (parse_known_args, in legendary 0.21.1 nachgelesen); was wie
+# eine Option von legendary aussieht (etwa --offline), schluckt es selbst.
+set -u
+app="${1:?App-Name fehlt}"
+shift
+leg="${COUCH_LEGENDARY:?COUCH_LEGENDARY fehlt}"
+if [[ ! -x "$leg" ]]; then
+  echo "couch-epic-game: legendary fehlt ($leg)" >&2
+  echo "MELDUNG: Das Epic-Werkzeug (legendary) fehlt. Öffne einmal den Store bei Epic, dann lädt der PC5 Launcher es nach."
+  exit 127
+fi
+unset PYTHONPATH PYTHONHOME
+# umu-run aus dem PATH oder die eigene ZIP-App (<data>/tools/umu/umu-run, E105): launch/proton.py setzt
+# COUCH_UMU_RUN. legendary zerlegt --wrapper wie eine Befehlszeile (unbestätigt): ein Pfad mit anderen
+# Zeichen kommt deshalb in einfache Anführungszeichen (wie Pythons shlex.quote)
+umu="${COUCH_UMU_RUN:-umu-run}"
+case "$umu" in
+  *[!A-Za-z0-9_./+@%=:,-]*) wrapper="'${umu//\'/\'\"\'\"\'}'" ;;
+  *) wrapper="$umu" ;;
+esac
+if "$leg" launch "$app" --no-wine --wrapper "$wrapper" --skip-version-check "$@"; then
+  exit 0
+fi
+echo "couch-epic-game: Start mit Anmeldung gescheitert, zweiter Versuch ohne Netz" >&2
+"$leg" launch "$app" --no-wine --wrapper "$wrapper" --skip-version-check --offline "$@"
+rc=$?
+if (( rc != 0 )); then
+  echo "MELDUNG: Epic hat den Start abgelehnt (Anmeldung abgelaufen oder kein Netz). Melde dich im Store bei Epic neu an und versuche es noch einmal."
+fi
+exit "$rc"

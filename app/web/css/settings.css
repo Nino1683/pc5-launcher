@@ -1,0 +1,107 @@
+/* Einstellungen (07 Abschnitt 4): Wurzel als eine zentrierte Liste mit Symbolen, jeder Bereich
+   zweispaltig (links die Bereiche, rechts die Zeilen). Dazu Ergänzungen der Zeilen-Bausteine
+   (rows.js, picker.js, dialog.js) und „Anzeigebereich prüfen“. Zahlenwerte: tokens.css. */
+.settings { background: var(--g-settings); }
+.set-title { position: absolute; left: var(--m-head); top: var(--set-title-top); max-width: var(--set-title-w); font-size: var(--fs-display);
+  font-weight: var(--w-light); line-height: var(--set-title-lh); }
+/* Weg zur Unterseite („Einstellungen › Ton“), klein über dem Titel */
+.set-crumb { position: absolute; left: var(--m-head); top: var(--set-crumb-top); max-width: var(--set-title-w);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+
+/* linke Liste: Bereiche */
+.set-left { position: absolute; left: var(--set-left-x); top: var(--set-left-top); width: var(--set-left-w); }
+.set-left .rows { height: var(--set-left-view); }
+.rows.is-left .row { min-height: var(--set-left-row); padding: 0 var(--set-left-pad); }
+.rows.is-left .row::before, .rows.is-left .row-side { display: none; }
+.rows.is-left .row-label { color: var(--c-text-2); }
+.rows.is-left .row.is-focus .row-label, .rows.is-left .row.is-selected .row-label { color: var(--c-text); }
+.rows.is-left .row.is-focus .row-label { white-space: nowrap; display: block; }
+.rows.is-left .row.is-selected { background: var(--c-hover); }
+/* Marke am Bereich „System“, solange ein System-Update bereitsteht */
+.rows.is-left .row.has-dot::before { display: block; left: auto; right: var(--set-dot-right); top: 50%; bottom: auto; width: var(--set-dot); height: var(--set-dot);
+  border-radius: 50%; background: var(--c-accent); opacity: 1; transform: translateY(-50%); }
+
+/* Wurzel (07 4.1): eine Spalte, zentriert bei x≈296…1622, Zeilen 100 hoch, weißes Symbol (40) bei
+   x≈328, Text ab x≈396; Fokus als aufgehellter Kasten über die ganze Zeile */
+.set-root { position: absolute; left: var(--set-root-left); top: var(--set-root-top); width: var(--set-root-w); }
+.set-root .rows { height: var(--set-root-view); }
+.rows.is-root .row { min-height: var(--set-root-row); padding: 0 var(--set-root-pad); gap: var(--set-root-gap); }
+.rows.is-root .row-icon { font-size: var(--ic-list); }
+.rows.is-root .row-side { display: none; }
+/* Marke an „System“ (Update bereit); ::before und ::after der Zeile gehören Trennlinie und Fokusring */
+.rows.is-root .row.has-dot .row-main::after { content: ""; position: absolute; right: var(--set-dot-right); top: 50%; width: var(--set-dot); height: var(--set-dot);
+  border-radius: 50%; background: var(--c-accent); transform: translateY(-50%); }
+.set-root-scroll { left: var(--set-root-scroll-x); top: var(--set-root-top); }
+
+/* Seite eines Bereichs und ihre Unterseiten teilen Hintergrund und linke Spalte: Beim Wechsel
+   zwischen ihnen wechseln nur Titel und rechte Spalte. Der Bildschirm darunter bleibt dafür deckend
+   stehen, der obere blendet ohne Maßstab über; die rechte Spalte kommt von rechts (07 Abschnitt 7). */
+.screen.settings.is-two.is-leave, .screen.settings.is-two.is-back-enter { --fx-o: 1; --fx-s: 1; }
+.screen.settings.is-sub.is-enter, .screen.settings.is-sub.is-back-leave { --fx-s: 1; }
+.settings.is-sub .set-right { transform: translate(var(--fx-x), 0); transition: --fx-x var(--t-sub) var(--ease-out); }
+.settings.is-sub.is-enter .set-right { --fx-x: var(--shift-sub); }
+/* Auf einer Seite sind die Bereiche links nur Wegweiser: der eigene bleibt markiert */
+.settings.is-sub .rows.is-left .row:not(.is-selected) .row-label { color: var(--c-text-3); }
+
+/* rechte Spalte: Zeilen. Der Kasten ragt um den Innenabstand über den Text hinaus (Text bei x=672…1732) */
+.set-right { position: absolute; left: calc(var(--set-right-x) - var(--row-pad)); top: var(--set-right-top); width: calc(var(--set-right-w) + 2 * var(--row-pad)); }
+.set-right .rows { height: var(--set-right-view); }
+.set-scroll { left: var(--scroll-x); top: var(--set-right-top); }
+
+/* ------------------------------------------------------------------ Zeilen (rows.js): Ergänzungen */
+/* Platzhalter einer ladenden Liste: Text erst nach 300 ms (Klasse is-waiting setzt rows.js) */
+.row.is-loading::before { display: none; }
+.row.is-loading .row-label { color: var(--c-text-3); opacity: var(--fx-o); transition: --fx-o var(--t-focus) var(--ease-out); }
+.rows.is-waiting .row.is-loading .row-label { --fx-o: 0; transition: none; }
+/* Im Fokus darf der Name auf einer Einstellungsseite auf zwei Zeilen umbrechen, die Unterzeile
+   überall auf drei (Mitteilungen im Control Center) */
+.set-right .row.is-focus .row-label { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.row.is-focus .row-note { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow-wrap: anywhere; }
+/* Rechts abgeschnittener Wert, im Fokus vollständig darunter */
+.row-full { margin-top: var(--row-hint-gap); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.row-value.is-none { color: var(--c-text-3); }
+/* Aktion, deren Antwort noch aussteht */
+.row.is-busy .row-label { opacity: var(--o-dim); }
+/* Gesperrt, aber mit Erklärung: fokussierbar zum Lesen */
+.row.is-off .toggle, .row.is-off .row-chevron { opacity: var(--o-dim); }
+/* Wert neben dem Regler darf breiter sein als die Vorgabe („200 Nits“) */
+.slider-val { width: auto; min-width: var(--slider-val-w); }
+.row.is-off .slider-val { color: var(--c-text-off); }
+
+/* ------------------------------------------------------------------ Auswahlliste (picker.js): Erklärung je Wert */
+.picker-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.picker-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.picker-text > small { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-item.has-note { padding-top: var(--picker-note-pad); padding-bottom: var(--picker-note-pad); }
+/* Laufschrift im Fokus (picker.js marquee): einmal bis zum Ende, dann steht sie */
+.picker-label .mq { transition: --fx-x var(--mq-t, 0s) linear; }
+.picker-label.is-mq { text-overflow: clip; }
+.picker-label.is-mq .mq { display: inline-block; --fx-x: var(--mq-x, 0px); transform: translate(var(--fx-x), 0); }
+
+/* ------------------------------------------------------------------ Dialog (dialog.js): Absatz, Countdown, viele Knöpfe */
+.dialog-detail { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); white-space: pre-line; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.dialog-count { display: flex; align-items: center; gap: var(--dialog-btn-gap); }
+.dialog-count-text { flex: none; font-variant-numeric: tabular-nums; }
+.dialog-timer { flex: none; width: var(--dialog-timer-w); height: var(--progress-h); border-radius: var(--progress-r); background: var(--c-slider-rest); overflow: hidden; }
+.dialog-timer > i { display: block; height: 100%; background: var(--c-text-2); transform-origin: left center; transform: scaleX(var(--fx-s)); }
+.dialog-timer.is-running > i { --fx-s: 0; transition: --fx-s var(--d, 0s) linear; }
+html.reduce-motion .dialog-timer { display: none; }
+.dialog-buttons.is-stack { flex-direction: column; align-items: stretch; }
+.dialog-buttons.is-stack .btn { flex: none; width: auto; max-width: none; }
+
+/* ------------------------------------------------------------------ Anzeigebereich prüfen */
+.area { background: var(--c-bg); }
+.area-frame { position: absolute; inset: 0; border: var(--area-line) solid var(--c-area-line); }
+.area-mark { position: absolute; width: var(--area-mark); height: var(--area-mark); border: var(--area-mark-w) solid var(--c-text); }
+.area-mark.is-tl { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+.area-mark.is-tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+.area-mark.is-bl { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+.area-mark.is-br { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+.area-box { position: absolute; left: 50%; top: 50%; width: var(--area-box-w); transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--area-gap); text-align: center; }
+.area-title { font-size: var(--fs-display); line-height: var(--set-title-lh); }
+.area-text { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow-wrap: anywhere; }
+.area-text.is-second { color: var(--c-text-3); }
+.area-size { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }

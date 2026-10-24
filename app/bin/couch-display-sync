@@ -1,0 +1,131 @@
+#!/usr/bin/python3
+"""couch-display-sync [--dry-run] <prefix>
+
+Passt den in der Registry gespeicherten Vollbildmodus eines Spiels an den Bildschirm an, auf
+dem es gleich startet. Allgemeine Fassung eines Nutzer-Skripts (~/.local/bin/tombraider-display-sync):
+gleiche Logik, aber der Prefix kommt als Argument (nach einer Prefix-Übernahme ist das die
+Kopie unter ~/Games/prefixes/couch), und die Bildschirmgröße kommt über xrandr vom DISPLAY des
+Spiels (im Game-Mode ist das Xwayland 1).
+
+Hintergrund: Tomb Raider merkt sich Breite, Höhe und Bildwiederholrate und bricht mit "Failed
+to initialize Direct3D with current settings" ab, wenn es diesen Modus nicht gibt, etwa nach dem
+Wechsel zwischen Schreibtisch (5120x1440, 240 Hz) und Fernseher (3840x2160, 60 Hz).
+
+Läuft als prelaunch, also bevor der Wineserver des Prefix startet (der würde user.reg beim
+Beenden überschreiben). Geändert wird nur <prefix>/user.reg, und nur die drei Werte.
+
+  --dry-run   nur ausgeben, was geändert würde
+
+Rückgabe: 0 auch dann, wenn nichts zu tun war (ein Vorab-Befehl darf den Start nicht
+verhindern); 2 bei Aufruffehlern.
+
+Stand: mit erfundener user.reg und einer xrandr-Attrappe geprüft, nicht am echten Spiel.
+"""
+import os
+import re
+import subprocess
+import sys
+
+# Registry-Abschnitte mit den Schlüsseln (Breite, Höhe, Hz). Weitere Spiele hier ergänzen.
+SECTIONS = (
+    ("[Software\\\\Crystal Dynamics\\\\Tomb Raider HD\\\\Graphics]",
+     ("FullscreenWidth", "FullscreenHeight", "FullscreenRefreshRate")),
+)
+
+
+def current_mode():
+    """(Breite, Höhe, Hz) des primären bzw. ersten aktiven Ausgangs laut xrandr, sonst None."""
+    try:
+        out = subprocess.run(["xrandr", "--current"], capture_output=True, text=True,
+                             timeout=10, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    best = None
+    primary = False
+    for line in out.splitlines():
+        if " connected" in line:
+            primary = " primary " in line
+            continue
+        found = re.match(r"\s+(\d+)x(\d+)\s+(.*)", line)
+        if not found:
+            continue
+        rate = re.search(r"(\d+(?:\.\d+)?)\*", found.group(3))
+        if not rate:
+            continue
+        mode = (int(found.group(1)), int(found.group(2)), round(float(rate.group(1))))
+        if primary:
+            return mode
+        best = best or mode
+    return best
+
+
+def patch(text, mode):
+    """Neuer Inhalt von user.reg und die Liste der geänderten Abschnitte."""
+    changed = []
+    for section, keys in SECTIONS:
+        start = text.find(section)
+        if start < 0:
+            continue          # Spiel lief in diesem Prefix noch nie: es wählt den Modus selbst
+        end = text.find("\n[", start + 1)
+        end = len(text) if end < 0 else end
+        block = text[start:end]
+        new = block
+        for key, value in zip(keys, mode):
+            new = re.sub(r'^"%s"=dword:[0-9a-f]{8}' % re.escape(key),
+                         '"%s"=dword:%08x' % (key, value), new, flags=re.M)
+        if new != block:
+            text = text[:start] + new + text[end:]
+            changed.append(section)
+    return text, changed
+
+
+def main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    dry_run = "--dry-run" in args
+    args = [a for a in args if a != "--dry-run"]
+    if len(args) != 1 or args[0].startswith("-"):
+        sys.stderr.write(__doc__)
+        return 2
+    prefix = args[0]
+    reg = os.path.realpath(os.path.join(prefix, "user.reg"))
+    if not os.path.isfile(reg):
+        return 0
+    mode = current_mode()
+    if not mode:
+        print("couch-display-sync: kein Bildschirmmodus von xrandr, nichts geändert")
+        return 0
+    try:
+        with open(reg, encoding="utf-8", errors="surrogateescape", newline="") as fh:
+            text = fh.read()
+    except OSError as err:
+        print("couch-display-sync: %s" % err)
+        return 0
+    new, changed = patch(text, mode)
+    if not changed:
+        return 0
+    label = "%dx%d @ %d Hz" % mode
+    if dry_run:
+        print("würde den Vollbildmodus auf %s setzen (%s)" % (label, reg))
+        return 0
+    # Daneben schreiben und umbenennen: ein Abbruch mittendrin lässt die alte Datei ganz
+    tmp = "%s.couch-%d" % (reg, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8", errors="surrogateescape", newline="") as fh:
+            fh.write(new)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, os.stat(reg).st_mode & 0o7777)
+        os.replace(tmp, reg)
+    except OSError as err:
+        print("couch-display-sync: %s" % err)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return 0
+    print("Vollbildmodus auf %s gesetzt" % label)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

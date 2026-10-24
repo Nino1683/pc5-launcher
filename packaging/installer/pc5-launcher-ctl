@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# pc5-launcher-ctl – Steuerskript der Desktop-Einträge des PC5 Launchers (E104 b, Bauplan 7.3):
+#
+#   pc5-launcher-ctl off         Notschalter an: Der nächste Start des Spielmodus nimmt reines Steam
+#   pc5-launcher-ctl on          Notschalter aus und Sicherungen zurücksetzen (couch-session --reset)
+#   pc5-launcher-ctl status      Zustand anzeigen (couch-session --status, Installation)
+#   pc5-launcher-ctl uninstall   uninstall.sh der eingehängten Fassung
+#
+# Liegt als feste Kopie unter ~/.local/share/couch/hook/ (install.sh). Nie sudo, nie ein Kennwort.
+set -u
+home="${HOME:-}"
+[[ -n "$home" ]] || { echo "pc5-launcher-ctl: HOME fehlt" >&2; exit 1; }
+data="$home/.local/share/couch"
+switch="$home/.config/couch/disabled"
+entry="$data/current/session/couch-session"
+en=0
+case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) en=1 ;; esac
+
+tell() {  # $1 deutsch, $2 englisch; ohne Terminal zusätzlich als Mitteilung des Desktops
+  local text="$1"
+  [[ $en == 1 ]] && text="$2"
+  echo "$text"
+  if [[ ! -t 1 ]] && command -v notify-send >/dev/null 2>&1; then
+    notify-send "PC5 Launcher" "$text" >/dev/null 2>&1 || :
+  fi
+}
+
+pause() {
+  if [[ -t 0 && -t 1 ]]; then
+    if [[ $en == 1 ]]; then read -r -p "Press Enter to close." _ || :; else read -r -p "Enter schließt dieses Fenster." _ || :; fi
+  fi
+}
+
+case "${1:-}" in
+  off)
+    if mkdir -p -- "$home/.config/couch" && : >"$switch"; then
+      tell "Spielmodus aus: Der nächste Start des Spielmodus nimmt reines Steam." \
+           "Game mode off: the next game mode start uses plain Steam."
+    else
+      tell "Notschalter ließ sich nicht anlegen: $switch" "Could not create the kill switch: $switch"
+      exit 1
+    fi ;;
+  on)
+    rm -f -- "$switch"
+    if [[ -x "$entry" ]]; then "$entry" --reset >/dev/null 2>&1 || :; fi
+    tell "Spielmodus an: Der nächste Start des Spielmodus nimmt den PC5 Launcher." \
+         "Game mode on: the next game mode start uses PC5 Launcher." ;;
+  status)
+    if [[ -x "$entry" ]]; then out="$("$entry" --status 2>&1)"; else out="couch-session fehlt: $entry"; fi
+    echo "$out"
+    echo
+    if [[ -f "$data/current/installer/pc5_install.py" ]]; then
+      python3 -I "$data/current/installer/pc5_install.py" status
+    fi
+    if [[ ! -t 1 ]]; then
+      # ohne Terminal (Desktop ohne Konsole): das Wichtigste als Mitteilung
+      short="$(printf '%s\n' "$out" | grep -E '^(Fassung|Notschalter|Sicherung):' | head -4)"
+      tell "${short:-$out}" "${short:-$out}"
+    fi
+    pause ;;
+  uninstall)
+    if [[ -f "$data/current/uninstall.sh" ]]; then
+      bash "$data/current/uninstall.sh"
+      rc=$?
+      pause
+      exit $rc
+    fi
+    tell "uninstall.sh fehlt in $data/current" "uninstall.sh is missing in $data/current"
+    pause
+    exit 1 ;;
+  *)
+    echo "Aufruf: pc5-launcher-ctl off|on|status|uninstall" >&2
+    exit 2 ;;
+esac

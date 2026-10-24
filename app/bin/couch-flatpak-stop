@@ -1,0 +1,327 @@
+#!/usr/bin/python3
+"""couch-flatpak-stop [--dry-run] <entry-id>
+
+Bittet die Flatpak-Instanzen einer von couch gestarteten App (Eden, Cemu, YouTube, Kodi, Chrome)
+höflich ums Beenden. Wird als LaunchSpec.polite_stop aufgerufen (E5).
+
+Warum ein eigenes Skript: Flatpak-Programme liegen nicht in der cgroup des Starters, und die
+PID am Fenster (_NET_WM_PID) ist die PID in der Sandbox. "flatpak kill <App-Name>" träfe jede
+Instanz der App, auch eine im verschachtelten Desktop des Nutzers. Deshalb:
+
+  1. unseren reaper für diesen Eintrag finden: Prozessname "reaper", Kommandozeile
+     "SteamLaunch AppId=<Nummer aus unserem Bereich>", Umgebung COUCH_ENTRY_ID=<entry-id>,
+  2. dessen Nachkommen sammeln (Elternkette in /proc),
+  3. mit "flatpak ps --columns=instance,pid,child-pid,application" abgleichen: nur Instanzen,
+     deren Prozesse Nachkommen sind,
+  4. den Programmen in diesen Sandboxen (Nachkommen von child-pid, ohne die bwrap-Prozesse der
+     Instanzen) SIGTERM schicken, über pidfd mit Prüfung von Startzeit und Elternkette,
+  5. warten, bis die Sandboxen leer sind, höchstens die halbe Schonfrist (COUCH_KILL_GRACE, setzt
+     der AppManager für genau diese App).
+
+Warum nicht "flatpak kill <instanz>" (bis E99): Es schickt SIGKILL an den ersten Prozess der
+Sandbox (Flatpak 1.18), und mit ihm stirbt alles darin; Kodi verlor so Fortsetzungspunkte, Eden und
+Cemu Einstellungen, die sie erst beim Beenden schreiben. Warum nicht SIGTERM an child-pid: Das ist
+bwraps Init im PID-Namensraum, und der verwirft Signale von außen, für die er keinen Handler hat.
+Die Startskripte in der Sandbox (Kodi: sh mit trap, Eden und Cemu: bash ohne exec) bekommen das
+Signal mit; das eigentliche Programm bekommt es auch, wenn sein Skript es nicht weitergibt. Lebt
+nach der Frist noch etwas, übernimmt der AppManager (SIGTERM ans Hauptkind, nach der Schonfrist
+SIGKILL an alle Nachkommen des reaper, also auch an die Sandbox).
+
+Nie wird nach einem App-Namen beendet; Signale gehen nur an Nachkommen des eigenen reaper.
+
+  --dry-run        nur zeigen, was geschähe
+  --proc ORDNER    anderer /proc-Baum (Tests); dessen PIDs sind erfunden, es geht kein Signal hinaus
+  --ps-file DATEI  Ausgabe von "flatpak ps" aus einer Datei lesen (Tests)
+
+Rückgabe: 0 = Bitte zugestellt (bzw. im Probelauf/Prüfmodus gefunden), 3 = keine eigene Instanz
+oder kein Programm in ihr gefunden (dann genügt SIGTERM ans Hauptkind), 1 = flatpak ps gescheitert
+oder die Bitte erreichte niemanden, 2 = Aufruffehler.
+Im Prüfmodus (COUCH_TEST_ROOT gesetzt) geht kein Signal hinaus, es wird nur nach <state>/writes.log
+notiert.
+
+Stand: mit Attrappen geprüft (erfundener Prozessbaum, erfundene "flatpak ps"-Ausgabe, eigene
+Prozesse als Sandbox). An einem echten Flatpak noch nicht gelaufen.
+"""
+import argparse
+import os
+import select
+import signal
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+from couch.proc import tree  # noqa: E402
+
+# Bereich unserer App-IDs (Bauplan E3). Steams eigene reaper tragen echte Steam-IDs.
+APP_ID_MIN = 0x7F000000
+APP_ID_MAX = 0x7FFFFFFF
+PS_ARGV = ["flatpak", "ps", "--columns=instance,pid,child-pid,application"]
+KILL_GRACE = 8.0            # wie proc/manager.KILL_GRACE, falls der AppManager nichts mitgibt
+SANDBOX_SHARE = 0.5         # Anteil der Schonfrist, den dieses Skript auf das Ende der Sandbox wartet
+
+
+def read_bytes(path):
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def reaper_app_id(cmdline):
+    """App-ID aus "… SteamLaunch AppId=<n> … -- befehl" (wie Gamescope sie liest), sonst None."""
+    args = [a.decode("utf-8", "replace") for a in cmdline.split(b"\0") if a]
+    if "--" in args:
+        args = args[:args.index("--")]
+    if "SteamLaunch" not in args:
+        return None
+    for arg in args[args.index("SteamLaunch") + 1:]:
+        if arg.startswith("AppId="):
+            try:
+                return int(arg[6:])
+            except ValueError:
+                return None
+    return None
+
+
+def stat_fields(stat):
+    """(PPid, Startzeit) aus /proc/<pid>/stat; der Prozessname in Klammern darf Leerzeichen
+    enthalten. Startzeit None, wenn sie fehlt (erfundener /proc-Baum)."""
+    try:
+        text = stat.decode("utf-8", "replace")
+        rest = text[text.rindex(")") + 2:].split()
+        ppid = int(rest[1])
+    except (ValueError, IndexError):
+        return None, None
+    try:
+        return ppid, int(rest[19])
+    except (ValueError, IndexError):
+        return ppid, None
+
+
+def scan(proc, entry_id):
+    """(reaper, eltern, startzeiten, namen): unsere reaper für den Eintrag als {pid: app_id}, dazu
+    je Prozess {pid: ppid}, {pid: Startzeit} und {pid: Prozessname}."""
+    needle = b"COUCH_ENTRY_ID=" + entry_id.encode()
+    uid = os.getuid()
+    reapers, parents, starts, names = {}, {}, {}, {}
+    try:
+        listing = os.listdir(proc)
+    except OSError:
+        return reapers, parents, starts, names
+    for name in listing:
+        if not name.isdigit():
+            continue
+        base = os.path.join(proc, name)
+        stat = read_bytes(os.path.join(base, "stat"))
+        ppid, start = stat_fields(stat) if stat else (None, None)
+        if ppid is None:
+            continue
+        pid = int(name)
+        parents[pid] = ppid
+        starts[pid] = start
+        comm = (read_bytes(os.path.join(base, "comm")) or b"").strip()
+        names[pid] = comm.decode("utf-8", "replace")
+        if comm != b"reaper":
+            continue
+        try:
+            if os.stat(base).st_uid != uid:
+                continue
+        except OSError:
+            continue
+        app_id = reaper_app_id(read_bytes(os.path.join(base, "cmdline")) or b"")
+        if app_id is None or not APP_ID_MIN <= app_id <= APP_ID_MAX:
+            continue
+        environ = read_bytes(os.path.join(base, "environ")) or b""
+        if needle in environ.split(b"\0"):
+            reapers[pid] = app_id
+    return reapers, parents, starts, names
+
+
+def descendants(parents, roots):
+    children = {}
+    for pid, ppid in parents.items():
+        children.setdefault(ppid, []).append(pid)
+    found, todo = set(), list(roots)
+    while todo:
+        for kid in children.get(todo.pop(), []):
+            if kid not in found:
+                found.add(kid)
+                todo.append(kid)
+    return found
+
+
+def parse_ps(text):
+    rows = []
+    for line in text.splitlines():
+        parts = [p.strip() for p in (line.split("\t") if "\t" in line else line.split())]
+        if len(parts) < 4 or not parts[0].isdigit() or not parts[1].isdigit():
+            continue
+        rows.append({"instance": parts[0], "pid": int(parts[1]),
+                     "child_pid": int(parts[2]) if parts[2].isdigit() else 0,
+                     "application": parts[3]})
+    return rows
+
+
+def flatpak_ps(ps_file):
+    if ps_file:
+        with open(ps_file, encoding="utf-8") as fh:
+            return parse_ps(fh.read())
+    done = subprocess.run(PS_ARGV, capture_output=True, text=True, timeout=10,
+                          stdin=subprocess.DEVNULL, check=False)
+    if done.returncode != 0:
+        raise OSError("flatpak ps endete mit %d: %s" % (done.returncode, done.stderr.strip()))
+    return parse_ps(done.stdout)
+
+
+def note_write(root, argv):
+    """Prüfmodus: den Befehl nur notieren (wie couch.system.run_write)."""
+    try:
+        folder = os.path.join(root, "state")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "writes.log"), "a", encoding="utf-8") as fh:
+            fh.write("%s couch-flatpak-stop: %s\n" % (time.strftime("%F %T"), " ".join(argv)))
+    except OSError:
+        pass
+
+
+def grace():
+    try:
+        return max(0.0, float(os.environ.get("COUCH_KILL_GRACE", "") or KILL_GRACE))
+    except ValueError:
+        return KILL_GRACE
+
+
+def hold(pid, start):
+    """pidfd auf genau diesen Prozess (PID mit Startzeit) oder None."""
+    if start is None:
+        return None
+    try:
+        fd = os.pidfd_open(pid)
+    except OSError:
+        return None
+    info = tree.read_stat(pid)
+    if info is None or info.starttime != start or info.state in ("Z", "X"):
+        os.close(fd)
+        return None
+    return fd
+
+
+def wait_empty(fds, seconds):
+    """Wartet, bis die Prozesse hinter den pidfds enden, höchstens seconds. Rückgabe: die noch
+    lebenden pidfds."""
+    left = set(fds)
+    poller = select.poll()
+    for fd in left:
+        poller.register(fd, select.POLLIN)
+    deadline = time.monotonic() + seconds
+    while left:
+        ms = (deadline - time.monotonic()) * 1000
+        if ms <= 0:
+            break
+        for fd, _event in poller.poll(ms):
+            left.discard(fd)
+            poller.unregister(fd)
+    return left
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[1], add_help=True)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--proc", default="/proc")
+    ap.add_argument("--ps-file", default="")
+    ap.add_argument("entry_id", nargs="?", default=os.environ.get("COUCH_ENTRY_ID", ""))
+    args = ap.parse_args(argv)
+    if not args.entry_id:
+        print("couch-flatpak-stop: Eintrag fehlt (Argument oder COUCH_ENTRY_ID)", file=sys.stderr)
+        return 2
+
+    reapers, parents, starts, names = scan(args.proc, args.entry_id)
+    if not reapers:
+        print("kein laufender reaper für %s" % args.entry_id)
+        return 3
+    family = descendants(parents, reapers)
+    for pid, app_id in sorted(reapers.items()):
+        print("Eintrag %s: reaper %d (AppId %d), %d Nachkommen insgesamt"
+              % (args.entry_id, pid, app_id, len(family)))
+    try:
+        rows = flatpak_ps(args.ps_file)
+    except (OSError, subprocess.TimeoutExpired) as err:
+        print("couch-flatpak-stop: %s" % err, file=sys.stderr)
+        return 1
+
+    ours = [r for r in rows if r["pid"] in family or r["child_pid"] in family]
+    for row in rows:
+        if row not in ours:
+            print("nicht angefasst: Instanz %s (%s, PID %d): gehört nicht zu diesem Eintrag"
+                  % (row["instance"], row["application"], row["pid"]))
+    if not ours:
+        print("keine Flatpak-Instanz unter den Nachkommen")
+        return 3
+
+    # Programme je Sandbox: Nachkommen ihres Init, ohne die bwrap-Prozesse der Instanzen selbst
+    # (auch verschachtelter, K3). owner = Init, über den die Elternkette beim Senden laufen muss.
+    infra = {r["pid"] for r in ours} | {r["child_pid"] for r in ours if r["child_pid"]}
+    sandboxes = [r for r in ours if r["child_pid"] in family]
+    owner = {}
+    for row in sandboxes:
+        inside = sorted(descendants(parents, [row["child_pid"]]) - infra)
+        for pid in inside:
+            owner.setdefault(pid, row["child_pid"])
+        print("Instanz %s (%s, PID %d): %d Programme in der Sandbox: %s"
+              % (row["instance"], row["application"], row["pid"], len(inside),
+                 ", ".join("%d %s" % (pid, names.get(pid, "?")) for pid in inside) or "keine"))
+    targets = sorted(owner)
+    if not targets:
+        print("kein Programm in den eigenen Sandboxen gefunden")
+        return 3
+
+    test_root = os.environ.get("COUCH_TEST_ROOT") or ""
+    invented = os.path.realpath(args.proc) != "/proc"
+    labels = ["Instanz %s (%s, PID %d)" % (r["instance"], r["application"], r["pid"]) for r in sandboxes]
+    if args.dry_run or (invented and not test_root):
+        for label in labels:
+            print("würde beenden: %s" % label)
+        for pid in targets:
+            print("würde SIGTERM schicken: PID %d (%s)" % (pid, names.get(pid, "?")))
+        if invented and not args.dry_run:
+            print("erfundener /proc-Baum (%s): es geht kein Signal hinaus" % args.proc)
+        return 0
+    if test_root:
+        for pid in targets:
+            note_write(test_root, ["kill", "-TERM", str(pid)])
+        for label in labels:
+            print("Prüfmodus, nur notiert: %s" % label)
+        return 0
+
+    # Erst die Inits festhalten (auf ihr Ende wird gewartet), dann bitten
+    inits = {}
+    for row in sandboxes:
+        fd = hold(row["child_pid"], starts.get(row["child_pid"]))
+        if fd is not None:
+            inits[fd] = row
+    sent = []
+    for pid in targets:
+        if tree.send_checked(pid, starts.get(pid), owner[pid], signal.SIGTERM):
+            sent.append(pid)
+    for label in labels:
+        print("beende: %s" % label)
+    print("SIGTERM an %d von %d Programmen: %s" % (len(sent), len(targets), " ".join(map(str, sent)) or "-"))
+    t0 = time.monotonic()
+    try:
+        left = wait_empty(list(inits), grace() * SANDBOX_SHARE) if sent else set(inits)
+        for fd, row in inits.items():
+            if fd in left:
+                print("Instanz %s läuft nach %.1f s noch: den Rest übernimmt der AppManager"
+                      % (row["instance"], time.monotonic() - t0))
+            else:
+                print("Instanz %s beendet nach %.1f s" % (row["instance"], time.monotonic() - t0))
+    finally:
+        for fd in inits:
+            os.close(fd)
+    return 0 if sent else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PC5 Launcher – Deinstallieren
+Name[en]=PC5 Launcher – uninstall
+Comment=Entfernt den PC5 Launcher. Spiele, Steam und Einstellungen bleiben.
+Comment[en]=Removes PC5 Launcher. Games, Steam and settings stay.
+Exec=@CTL@ uninstall
+Icon=applications-games
+Terminal=true
+Categories=Game;

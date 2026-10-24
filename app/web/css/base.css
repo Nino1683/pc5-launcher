@@ -1,0 +1,239 @@
+/* Grundgerüst und allgemeine Bausteine. Zahlenwerte stehen ausschließlich in tokens.css. */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+/* Ohne Rolle (und im Overlay) bleibt der Grund durchsichtig: nur Tafeln sind deckend */
+body {
+  color: var(--c-text); font-family: var(--font); font-weight: var(--w-light); font-size: var(--fs-body);
+  line-height: var(--lh-text); -webkit-font-smoothing: antialiased; user-select: none; cursor: none;
+}
+body[data-role="home"] { background: var(--c-bg); }
+img { display: block; }
+[hidden] { display: none !important; }
+
+/* Symbole aus icons.svg (als Sprite ins Dokument gesetzt) */
+.ic { width: var(--ic-size); height: var(--ic-size); display: block; flex: none; }
+.ic symbol, #sprite symbol { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+#sprite .ic-f { fill: currentColor; stroke: none; }
+#sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Kürzung langer Texte */
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------ Bildschirme */
+/* E104: schmaler als 16:9 senkrecht mittig mit dunklem Rand (Maße im Block E104-portable der Tokens) */
+#app, #overlay { position: absolute; inset: var(--frame-top) 0 auto; height: var(--frame-h); overflow: hidden; }
+.screen { position: absolute; inset: 0; overflow: hidden; opacity: var(--fx-o); transform: scale(var(--fx-s)); will-change: opacity, transform;
+  transition: --fx-o var(--t-screen) var(--ease-std), --fx-s var(--t-screen) var(--ease-std); }
+.screen.is-enter { --fx-o: 0; --fx-s: var(--scale-screen-in); }
+.screen.is-leave { --fx-o: 0; }
+.screen.is-back-enter { --fx-o: 0; }
+.screen.is-back-leave { --fx-o: 0; --fx-s: var(--scale-screen-in); }
+
+/* ------------------------------------------------------------------ Fokusring (07 Abschnitt 10.3) */
+[data-focus] { position: relative; }
+.is-focus::after, .is-held::after {
+  content: ""; position: absolute; inset: calc(-1 * var(--ring-o, var(--ring-out)));
+  border-radius: calc(var(--r, var(--menu-r)) + var(--ring-o, var(--ring-out)));
+  padding: var(--ring-w); pointer-events: none; z-index: var(--z-head);
+  background: conic-gradient(from var(--ring-angle), var(--c-ring-a), var(--c-ring-b), var(--c-ring-c), var(--c-ring-b), var(--c-ring-a));
+  -webkit-mask: var(--g-mask) content-box, var(--g-mask); -webkit-mask-composite: xor;
+  mask: var(--g-mask) content-box exclude, var(--g-mask);
+  opacity: var(--fx-o); transform: scale(var(--fx-s));
+  animation: ring-in var(--t-focus) var(--ease-out), ring-turn var(--t-ring) linear infinite;
+}
+/* Liegt ein Menü oder Dialog darüber, behält das Element darunter seinen Ring (ohne Schimmer) */
+.is-held::after { animation: none; }
+@keyframes ring-in { from { --fx-o: 0; --fx-s: var(--ring-scale-from); } to { --fx-o: 1; --fx-s: 1; } }
+@keyframes ring-turn { to { --ring-angle: var(--ring-full); } }
+/* Kein Dauerlauf in Ruhe: nach einigen Sekunden ohne Eingabe bleibt der Schimmer stehen */
+html.is-idle .is-focus::after, html.is-idle .caret { animation-play-state: paused; }
+/* (web-settings) Nur der Schimmer steht: Ein Element, das in Ruhe den Fokus bekommt (Ansicht vom Kern
+   geöffnet, Liste neu gebaut), blendet seinen Ring trotzdem ein, statt unsichtbar stehen zu bleiben */
+html.is-idle .is-focus::after { animation-play-state: running, paused; }
+/* Nichts bewegt sich, solange die Oberfläche nicht zu sehen ist */
+html.is-hidden *, html.is-hidden *::before, html.is-hidden *::after { animation-play-state: paused !important; transition: none !important; }
+/* Bewegung reduzieren: keine Verschiebung, kein Maßstab, nur kurzes Überblenden */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  transition-property: --fx-o !important; transition-duration: var(--t-reduced) !important; transition-delay: 0s !important;
+  animation: none !important;
+}
+
+/* ------------------------------------------------------------------ Marke */
+.badge {
+  flex: none; min-width: var(--badge-w); height: var(--badge-h); padding: 0 var(--badge-pad); border-radius: var(--badge-r);
+  background: var(--c-badge); color: var(--c-badge-text); font-size: var(--fs-small); font-weight: var(--w-strong);
+  letter-spacing: var(--ls-badge); line-height: var(--badge-h); text-align: center; white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ Knöpfe */
+.btn {
+  position: relative; flex: none; height: var(--btn-h); min-width: var(--btn-w); max-width: var(--btn-w-wide);
+  padding: 0 var(--btn-pad); border-radius: var(--btn-r); --r: var(--btn-r);
+  background: var(--c-btn); color: var(--c-btn-text); font-size: var(--fs-button); font-weight: var(--w-strong);
+  display: flex; align-items: center; justify-content: center; gap: var(--hint-key-gap);
+}
+.btn .btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.btn.is-secondary { background: var(--c-btn-2); color: var(--c-text); -webkit-backdrop-filter: var(--blur-btn); backdrop-filter: var(--blur-btn); }
+.btn.is-round { min-width: 0; width: var(--btn-h); padding: 0; font-size: var(--ic-btn); }
+.btn.is-off, .btn[data-disabled] { background: var(--c-btn-off); color: var(--c-text-off); }
+.btn .progress { position: absolute; left: var(--btn-pad); right: var(--btn-pad); bottom: var(--dialog-btn-gap); }
+
+/* ------------------------------------------------------------------ Fortschritt */
+.progress { height: var(--progress-h); border-radius: var(--progress-r); background: var(--c-slider-rest); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--c-accent); transform-origin: left center;
+  --fx-s: var(--p, 0); transform: scaleX(var(--fx-s)); transition: --fx-s var(--t-focus) linear; }
+.progress.is-plain > i { background: var(--c-slider-fill); }
+
+/* ------------------------------------------------------------------ Schalter */
+.toggle { position: relative; flex: none; width: var(--toggle-w); height: var(--toggle-h); border-radius: var(--toggle-r); background: var(--c-toggle-off); }
+.toggle::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--c-toggle-on); --fx-o: 0; opacity: var(--fx-o); transition: --fx-o var(--t-toggle) var(--ease-out); }
+.toggle-knob { position: absolute; left: var(--knob-inset); top: var(--knob-inset); width: var(--knob); height: var(--knob); border-radius: 50%;
+  border: var(--knob-ring) solid var(--c-knob-ring); transform: translate(var(--fx-x), 0); transition: --fx-x var(--t-toggle) var(--ease-out); }
+.toggle-knob::after { content: ""; position: absolute; inset: calc(-1 * var(--knob-ring)); border-radius: 50%; background: var(--c-knob); --fx-o: 0; opacity: var(--fx-o); transition: --fx-o var(--t-toggle) var(--ease-out); }
+.toggle.is-on::before, .toggle.is-on .toggle-knob::after { --fx-o: 1; }
+.toggle.is-on .toggle-knob { --fx-x: var(--knob-travel); }
+
+/* ------------------------------------------------------------------ Regler */
+.slider { display: flex; align-items: center; gap: var(--slider-gap); flex: none; }
+.slider-val { width: var(--slider-val-w); text-align: right; font-size: var(--fs-value); color: var(--c-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.slider-line { position: relative; width: var(--slider-w); height: var(--slider-h); border-radius: var(--progress-r); background: var(--c-slider-rest); }
+.slider-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--c-slider-fill); transform-origin: left center; transform: scaleX(var(--p, 0)); }
+.slider-knob { position: absolute; left: calc(var(--slider-knob) / -2); top: calc((var(--slider-h) - var(--slider-knob)) / 2); width: var(--slider-knob); height: var(--slider-knob);
+  border-radius: 50%; background: var(--c-text); transform: translateX(calc(var(--slider-w) * var(--p, 0))); }
+.row.is-off .slider-line { background: var(--c-slider-off); }
+.row.is-off .slider-fill, .row.is-off .slider-knob { opacity: 0; }
+
+/* ------------------------------------------------------------------ Liste mit Zeilen (Einstellungen, Tafeln) */
+.rows { position: relative; overflow: hidden; }
+.rows-track { position: relative; --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); will-change: transform; }
+/* (fix-web) Gerollter Rand blendet aus: keine halbe Zeile mit harter Kante unter der Überschrift */
+.rows.is-cut-top { -webkit-mask-image: var(--g-fade-top); mask-image: var(--g-fade-top); }
+.rows.is-cut-bottom { -webkit-mask-image: var(--g-fade-bottom); mask-image: var(--g-fade-bottom); }
+.rows.is-cut-top.is-cut-bottom { -webkit-mask-image: var(--g-fade-both); mask-image: var(--g-fade-both); }
+/* (fix-web) Steht der abgeschnittene Wert im Fokus ganz unter der Zeile, tritt er rechts zurück */
+.row.has-full .row-side > .row-value { visibility: hidden; }
+.row.is-empty .row-label { color: var(--c-text-3); font-size: var(--fs-value); line-height: var(--lh-value); }
+.row.is-empty::before { display: none; }
+.row-section { margin: var(--section-mt) 0 var(--section-mb); padding: 0 var(--row-pad); transform: translateX(var(--section-shift));
+  font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-section:first-child { margin-top: 0; }
+.row {
+  position: relative; min-height: var(--row-h); padding: 0 var(--row-pad); display: flex; align-items: center; gap: var(--row-gap);
+  border-radius: var(--menu-r); --r: var(--menu-r); --ring-o: var(--ring-on);
+}
+.row::before { content: ""; position: absolute; left: var(--row-pad); right: var(--row-pad); bottom: 0; height: var(--line); background: var(--c-line); }
+.row.is-focus, .row.is-held { background: var(--c-hover); }
+.row.is-focus::before, .row.is-held::before { opacity: 0; }
+.row.is-sub { padding-left: calc(var(--row-pad) + var(--row-indent)); }
+.row-main { flex: 1 1 0; min-width: 0; padding: var(--row-desc-pad) 0; }
+.row-label { font-size: var(--fs-body); line-height: var(--lh-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-note { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-hint { display: none; margin-top: var(--row-hint-gap); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2);
+  -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.row.is-focus .row-hint { display: -webkit-box; }
+.row-side { flex: 0 1 auto; min-width: 0; max-width: var(--row-value-w); display: flex; align-items: center; justify-content: flex-end; gap: var(--picker-gap); }
+.row-value { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.row-chevron { font-size: var(--ic-chevron); color: var(--c-text-3); }
+.row.is-off .row-label, .row.is-off .row-value, .row.is-off .row-note { color: var(--c-text-off); }
+.row.is-busy .row-value { color: var(--c-text-3); }
+.row .progress { flex: none; width: var(--slider-w); }
+.row-art { flex: none; width: var(--cc-item-art); height: var(--cc-item-art); border-radius: var(--cc-item-art-r); overflow: hidden; position: relative; }
+.row-icon { flex: none; font-size: var(--ic-list); }
+/* Rollbalken neben einer Liste */
+.scrollbar { position: absolute; width: var(--scroll-w); border-radius: var(--scroll-r); background: var(--c-scroll);
+  transform-origin: top center; --fx-y: var(--sb-y, 0px); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }
+
+/* ------------------------------------------------------------------ Schicht über dem Bildschirm (Menü, Auswahl, Dialog) */
+.layer { position: absolute; inset: 0; z-index: var(--z-layer); }
+.layer-dim { position: absolute; inset: 0; background: var(--c-dim); opacity: var(--fx-o); will-change: opacity; transition: --fx-o var(--t-menu-in) var(--ease-out); }
+.layer.is-light .layer-dim { background: var(--c-dim-light); }
+.layer.is-clear .layer-dim { background: var(--c-none); }
+.layer.is-enter .layer-dim, .layer.is-leave .layer-dim { --fx-o: 0; }
+.layer-panel { opacity: var(--fx-o); transform: scale(var(--fx-s)); transition: --fx-o var(--t-menu-in) var(--ease-out), --fx-s var(--t-menu-in) var(--ease-out); }
+.layer.is-enter .layer-panel { --fx-o: 0; --fx-s: var(--scale-menu-in); }
+.layer.is-leave .layer-panel { --fx-o: 0; transition-duration: var(--t-menu-out); transition-timing-function: var(--ease-in); }
+.layer.is-leave .layer-dim { transition-duration: var(--t-menu-out); }
+
+/* Menü: Optionen eines Eintrags, Ein/Aus */
+.menu { position: absolute; width: var(--menu-w); padding: var(--menu-inset); border-radius: var(--menu-r); background: var(--c-menu);
+  box-shadow: var(--shadow-panel); transform-origin: top left; }
+.menu-item { position: relative; height: var(--menu-item-h); padding: 0 var(--menu-pad-x); display: flex; align-items: center; gap: var(--menu-gap);
+  font-size: var(--fs-body); border-radius: var(--menu-item-r); --r: var(--menu-item-r); --ring-o: var(--ring-on); }
+.menu-item > .ic { font-size: var(--ic-menu); }
+.menu-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
+/* Anmerkung rechts (warum gesperrt): sie gibt nach, die Bezeichnung hat Vorrang */
+.menu-item > small { flex: 1 1 0; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-caption); color: var(--c-text-3); }
+.menu-item.is-focus { background: var(--c-hover-2); }
+.menu-item.is-off { color: var(--c-text-off); }
+.menu-sep { height: var(--line); margin: var(--menu-inset) var(--menu-pad-x); background: var(--c-line); }
+
+/* Auswahlliste */
+.picker { position: absolute; width: var(--picker-w); max-height: var(--picker-max-h); border-radius: var(--menu-r);
+  background: var(--c-menu); box-shadow: var(--shadow-panel); overflow: hidden; transform-origin: center left; }
+.picker-track { position: relative; padding: var(--menu-inset); --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }
+.picker-item { position: relative; min-height: var(--picker-item-h); padding: 0 var(--menu-pad-x) 0 var(--picker-pad); display: flex; align-items: center; gap: var(--picker-gap);
+  font-size: var(--fs-body); border-radius: var(--menu-item-r); --r: var(--menu-item-r); --ring-o: var(--ring-on); }
+.picker-item > .ic { flex: none; font-size: var(--picker-check); margin-left: calc(-1 * (var(--picker-check) + var(--picker-gap))); visibility: hidden; }
+.picker-item.is-current > .ic { visibility: visible; }
+.picker-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.picker-item.is-focus { background: var(--c-hover-2); }
+
+/* Dialog */
+.dialog-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.dialog { width: var(--dialog-w); padding: var(--dialog-pad); border-radius: var(--dialog-r); background: var(--c-dialog); box-shadow: var(--shadow-panel);
+  display: flex; flex-direction: column; gap: var(--dialog-gap); }
+.dialog.is-wide { width: var(--dialog-log-w); }
+.dialog.is-roomy:not(.is-wide) { width: var(--dialog-w-roomy); }
+.dialog.is-roomy .dialog-buttons .btn { flex-basis: var(--dialog-btn-w-roomy); width: var(--dialog-btn-w-roomy); }
+.dialog-title { font-size: var(--fs-body); line-height: var(--lh-body); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.dialog-text { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; white-space: pre-line; }
+.dialog-buttons { display: flex; gap: var(--dialog-btn-gap); justify-content: flex-end; margin-top: var(--dialog-btn-gap); }
+.dialog-buttons .btn { min-width: 0; flex: 0 1 var(--dialog-btn-w); width: var(--dialog-btn-w); }
+.dialog-log { height: var(--dialog-log-h); padding: var(--dialog-log-pad); border-radius: var(--dialog-log-r); background: var(--c-black); overflow: hidden; position: relative; }
+.dialog-log pre { font-family: monospace; font-size: var(--fs-small); line-height: var(--lh-small); color: var(--c-text-2); white-space: pre-wrap; overflow-wrap: anywhere;
+  --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }
+.dialog-info { display: flex; flex-direction: column; }
+.dialog-info > div { min-height: var(--dialog-info-row); display: flex; align-items: center; gap: var(--row-gap); border-bottom: var(--line) solid var(--c-line); font-size: var(--fs-value); }
+.dialog-info > div > span:first-child { flex: none; width: var(--dialog-info-label-w); color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialog-info > div > span:last-child { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; padding-block: var(--dialog-info-pad-y); }
+.dialog-count { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+
+/* Dialogknöpfe: der fokussierte ist weiß (zeigt die Wahl auch ohne Ring deutlich) */
+.dialog-btn.is-focus { background: var(--c-btn); color: var(--c-btn-text); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* (fix-web) Hinweis „Die Konsole wird ausgeschaltet …“ über allem (components/ending.js): ohne Fokus */
+.layer.is-ending .layer-dim { background: var(--c-ending-dim); }
+.ending { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ending-gap); text-align: center; }
+.ending > .ic { font-size: var(--ic-notice); color: var(--c-text-2); }
+.ending-title { max-width: var(--ending-w); font-size: var(--fs-display); line-height: var(--set-title-lh); }
+.ending-note, .ending-apps { max-width: var(--ending-w); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------ Mitteilung (oben rechts) */
+.toasts { position: absolute; right: var(--toast-right); top: calc(var(--frame-top) + var(--toast-top)); z-index: var(--z-toast); pointer-events: none; }
+.toast { width: var(--toast-w); min-height: var(--toast-min-h); padding: var(--toast-pad); border-radius: var(--toast-r); background: var(--c-toast);
+  display: flex; gap: var(--toast-gap); align-items: flex-start;
+  opacity: var(--fx-o); transform: translate(var(--fx-x), 0); transition: --fx-o var(--t-toast-in) var(--ease-out), --fx-x var(--t-toast-in) var(--ease-out); }
+.toast.is-enter, .toast.is-leave { --fx-o: 0; --fx-x: var(--toast-shift); }
+.toast.is-leave { transition-duration: var(--t-toast-out); transition-timing-function: var(--ease-in); }
+.toast-icon { flex: none; width: var(--toast-icon); height: var(--toast-icon); border-radius: var(--toast-icon-r); background: var(--c-surface-hi);
+  display: flex; align-items: center; justify-content: center; font-size: var(--ic-toast); overflow: hidden; position: relative; }
+.toast-icon > img { width: 100%; height: 100%; object-fit: cover; }
+.toast-body { flex: 1 1 0; min-width: 0; }
+.toast-title { font-size: var(--fs-value); line-height: var(--toast-title-lh); color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast-text { font-size: var(--fs-body); line-height: var(--toast-lh); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------ Tastenhinweise unten rechts */
+.hints { position: absolute; right: var(--hints-right); bottom: var(--hints-bottom); display: flex; gap: var(--hints-gap); font-size: var(--fs-hint); font-weight: var(--w-strong); color: var(--c-text-2); }
+.hint { display: flex; align-items: center; gap: var(--hint-key-gap); white-space: nowrap; }
+.hint > .ic { font-size: var(--hint-key); }
+.keycap { padding: 0 var(--hint-key-gap); border-radius: var(--badge-r); border: var(--knob-ring) solid currentColor; font-size: var(--fs-small); line-height: var(--lh-text); }
+
+/* ------------------------------------------------------------------ Bild oder Platzhalter eines Eintrags */
+.art { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: var(--c-tile-sys-solid); }
+.art > img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.art.is-ph { background: linear-gradient(var(--ph-angle), hsl(var(--hue, 0) var(--ph-sat) var(--ph-l1)), hsl(calc(var(--hue, 0) + var(--ph-shift)) var(--ph-sat) var(--ph-l2))); }
+.art.is-sys { background: var(--c-tile-sys); display: flex; align-items: center; justify-content: center; }
+.art-title { position: absolute; left: var(--tile-ph-pad); right: var(--tile-ph-pad); top: var(--tile-ph-pad); font-size: var(--fs-tile-ph); font-weight: var(--w-strong);
+  line-height: var(--lh-caption); text-shadow: var(--shadow-text); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.art.is-dim > img, .art.is-dim > .art-title { opacity: var(--o-dim); }
