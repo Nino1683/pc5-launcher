@@ -120,7 +120,7 @@ function agoText(time) {
   if (seconds < 90) return S.agoNow;
   if (seconds < 3600) return fmt(S.agoMinutes, { n: Math.round(seconds / 60) });
   if (seconds < 86400) return fmt(S.agoHours, { n: Math.round(seconds / 3600) });
-  return new Date(t * 1000).toLocaleDateString("de-DE", { day: "numeric", month: "long" });
+  return new Date(t * 1000).toLocaleDateString(S.locale, { day: "numeric", month: "long" });
 }
 
 export const PANELS = {
@@ -184,7 +184,7 @@ export const PANELS = {
   // ---------------------------------------------------------------- Installationen, Bilder laden
   downloads: (ctx) => {
     let known = [];               // letzte Antwort von install.jobs (auch erledigte der letzten Zeit)
-    // Nur was läuft oder eine Wahl braucht. Erledigte Installationen stehen nicht hier (Meldung
+    // Nur was läuft oder eine Wahl braucht. Erledigte Installationen stehen nicht hier (Wunsch
     // 2026-10-18: ließen sich nicht entfernen); ihr Ergebnis kommt als Mitteilung (wiring_install._done)
     const merged = () => {
       const live = store.state.jobs || [];

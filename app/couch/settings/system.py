@@ -10,7 +10,7 @@ Schreibwege:
     Bildschirmschoner/Ruhemodus nach Leerlauf  config ui.saver_after, power.sleep_after(_media) (idle.py)
 Nichts davon fragt je nach einem Kennwort. Ob der Controller den PC aus dem Ruhemodus wecken darf,
 zeigt die Zeile system.power.wake (power/wakeup des Bluetooth-Adapters samt Hubs, eingerichtet per
-udev-Regel nach Bestätigung durch den Nutzer). Uhr stellen und Sprache ändern bräuchten ein Kennwort und
+udev-Regel mit Bestätigung des Nutzers). Uhr stellen und Sprache ändern bräuchten ein Kennwort und
 entfallen deshalb (05 Abschnitt 10).
 
 deps.extra: power, game_running (nur Spiele und Emulatoren), running_kinds (Arten aller laufenden
@@ -38,7 +38,7 @@ import re
 import time
 import zoneinfo
 
-from .. import sysadmin
+from .. import i18n, sysadmin
 from . import rows as R
 from .backends import TtlCache, flatpak, fmt_bytes, osupdate, ostree, silent_helper, sysinfo, test_mode
 from .rows import AREA_ORDER, Page, SettingsError
@@ -287,7 +287,9 @@ class SystemArea:
                    note=badge["text"] or self._os()["label"]),
             R.link("system.info-page", "Konsoleninformationen", "system.info"),
             R.link("system.datetime-page", "Datum und Uhrzeit", "system.datetime"),
-            R.info("system.language", "Systemsprache", "Deutsch"),
+            # Englisch (2026-10-25): wirkt sofort, die Seiten laden neu (main._language_changed)
+            R.select("system.language", "Systemsprache", i18n.language(self.deps.config),
+                     [{"value": code, "label": i18n.NAMES[code]} for code in i18n.LANGS]),
             R.link("system.power-page", "Energie", "system.power"),
             R.link("system.admin-page", "Systemfreigaben", ADMIN_PAGE, note=self._admin_note(),
                    hint="Einstellungen am System, die dein Kennwort brauchen (sudo), mit dem Controller einrichten."),
@@ -857,6 +859,11 @@ class SystemArea:
     # --- Schreiben -----------------------------------------------------------------------
 
     def set(self, row_id: str, value):
+        if row_id == "system.language":
+            if value not in i18n.LANGS:
+                raise SettingsError("Diese Sprache gibt es nicht.")
+            self.deps.config.set("ui.language", value)
+            return {"refresh": True}
         if row_id.startswith(("system.admin.install:", "system.admin.remove:")):
             return self._admin_set(row_id, value)
         if row_id in IDLE_ROWS:

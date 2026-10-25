@@ -38,7 +38,7 @@ export async function openStoreUrl(method, params) {
 // Namen der Shops; itch.io kommt aus dem eigenen Block der Texte (E100). Auch für store.js.
 export const STORE_NAMES = { ...S.stStores, itch: S.stItchStore };
 
-// itch.io ohne eigene App (E100): erst erklären, was der Nutzer im itch.io-Konto anlegt; „Weiter“ öffnet
+// itch.io ohne eigene App (E100): erst erklären, was man im itch.io-Konto anlegt; „Weiter“ öffnet
 // die Seite dazu (store.login). Die Redirect-URL ist die aus store/itch_account.py (REDIRECT).
 const ITCH_REDIRECT = "http://127.0.0.1:34711/itch-callback";
 export async function itchSetupDialog() {
@@ -66,7 +66,7 @@ export async function storeLogin(storeId, { setup = false } = {}) {
 function dateText(value) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
   if (!m) return value;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(S.locale, { day: "numeric", month: "short", year: "numeric" });
 }
 
 // Shops, deren Spiele der Launcher des Herstellers installiert (E94)

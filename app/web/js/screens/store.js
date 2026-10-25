@@ -203,7 +203,7 @@ function create(params = {}) {
     if (state.tab === "search" && state.query) parts.push(fmt(S.libQuery, { q: state.query }));
     if (state.genre && state.tab !== "owned") parts.push(genreLabel());
     const total = l ? l.total : items.length;
-    if (total) parts.push(fmt(S.stCount, { n: total.toLocaleString("de-DE") }));
+    if (total) parts.push(fmt(S.stCount, { n: total.toLocaleString(S.locale) }));
     count.textContent = parts.join(" · ");
     empty.hidden = all.length > 0;
     // Sucht itch.io im Browser (E100), sagt die leere Liste das statt „Nichts gefunden“

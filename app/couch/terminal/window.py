@@ -97,7 +97,10 @@ class Terminal:
         self.win.set_child(self.view)
         self.win.connect("close-request", lambda *_: self.quit() or True)
         self.win.present()
-        self.view.load_uri(GLib.filename_to_uri(os.path.join(HERE, "page", "term.html"), None))
+        uri = GLib.filename_to_uri(os.path.join(HERE, "page", "term.html"), None)
+        if os.environ.get("COUCH_LANG") == "en":           # Englisch (2026-10-25), aus dem Start
+            uri += "?lang=en"
+        self.view.load_uri(uri)
         self.view.grab_focus()
         self.osk = None
         try:                                    # Text der Bildschirmtastatur direkt (oskdirect)

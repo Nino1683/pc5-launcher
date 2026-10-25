@@ -149,7 +149,7 @@ class Prefs:
         return self.search
 
 
-def render_start(prefs: Prefs, bookmarks: tuple[str, int] | None = None) -> str:
+def render_start(prefs: Prefs, bookmarks: tuple[str, int] | None = None, t=lambda text: text) -> str:
     """Startseite mit den Favoriten als Kacheln; bookmarks = (Adresse der Lesezeichen-Seite, Anzahl)
     zeigt darunter den Weg zu den Lesezeichen aus dem Google-Konto (E89)."""
     tiles = []
@@ -160,12 +160,12 @@ def render_start(prefs: Prefs, bookmarks: tuple[str, int] | None = None) -> str:
         color = BADGE_COLORS[n % len(BADGE_COLORS)]
         tiles.append('<a class="tile" href="%s"><div class="badge" style="background:%s">%s</div>%s<span>%s</span></a>'
                      % (html.escape(fav["url"], quote=True), color, letter, title, host))
-    body = "\n    ".join(tiles) if tiles else '<p class="empty">Noch keine Favoriten. Im Menü (⋯) oben rechts: „Zu den Favoriten“.</p>'
+    body = "\n    ".join(tiles) if tiles else t('<p class="empty">Noch keine Favoriten. Im Menü (⋯) oben rechts: „Zu den Favoriten“.</p>')
     link = ""
     if bookmarks and bookmarks[1] > 0:
-        link = '<a class="bmlink" href="%s">★  Lesezeichen <span>%d</span></a>' % (
+        link = t('<a class="bmlink" href="%s">★  Lesezeichen <span>%d</span></a>') % (
             html.escape(bookmarks[0], quote=True), bookmarks[1])
-    return (START_TEMPLATE.replace("{{TILES}}", body).replace("{{SEARCH}}", html.escape(prefs.search_name()))
+    return (t(START_TEMPLATE).replace("{{TILES}}", body).replace("{{SEARCH}}", html.escape(t(prefs.search_name())))
             .replace("{{BOOKMARKS}}", link))
 
 

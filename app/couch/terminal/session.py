@@ -27,7 +27,7 @@ ACTIONS = {
 
 # Setzt nur die Konsole bzw. dieses Fenster; das Programm im Terminal soll sie nicht erben
 DROP_ENV = ("GDK_BACKEND", "GDK_SCALE", "WEBKIT_FORCE_VBLANK_TIMER", "DISABLE_GAMESCOPE_WSI", "PYTHONDONTWRITEBYTECODE",
-            "COUCH_PYTHON")
+            "COUCH_PYTHON", "COUCH_LANG")
 DROP_PREFIX = ("COUCH_TERM_",)
 # Merkmale einer laufenden Claude-Code-Sitzung: Geerbt (Konsole aus einem Claude-Terminal neu
 # gestartet) hielte sich das neue Claude für eine Unter-Sitzung und speicherte kein Gespräch

@@ -5,8 +5,7 @@ Battle.net, Ubisoft, Rockstar and Lutris, your emulators, TV apps, a browser and
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.2.0 · Interface in German; **the English interface follows with
-version 0.3.0**
+Free and open source (GPL-3.0) · Preview version 0.3.0 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -96,8 +95,7 @@ version 0.3.0**
 | ![Settings](screenshots/settings.jpg) Settings | ![Network](screenshots/network-speedtest.jpg) Network and speed test |
 | ![Free up space](screenshots/free-up-space.jpg) Free up space | |
 
-*Game covers in the screenshots are blurred on purpose: they belong to their publishers. The screenshots show the
-English interface of the coming version 0.3.0.*
+*Game covers in the screenshots are blurred on purpose: they belong to their publishers.*
 
 ## Install
 
@@ -115,7 +113,7 @@ Steam, updating and uninstalling): [packaging/README.en.md](packaging/README.en.
 | ChimeraOS, Nobara and others with gamescope-session-plus | should work (unconfirmed) |
 | SteamOS (Steam Deck, Steam Machine) | not yet: WebKitGTK is missing there; the installer tells you what's missing |
 
-The interface is German for now; the English interface follows with version 0.3.0 (the screenshots already show it).
+The interface language follows your system; change it under Settings › System › System language.
 
 ## Support
 
@@ -150,8 +148,7 @@ Battle.net, Ubisoft, Rockstar und Lutris, die Emulatoren, Apps für den Fernsehe
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.2.0 · Oberfläche auf Deutsch; **die englische Oberfläche folgt
-mit Fassung 0.3.0**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.0 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 

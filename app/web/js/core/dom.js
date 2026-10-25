@@ -132,13 +132,16 @@ export function enter(el, cls = "is-enter") {
 }
 
 // Bytes als deutsche Angabe ("12,6 GB"); leer bei 0 oder Unsinn
+// Dezimalzeichen nach der Sprache der Seite (?lang=, wie strings.js; 2026-10-25)
+const DECIMAL = typeof location !== "undefined" && new URLSearchParams(location.search).get("lang") === "en" ? "." : ",";
+
 export function sizeText(bytes) {
   let value = Number(bytes);
   if (!Number.isFinite(value) || value <= 0) return "";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let i = 0;
   while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
-  const text = i < 2 ? String(Math.round(value)) : (value >= 100 ? String(Math.round(value)) : value.toFixed(1).replace(".", ","));
+  const text = i < 2 ? String(Math.round(value)) : (value >= 100 ? String(Math.round(value)) : value.toFixed(1).replace(".", DECIMAL));
   return text + " " + units[i];
 }
 

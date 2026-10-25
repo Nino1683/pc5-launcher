@@ -1,10 +1,25 @@
 # Änderungen
 
-## 0.2.0 (2026-10-24, noch nicht veröffentlicht)
+## 0.3.0 (2026-10-25)
+
+- **Englische Oberfläche:** Einstellungen › System › Systemsprache (Deutsch/English); neue Geräte richten sich
+  nach der Systemsprache. Bildschirmtastatur auf Englisch mit QWERTY und englischen Wortvorschlägen; Datum und
+  Zahlen nach der Sprache. Auch der eingebaute Browser und das Terminal sind übersetzt.
+
+## 0.2.0 (2026-10-24)
 
 Diese Fassung ist nur mit Attrappen und in einem unsichtbaren Testbild geprüft, noch nicht an einem
 Fernseher, einem Steam Deck oder einer Steam Machine.
 
+- **OptiScaler je Spiel** (Spieleinstellungen › Bild): Proton-CachyOS und GE-Proton laden und schleusen ihn selbst
+  ein, der Spielordner bleibt unberührt.
+- **Systemfreigaben** (Einstellungen › System): Schritte, die das eigene Kennwort brauchen, mit dem Controller
+  einrichten; als erstes: das Touchpad des DualSense bewegt in Spielen nicht mehr zugleich die Maus.
+- **Downloads:** Restzeit auch bei normalen Downloads, lange Dateinamen ganz lesbar, Balken in eigener Zeile.
+- **Bildschirmtastatur** tippt im eingebauten Browser und im Terminal jetzt auch @, Großbuchstaben und Umlaute.
+- **Cover von itch.io** für Spiele aus Archiven (mit itch.io-Anmeldung).
+- Fehlerbehebungen: Startweg „wie in Lutris“ blieb hängen und überging die Proton-Wahl; Fehlerfenster zeigte nur
+  Umgebungsvariablen; eigene Spiele bei itch.io ohne Spiele galten als „nicht erreichbar“.
 - **Paket und Installer** (E104): `install.sh`, `uninstall.sh` (nur im eigenen Benutzerordner, nie sudo, nie
   ein Kennwort), Desktop-Einträge „Spielmodus aus/an“, „Zustand“, „Deinstallieren“; Haken für
   gamescope-session-plus (Bazzite, ChimeraOS, Nobara …) und für SteamOS 3 (Ergänzungsdatei mit Weiche auf

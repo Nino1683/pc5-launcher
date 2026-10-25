@@ -28,6 +28,7 @@ DEFAULTS: dict[str, Any] = {
     "ui.clock_24h": True,
     "ui.scale": 1.0,                   # Textgröße: 1.0 | 1.1 | 1.2
     "ui.live_background": True,        # bewegter Hintergrund des Home (E33)
+    "ui.language": "",                 # "de" | "en"; leer = nach der Systemsprache (i18n.language, 2026-10-25)
     "ui.intro": True,                  # Startanimation mit Ton beim Start des Home (E92)
     # --- Ton
     "audio.ui_sounds": True,

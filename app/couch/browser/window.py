@@ -35,7 +35,7 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("WebKit", "6.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, WebKit  # noqa: E402
 
-from .. import log, oskdirect, paths  # noqa: E402
+from .. import i18n, log, oskdirect, paths  # noqa: E402
 from . import adblock, address, bookmarks, downloads, popups  # noqa: E402
 from .prefs import Prefs, ZOOM_MAX, ZOOM_MIN, render_start  # noqa: E402
 from ..store import epic_account, gog_account, itch_account, steam_account  # noqa: E402
@@ -60,6 +60,12 @@ ITCH_APP_JS = ("const parts = [document.body ? document.body.innerText : ''];"
                "return parts.join('\\n');")
 
 _log = log.get("browser")
+# Sprache der Bedienelemente (2026-10-25): COUCH_LANG aus dem Start (launch/apps.py, i18n.language)
+LANG = os.environ.get("COUCH_LANG", "de")
+
+
+def _t(text: str) -> str:
+    return i18n.t(text, LANG)
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 ZOOM_STEP = 0.1
@@ -125,7 +131,7 @@ def _env_path(name: str, default: str) -> str:
 
 
 def download_dir() -> str:
-    # derselbe Ort wie beim Home (E99): im Prüfmodus im Käfig, nicht im echten ~/Downloads des Nutzers
+    # derselbe Ort wie beim Home (E99): im Prüfmodus im Käfig, nicht im echten ~/Downloads
     return os.environ.get("COUCH_BROWSER_DOWNLOAD_DIR") or paths.download_dir()
 
 
@@ -299,7 +305,7 @@ class Browser:
 
     def _button(self, icon: str, tip: str, fn) -> Gtk.Button:
         b = Gtk.Button.new_from_icon_name(icon)
-        b.set_tooltip_text(tip)
+        b.set_tooltip_text(_t(tip))
         b.set_focus_on_click(False)
         b.connect("clicked", lambda *_: fn())
         return b
@@ -329,7 +335,7 @@ class Browser:
         self.menu = self._menu()
         self.menu_button.set_popover(self.menu)
         # Gesperrtes Pop-up doch öffnen (E89): erscheint nur kurz nach dem Sperren
-        self.blocked_btn = Gtk.Button(label="Pop-up öffnen")
+        self.blocked_btn = Gtk.Button(label=_t("Pop-up öffnen"))
         self.blocked_btn.add_css_class("wide")
         self.blocked_btn.set_focus_on_click(False)
         self.blocked_btn.set_visible(False)
@@ -358,7 +364,7 @@ class Browser:
         try:
             tmp = self.start_file + ".neu"
             with open(tmp, "w", encoding="utf-8") as f:
-                f.write(render_start(self.prefs, marks))
+                f.write(render_start(self.prefs, marks, _t))
             os.replace(tmp, self.start_file)
         except OSError as e:
             _log.warning("Startseite nicht schreibbar: %s", e)
@@ -434,7 +440,7 @@ class Browser:
         return pop
 
     def _menu_button(self, text: str, fn, css: str = "") -> Gtk.Button:
-        b = Gtk.Button(label=text)
+        b = Gtk.Button(label=_t(text))
         b.set_focus_on_click(False)
         if css:
             b.add_css_class(css)
@@ -463,11 +469,11 @@ class Browser:
         self.menu_stack.add_named(main, "main")
 
         favs = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        title = Gtk.Label(label="Favoriten (Reihenfolge auf der Startseite)", xalign=0)
+        title = Gtk.Label(label=_t("Favoriten (Reihenfolge auf der Startseite)"), xalign=0)
         title.add_css_class("title")
         favs.append(title)
         if not self.prefs.favorites:
-            favs.append(Gtk.Label(label="Noch keine Favoriten.", xalign=0))
+            favs.append(Gtk.Label(label=_t("Noch keine Favoriten."), xalign=0))
         for fav in self.prefs.favorites:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             row.add_css_class("favrow")
@@ -480,7 +486,7 @@ class Browser:
         self.menu_stack.add_named(favs, "favs")
 
         clear = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        note = Gtk.Label(label="Verlauf, Cookies, Anmeldungen und Zwischenspeicher löschen?", xalign=0, wrap=True,
+        note = Gtk.Label(label=_t("Verlauf, Cookies, Anmeldungen und Zwischenspeicher löschen?"), xalign=0, wrap=True,
                          max_width_chars=34)
         note.add_css_class("title")
         clear.append(note)
@@ -671,7 +677,7 @@ class Browser:
                 return
         self.progress.set_visible(loading)
         self.reload.set_icon_name("process-stop-symbolic" if loading else "view-refresh-symbolic")
-        self.reload.set_tooltip_text("Laden abbrechen" if loading else "Neu laden")
+        self.reload.set_tooltip_text(_t("Laden abbrechen" if loading else "Neu laden"))
         self.update_buttons()
 
     def trust_local_server(self, url: str) -> None:
@@ -736,7 +742,7 @@ class Browser:
         self._gog_taken = code
         _log.info("GOG-Anmeldung: Umleitung mit Code erkannt")
         gog_account.store_code(os.path.join(paths.state_dir(), "gog-login.json"), code)
-        self.view.load_html(GOG_DONE, "about:blank")
+        self.view.load_html(_t(GOG_DONE), "about:blank")
         self.login_done()
 
     def take_epic_code(self) -> None:
@@ -755,7 +761,7 @@ class Browser:
             self._epic_taken = code
             _log.info("Epic-Anmeldung: Code erkannt")
             epic_account.store_code(os.path.join(paths.state_dir(), "epic-login.json"), code)
-            self.view.load_html(EPIC_DONE, "about:blank")
+            self.view.load_html(_t(EPIC_DONE), "about:blank")
             self.login_done()
         self.view.call_async_javascript_function("return document.body ? document.body.innerText : '';", -1,
                                                  None, None, None, None, done)
@@ -778,7 +784,7 @@ class Browser:
         if not code:
             self._itch_taken = uri
             _log.info("itch.io-Anmeldung abgelehnt oder abgebrochen")
-            self.view.load_html(ITCH_DENIED, "about:blank")
+            self.view.load_html(_t(ITCH_DENIED), "about:blank")
             self.login_done()
             return
         _log.info("itch.io-Anmeldung: Umleitung mit Code erkannt")
@@ -788,7 +794,7 @@ class Browser:
             _log.warning("itch.io-Anmeldung nicht gespeichert: %s", e)
             return
         self._itch_taken = uri
-        self.view.load_html(ITCH_DONE, "about:blank")
+        self.view.load_html(_t(ITCH_DONE), "about:blank")
         self.login_done()
 
     def take_itch_client(self) -> None:
@@ -821,7 +827,7 @@ class Browser:
                 return
             self._itch_client_taken = cid
             _log.info("itch.io-App-Kennung erkannt")
-            self.view.load_html(ITCH_APP_DONE, "about:blank")
+            self.view.load_html(_t(ITCH_APP_DONE), "about:blank")
             self.login_done(ITCH_APP_DONE_MS)
         self.view.call_async_javascript_function(ITCH_APP_JS, -1, None, None, None, None, done)
 
@@ -976,7 +982,7 @@ class Browser:
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         head.add_css_class("popup-head")
         label = Gtk.Label(xalign=0, hexpand=True, ellipsize=3)
-        close = Gtk.Button(label="Schließen (Kreis)")
+        close = Gtk.Button(label=_t("Schließen (Kreis)"))
         close.set_focus_on_click(False)
         close.connect("clicked", lambda *_: self.close_popup(popup))
         head.append(label)
@@ -986,7 +992,7 @@ class Browser:
 
         def title(*_a) -> None:
             host = popups.site(popup.get_uri() or self.popup_uri) or "einer Seite"
-            label.set_text("Fenster von %s" % host)
+            label.set_text(_t("Fenster von %s" % host))
         popup.connect("notify::uri", title)
         title()
         self.popup_frame = frame
@@ -1115,7 +1121,7 @@ class Browser:
             self.show_toast("Die Seite stürzt immer wieder ab. Neu laden mit dem Pfeil oben.")
 
     def show_toast(self, text: str) -> None:
-        self.toast.set_text(text)
+        self.toast.set_text(_t(text))
         self.toast.set_visible(True)
         if self._toast_timer:
             GLib.source_remove(self._toast_timer)
@@ -1245,7 +1251,7 @@ class Browser:
         n = sum(1 for i in items if i.get("state") in ("queued", "running")) + len(self.local)
         self.dl_label.set_visible(n > 0)
         self.dl_label.set_text("⬇ %d" % n)
-        self.dl_label.set_tooltip_text("Downloads laufen. Zu sehen in der Konsole unter Downloads.")
+        self.dl_label.set_tooltip_text(_t("Downloads laufen. Zu sehen in der Konsole unter Downloads."))
         return True
 
     def update_downloads(self) -> None:

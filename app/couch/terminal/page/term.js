@@ -7,6 +7,36 @@
 
 const SUBMIT_DELAY_MS = 150;    // Text und Enter getrennt: kommt beides zusammen, hält Claude Code es für Eingefügtes
 
+// Englisch (2026-10-25): ?lang=en (window.py aus COUCH_LANG); sonst bleibt alles deutsch
+const LANG = new URLSearchParams(location.search).get("lang") === "en" ? "en" : "de";
+const EN = {
+  "Weitermachen": "Continue", "Das letzte Gespräch fortsetzen": "Resume the last conversation",
+  "Gespräch auswählen": "Choose conversation", "Aus allen bisherigen Gesprächen wählen": "Pick from all past conversations",
+  "Neues Gespräch": "New conversation", "Claude Code frisch starten": "Start Claude Code fresh",
+  "Claude Code aktualisieren": "Update Claude Code", "Neueste Fassung holen (claude update)": "Get the latest version (claude update)",
+  "Befehlszeile": "Command line", "Die normale Kommandozeile (bash)": "The regular command line (bash)",
+  "Schließen": "Close", "Zurück zur Konsole": "Back to the console", "Befehle an Claude": "Commands for Claude",
+  "Anderes Gespräch fortsetzen": "Resume another conversation", "Neues Gespräch beginnen": "Start a new conversation",
+  "Gespräch verdichten": "Compact the conversation", "Modell wählen": "Choose model", "Wie voll der Kontext ist": "How full the context is",
+  "Nutzung und Limits": "Usage and limits", "Version, Konto, Verbindung": "Version, account, connection",
+  "Einstellungen von Claude Code": "Claude Code settings", "Alle Befehle": "All commands", "Tasten": "Keys",
+  "Strg+C": "Ctrl+C", "Eingabe leeren, zweimal: beenden": "Clear input, twice: quit", "Umschalt+Tab": "Shift+Tab",
+  "Modus wechseln (auch L1)": "Switch mode (also L1)", "Zu einer früheren Nachricht zurück": "Go back to an earlier message",
+  "Ansicht und Sitzung": "View and session", "Schrift größer": "Larger text", "Schrift kleiner": "Smaller text",
+  "Nach unten": "To the bottom", "Zum Ende der Ausgabe": "Jump to the end of the output",
+  "Gespräch endet, danach Startauswahl": "Ends the conversation, then back to the start menu",
+  "Gespräch beenden": "End conversation", "Zurück zur Startauswahl": "Back to the start menu",
+  "Terminal zu, zurück zur Konsole": "Close the terminal, back to the console",
+  "Das Programm wurde nicht gefunden.": "The program was not found.", "Das Programm ließ sich nicht starten.": "The program could not be started.",
+  "Aktualisierung fertig.": "Update finished.", "Aktualisierung gescheitert (Code ": "Update failed (code ",
+  "Befehlszeile beendet.": "Command line closed.",
+  "Claude Code wurde beendet. Mit „Weitermachen“ geht es im selben Gespräch weiter.": "Claude Code has quit. “Continue” picks up the same conversation.",
+  "Nachricht an Claude": "Message to Claude", "Senden": "Send", "Tastatur": "Keyboard",
+  "Im Home-Ordner, wie im Terminal auf dem Desktop.": "In your home folder, like the terminal on the desktop.",
+  "Befehle": "Commands", "Löschen": "Delete", "Schreiben": "Write", "Modus": "Mode", "Blättern": "Scroll",
+};
+const T = (text) => (LANG === "en" && EN[text]) || text;
+
 const START = [
   { id: "continue", label: "Weitermachen", desc: "Das letzte Gespräch fortsetzen", claude: true },
   { id: "resume", label: "Gespräch auswählen", desc: "Aus allen bisherigen Gesprächen wählen", claude: true },
@@ -39,6 +69,21 @@ const MENU = [
   { id: "stop", label: "Gespräch beenden", desc: "Zurück zur Startauswahl", run: true },
   { id: "quit", label: "Schließen", desc: "Terminal zu, zurück zur Konsole" },
 ];
+
+for (const item of [...START, ...MENU]) {
+  if (item.label) item.label = T(item.label);
+  if (item.desc) item.desc = T(item.desc);
+  if (item.group) item.group = T(item.group);
+}
+// Feste Texte der Seite (term.html): Textknoten, die ganz im Wörterbuch stehen
+if (LANG === "en") {
+  document.documentElement.lang = "en";
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const key = node.nodeValue.trim();
+    if (key && EN[key]) node.nodeValue = node.nodeValue.replace(key, EN[key]);
+  }
+}
 
 const state = { running: "", claude: true, font: 22, fontMin: 14, fontMax: 40, pending: "", startFocus: 0, menuFocus: 0 };
 const $ = (id) => document.getElementById(id);
@@ -315,11 +360,11 @@ window.pc5 = {
       }
       let note = "";
       let warn = false;
-      if (msg.missing) { note = "Das Programm wurde nicht gefunden."; warn = true; }
-      else if (msg.failed) { note = "Das Programm ließ sich nicht starten."; warn = true; }
-      else if (was === "update") note = msg.code === 0 ? "Aktualisierung fertig." : "Aktualisierung gescheitert (Code " + msg.code + ").";
-      else if (was === "shell") note = "Befehlszeile beendet.";
-      else note = "Claude Code wurde beendet. Mit „Weitermachen“ geht es im selben Gespräch weiter.";
+      if (msg.missing) { note = T("Das Programm wurde nicht gefunden."); warn = true; }
+      else if (msg.failed) { note = T("Das Programm ließ sich nicht starten."); warn = true; }
+      else if (was === "update") note = msg.code === 0 ? T("Aktualisierung fertig.") : T("Aktualisierung gescheitert (Code ") + msg.code + ").";
+      else if (was === "shell") note = T("Befehlszeile beendet.");
+      else note = T("Claude Code wurde beendet. Mit „Weitermachen“ geht es im selben Gespräch weiter.");
       if (was === "update" && msg.code !== 0) warn = true;
       term.write("\r\n");
       showStart(note, warn);

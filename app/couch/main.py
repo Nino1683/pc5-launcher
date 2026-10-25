@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Any
 
-from . import APP_ID, PRODUCT, VERSION, intro, log, paths, system
+from . import APP_ID, PRODUCT, VERSION, i18n, intro, log, paths, system
 
 _log = log.get("main")
 _STARTED = time.monotonic()         # Import dieses Moduls = Beginn des Home-Prozesses (für die Startzeiten)
@@ -187,11 +187,12 @@ class App:
         # settings.json und library.json schreibt ein eigener Thread: kein fsync in der Hauptschleife
         self.writer = system.WriteBehind()
         self.config = Config(writer=self.writer)
-        # E104: einen Bestand (ältere Installation) einmal auf die neuen Schlüssel heben, vor allem anderen, was
+        # E104: Bestand (ältere Installation) einmal auf die neuen Schlüssel heben, vor allem anderen, was
         # settings.json, library.json oder home-order.json schreiben könnte; wirft nie
         from . import portable
         portable.migrate(self.config, writer=self.writer)
         self.rpc = Rpc(defer=on_main, later=later)
+        self._apply_language()                  # Englisch: Ausgabe der Brücke übersetzen (i18n, 2026-10-25)
         if paths.test_mode() and os.environ.get("COUCH_RPC_TIMEOUT"):
             try:                                # nur für Prüfläufe: kürzere Zeitgrenze der Antworten
                 self.rpc.default_timeout = max(0.5, float(os.environ["COUCH_RPC_TIMEOUT"]))
@@ -238,6 +239,8 @@ class App:
         self.ui.on_page_failed = self._on_page_failed
         self.ui.on_crash_loop = self._on_crash_loop
         self.ui.want_intro = lambda: intro.due(self.config)
+        self.ui.lang = lambda: i18n.language(self.config)
+        self.config.on_change("ui.language", lambda _k, _v: self._language_changed())
 
         self._register_sys()
         library_index.register_rpc(self.rpc, self.library, self.procs)
@@ -305,6 +308,18 @@ class App:
             return
         raise RuntimeError("Die Verdrahtung der Bausteine (couch.wiring) fehlt oder ist gescheitert; "
                            "ohne sie wäre das Home leer")
+
+    def _apply_language(self) -> None:
+        self.rpc.out_filter = i18n.translate_tree if i18n.language(self.config) == "en" else None
+
+    def _language_changed(self) -> None:
+        """Systemsprache gewechselt: Kern sofort, Seiten neu laden (sie lesen ?lang= nur beim Laden)."""
+        self._apply_language()
+        for role in ("home", "overlay"):
+            try:
+                self.ui.reload(role)
+            except Exception:
+                _log.exception("Sprache: %s neu laden", role)
 
     def _register_sys(self) -> None:
         def sys_state(params: dict) -> dict:

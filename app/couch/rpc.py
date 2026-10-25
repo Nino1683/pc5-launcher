@@ -82,6 +82,9 @@ class Rpc:
         Zeitgeber in der Hauptschleife (für die Zeitgrenze der Antworten; ohne later keine)."""
         self._methods: dict[str, Callable[[dict], Any]] = {}
         self._sinks: list[Callable[[str | None, str, dict | None], None]] = []
+        # Alles, was zur Seite geht (Antworten, Fehler, Ereignisse), läuft hier durch: Englisch übersetzt es
+        # (i18n.translate_tree, 2026-10-25); None = unverändert (Deutsch)
+        self.out_filter: Callable[[Any], Any] | None = None
         self._defer = defer or (lambda fn: fn())
         self._later = later
         self._main = threading.get_ident()
@@ -132,7 +135,7 @@ class Rpc:
             result = self.dispatch(role, message["method"], message.get("params"))
         except Exception as e:
             self._log_failure(message, e)
-            reply(error_object(e))
+            reply(self._out(error_object(e)))
             return
         if meta is not None:
             meta["deferred"] = isinstance(result, Future)
@@ -157,7 +160,7 @@ class Rpc:
                     except Exception:
                         pass
                 send, box["reply"] = box["reply"], None
-                send(obj)
+                send(self._out(obj))
                 return True
 
             def done(fut: Future) -> None:
@@ -190,7 +193,17 @@ class Rpc:
                 box["cancel"] = self._later(limit, expired)
             result.add_done_callback(done)
             return
-        reply({"ok": True, "result": result})
+        reply(self._out({"ok": True, "result": result}))
+
+    def _out(self, obj: Any) -> Any:
+        fn = self.out_filter
+        if fn is None or obj is None:
+            return obj
+        try:
+            return fn(obj)
+        except Exception:
+            _log.exception("Übersetzen der Ausgabe")
+            return obj
 
     @staticmethod
     def _log_failure(message: Any, exc: BaseException) -> None:
@@ -207,9 +220,10 @@ class Rpc:
 
     def emit(self, event: str, payload: dict | None = None, target: str | None = None) -> None:
         def send() -> None:
+            out = self._out(payload)
             for sink in list(self._sinks):
                 try:
-                    sink(target, event, payload)
+                    sink(target, event, out)
                 except Exception:
                     _log.exception("Ereignis %s", event)
         if threading.get_ident() == self._main:

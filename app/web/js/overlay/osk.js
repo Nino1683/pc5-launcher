@@ -12,16 +12,24 @@ import { h, icon, setIcon } from "../core/dom.js";
 import { notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { sound } from "../core/sound.js";
-import { S } from "../core/strings.js";
+import { LANGUAGE, S } from "../core/strings.js";
 import { openMenu } from "../components/menu.js";
 import { learn, loadWords, suggest } from "../core/predict.js";
 
-const LETTERS = [
+const LETTERS_DE = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "ß"],
   ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p", "ü"],
   ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ö", "ä"],
   ["y", "x", "c", "v", "b", "n", "m", ",", "."],
 ];
+// Englisch (2026-10-25): QWERTY, statt der Umlaute häufige Zeichen von Adressen und Namen
+const LETTERS_EN = [
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-"],
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "@"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l", "'", "?"],
+  ["z", "x", "c", "v", "b", "n", "m", ",", "."],
+];
+const LETTERS = LANGUAGE === "en" ? LETTERS_EN : LETTERS_DE;
 const SYMBOLS = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "?"],
   ["!", "\"", "§", "$", "%", "&", "/", "(", ")", "=", "+"],

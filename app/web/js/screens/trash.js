@@ -11,7 +11,7 @@ import { toast } from "../components/toast.js";
 import { createListScreen } from "./file-browser.js";
 
 function dateText(stamp) {
-  return stamp ? new Date(stamp * 1000).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }) : "";
+  return stamp ? new Date(stamp * 1000).toLocaleDateString(S.locale, { day: "numeric", month: "long", year: "numeric" }) : "";
 }
 
 function create() {

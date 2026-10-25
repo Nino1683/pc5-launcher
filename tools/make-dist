@@ -61,6 +61,7 @@ LICENSES = (
     # (Datei oder Ordner im Paket, nötige Lizenzdatei im Paket, Stichworte in THIRD-PARTY.md)
     ("app/couch/terminal/page/vendor/xterm.js", "app/couch/terminal/page/vendor/LICENSE-xterm", ("xterm.js", "MIT")),
     ("app/web/data/words-de.txt", None, ("words-de.txt", "CC BY-SA 4.0", "FrequencyWords")),
+    ("app/web/data/words-en.txt", None, ("words-en.txt", "CC BY-SA 4.0", "FrequencyWords")),
     ("app/web/fonts/NotoSans-VF.ttf", "app/web/fonts/OFL.txt", ("Noto Sans", "OFL")),
 )
 VENDOR = "app/couch/terminal/page/vendor"

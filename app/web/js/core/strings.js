@@ -1,7 +1,12 @@
 // Alle Texte der Oberfläche an einer Stelle (Deutsch, Du-Anrede, Begriffe nach 07 Abschnitt 9).
 // Platzhalter in geschweiften Klammern füllt fmt().
 
-export const S = {
+import { EN } from "./strings-en.js";
+
+// Englisch (2026-10-25): Die Seite bekommt die Sprache über ?lang= (ui/host.py, i18n.language). Fehlt ein
+// englischer Text, gilt der deutsche (merge).
+const DE = {
+  locale: "de-DE",                      // Datums- und Zahlformate (toLocaleString)
   // Allgemein
   ok: "OK",
   cancel: "Abbrechen",
@@ -1262,6 +1267,16 @@ export const S = {
   // Ende Block E110-cleanup
 };
 
+function merge(base, over) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(over || {})) {
+    out[k] = v && typeof v === "object" && !Array.isArray(v) && base[k] && typeof base[k] === "object" ? merge(base[k], v) : v;
+  }
+  return out;
+}
+export const LANGUAGE = (typeof location !== "undefined" && new URLSearchParams(location.search).get("lang")) === "en" ? "en" : "de";
+export const S = LANGUAGE === "en" ? merge(DE, EN) : DE;
+
 export function fmt(template, vars = {}) {
   return String(template).replace(/\{(\w+)\}/g, (m, key) => (key in vars ? String(vars[key]) : m));
 }
@@ -1288,5 +1303,5 @@ export function whenText(timestamp, now = Date.now() / 1000) {
   if (days <= 0) return S.today;
   if (days === 1) return S.yesterday;
   if (days < 7) return fmt(S.daysAgo, { n: days });
-  return new Date(timestamp * 1000).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(timestamp * 1000).toLocaleDateString(S.locale, { day: "numeric", month: "short", year: "numeric" });
 }

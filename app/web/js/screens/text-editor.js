@@ -303,7 +303,7 @@ function create(params = {}) {
     const draft = draftOf(key);
     if (!draft || readonly) return;
     if (draft.text === original) { dropDraft(key); return; }
-    const when = new Date(Number(draft.at)).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const when = new Date(Number(draft.at)).toLocaleString(S.locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     const choice = await dialog({
       title: S.teDraftTitle, text: fmt(S.teDraftText, { when }), detail: sameStamp(draft.expect, doc.expect) ? "" : S.teDraftChanged,
       initial: "restore", buttons: [{ id: "discard", label: S.teDraftDiscard }, { id: "restore", label: S.teDraftRestore }],

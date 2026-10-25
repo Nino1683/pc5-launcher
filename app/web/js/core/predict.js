@@ -13,7 +13,9 @@ let loading = null;
 
 export function loadWords() {
   if (!loading) {
-    loading = fetch("data/words-de.txt")
+    // Englisch (2026-10-25): eigene Wortliste; die Sprache steht in der Adresse (?lang=, wie strings.js)
+    const en = typeof location !== "undefined" && new URLSearchParams(location.search).get("lang") === "en";
+    loading = fetch(en ? "data/words-en.txt" : "data/words-de.txt")
       .then((r) => r.text())
       .then((t) => { words = t.split("\n").filter((l) => l && !l.startsWith("#")); })
       .catch(() => { words = []; });

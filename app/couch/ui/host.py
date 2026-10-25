@@ -4,7 +4,7 @@
   overlay  ARGB, durchsichtig, so groß wie die Wurzel, …?role=overlay; liegt als STEAM_OVERLAY
            über allem und wird nur über seine Deckkraft gezeigt (das macht der FocusManager)
 
-Außer den beiden WebViews gibt es keine GTK-Widgets: Das GTK-Thema des Nutzers wirkt auf alles, was GTK
+Außer den beiden WebViews gibt es keine GTK-Widgets: das GTK-Thema des Nutzers wirkt auf alles, was GTK
 selbst zeichnet. Geprüfte Teile stammen aus docs/research/prototypes/uitech/skeleton.
 
 Seite -> Python: window.webkit.messageHandlers.couch.postMessage(JSON-Text {method, params})
@@ -90,6 +90,7 @@ class UiHost:
         self.on_crash_loop: Callable[[str], None] | None = None
         # E92: Startanimation? Gefragt nur beim ersten Laden des Home in diesem Prozess
         self.want_intro: Callable[[], bool] | None = None
+        self.lang: Callable[[], str] | None = None             # Sprache der Seite (?lang=, i18n)
         self.crash_watch = CrashWatch()
         self._windows: dict[str, Gtk.Window] = {}
         self._views: dict[str, WebKit.WebView] = {}
@@ -234,9 +235,15 @@ class UiHost:
         self._alive[role] = time.monotonic()
         self._beating.discard(role)
         uri = PAGE % role
+        try:                                    # Sprache der Seite (strings.js, 2026-10-25)
+            lang = self.lang() if self.lang is not None else "de"
+        except Exception:
+            lang = "de"
+        if lang != "de":
+            uri += "&lang=" + lang
         if paths.test_mode() and os.environ.get("COUCH_TEST_SOUND") != "1":
-            # Prüfläufe dürfen nichts hörbar machen (die Töne gingen sonst auf die
-            # echten Lautsprecher): Mit mute=1 legt die Seite gar keinen AudioContext an.
+            # Prüfläufe dürfen nichts hörbar machen (die Töne gingen sonst auf die echten
+            # Lautsprecher): Mit mute=1 legt die Seite gar keinen AudioContext an.
             uri += "&mute=1"
         if role == "home" and self.reloads[role] == 0 and self.want_intro is not None:
             try:

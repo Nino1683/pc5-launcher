@@ -1,0 +1,186 @@
+#!/usr/bin/python3
+"""i18n-extract – sammelt die deutschen Texte des Python-Kerns, die zur Oberfläche gehen (Englisch, 2026-10-25).
+
+  tools/i18n-extract [--out app/couch/i18n/de-templates.json] [--stats]
+
+Gesammelt werden Zeichenketten aus app/couch und session (ast): Konstanten, %-Vorlagen und f-Strings (als
+Vorlage mit {0}, {1} …). Ausgelassen: Docstrings, Kommentare, Aufrufe von Protokoll-Funktionen (_log, log,
+logging, print, warnings), Schlüssel von Wörterbüchern, Texte ohne deutschen Inhalt (Kennungen, Pfade, Befehle).
+Ergebnis: sortierte Liste {"text", "files"}; die Übersetzung steht in app/couch/i18n/en.json (Deutsch -> Englisch).
+"""
+import argparse
+import ast
+import json
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+DIRS = ("app/couch", "session")
+SKIP_DIRS = ("app/couch/terminal/page", "app/couch/i18n")
+LOG_NAMES = {"_log", "log", "logging", "logger", "LOG", "print", "warnings"}
+LOG_METHODS = {"debug", "info", "warning", "warn", "error", "exception", "critical", "log"}
+GERMAN = re.compile(r"[äöüÄÖÜß„“]|\b(der|die|das|den|dem|des|nicht|und|ist|sind|wird|werden|mit|für|ein|eine|einen|kein|keine|"
+                    r"bitte|läuft|gerade|noch|schon|oder|auf|aus|bei|nach|von|vom|zum|zur|im|in|an|du|dein|deine|dich|dir|"
+                    r"Spiel|Spiele|Einstellungen|Konsole|Start|Fehler|Datei|Ordner)\b")
+NOT_TEXT = re.compile(r"^[\w./:%-]+$|^[a-z0-9_.:-]+$|^\s*$")
+ID_LIKE = re.compile(r"^[a-z0-9_.:@/-]+$|^[A-Z0-9_]+$|^\W*$|^[A-Z][a-z]+(?:[A-Z][a-z]*)+$")   # auch Fehlercodes (BadOption)
+# Aufrufe und Schlüssel, deren Texte sichtbar werden (auch einzelne Wörter wie „Systemsprache“)
+UI_CALLS = {"info", "action", "text", "select", "toggle", "slider", "link", "confirm_action", "Page", "push", "notify",
+            "_notify", "toast", "show_toast", "SettingsError", "LaunchError", "RpcError", "ItchError", "StoreError",
+            "ProtonError", "BackupError", "InstallError", "Row", "row", "R", "set_text", "set_label", "set_title",
+            "Label", "Button", "_menu_button", "note", "fail", "error_row"}
+UI_KEYS = {"label", "hint", "note", "title", "text", "message", "ok", "cancel", "sub", "subtitle", "detail_text",
+           "value_text", "valueText", "lead", "more", "status", "summary"}
+
+
+def is_log_call(node: ast.Call) -> bool:
+    f = node.func
+    if isinstance(f, ast.Name):
+        return f.id in LOG_NAMES
+    if isinstance(f, ast.Attribute):
+        base = f.value
+        if f.attr in LOG_METHODS and isinstance(base, ast.Name) and base.id in LOG_NAMES | {"self"}:
+            return True
+        if f.attr in LOG_METHODS and isinstance(base, ast.Attribute) and base.attr in ("_log", "log", "logger"):
+            return True
+        if isinstance(base, ast.Name) and base.id in ("sys",) and f.attr in ("exit",):
+            return False
+    return False
+
+
+def template_of(node) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        out, n = [], 0
+        for part in node.values:
+            if isinstance(part, ast.Constant):
+                # wie ein %-Vorlage geschrieben: ein „%“ im f-String ist Text (%%), nie ein Platzhalter
+                out.append(str(part.value).replace("%", "%%").replace("{", "{{").replace("}", "}}"))
+            else:
+                out.append("{%d}" % n)
+                n += 1
+        return "".join(out)
+    return None
+
+
+def german(text: str) -> bool:
+    if len(text) < 2 or NOT_TEXT.match(text):
+        return False
+    if text.startswith(("/", "http", "couch://", "--", "#")) or "\n#" in text:
+        return False
+    return bool(GERMAN.search(text))
+
+
+def ui_text(text: str) -> bool:
+    """Sichtbarer Text in einem UI-Zusammenhang: auch kurze deutsche Wörter, aber keine Kennungen."""
+    return len(text) >= 2 and any(c.isalpha() for c in text) and not ID_LIKE.match(text) and \
+        not text.startswith(("/", "http", "couch://", "--", "#", "%")) and "{" != text[:1]
+
+
+GERMAN_CHARS = re.compile(r"[äöüÄÖÜß„“]")
+WORDS = re.compile(r"^[A-ZÄÖÜ][a-zäöüß]+(?:[ -][A-Za-zäöüßÄÖÜ][a-zäöüß]*)*[.!?:…]?$")
+
+
+def looks_like_text(text: str) -> bool:
+    """Auch ohne bekannten Aufruf: ein deutsches Wort oder ein kurzer Satz („Quelle“, „Zuletzt gespielt“) –
+    Großbuchstabe am Anfang, nur Wörter. Englische Treffer schaden nicht (Übersetzung gleich)."""
+    if not ui_text(text) or len(text) > 60:
+        return False
+    return bool(WORDS.match(text)) and (GERMAN_CHARS.search(text) is not None or text not in ENGLISH_HINTS)
+
+
+ENGLISH_HINTS = {"Steam", "Bluetooth", "Proton", "Linux", "Windows", "Gamescope", "Flatpak", "Wayland", "None", "True",
+                 "False", "Content-Type", "User-Agent", "Accept", "Authorization", "Bearer"}
+
+
+def call_name(node: ast.Call) -> str:
+    f = node.func
+    return f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+
+
+def collect(path: str) -> list[str]:
+    try:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+    skip: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                skip.add(id(first.value))
+        if isinstance(node, ast.Call) and is_log_call(node):
+            for sub in ast.walk(node):
+                skip.add(id(sub))
+        if isinstance(node, ast.Dict):
+            for k in node.keys:
+                if k is not None:
+                    skip.add(id(k))
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            skip.add(id(node.value))            # lose Zeichenkette als Kommentar
+    ui: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and id(node) not in skip:
+            name = call_name(node)
+            if name in UI_CALLS:
+                args = list(node.args)
+                # erstes Argument einer Zeile ist ihre Kennung ("system.language"): nie Text
+                if name in ("info", "action", "text", "select", "toggle", "slider", "link", "confirm_action", "Page", "Row", "row") and args:
+                    args = args[1:]
+                for a in args:
+                    ui.add(id(a))
+            for kw in node.keywords:
+                if kw.arg in UI_KEYS:
+                    ui.add(id(kw.value))
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and k.value in UI_KEYS:
+                    ui.add(id(v))
+    for node in ast.walk(tree):                 # bedingte Ausdrücke: a if x else b
+        if id(node) in ui and isinstance(node, (ast.IfExp, ast.BoolOp, ast.BinOp)):
+            for sub in ast.walk(node):
+                ui.add(id(sub))
+    out = []
+    for node in ast.walk(tree):
+        if id(node) in skip:
+            continue
+        if isinstance(node, ast.JoinedStr):
+            for sub in ast.walk(node):
+                skip.add(id(sub))
+        text = template_of(node)
+        if text is not None and (german(text) or (id(node) in ui and ui_text(text)) or looks_like_text(text)):
+            out.append(text)
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=os.path.join(ROOT, "app/couch/i18n/de-templates.json"))
+    ap.add_argument("--stats", action="store_true")
+    args = ap.parse_args()
+    found: dict[str, set] = {}
+    for base in DIRS:
+        for d, _, files in os.walk(os.path.join(ROOT, base)):
+            rel_d = os.path.relpath(d, ROOT)
+            if any(rel_d.startswith(s) for s in SKIP_DIRS) or "__pycache__" in d:
+                continue
+            for f in files:
+                p = os.path.join(d, f)
+                if not (f.endswith(".py") or (os.path.dirname(p).endswith("bin") and open(p, "rb").read(30).startswith(b"#!/usr/bin/python3"))):
+                    continue
+                for text in collect(p):
+                    found.setdefault(text, set()).add(os.path.relpath(p, ROOT))
+    items = [{"text": t, "files": sorted(fs)} for t, fs in sorted(found.items())]
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    if args.stats:
+        print("%d Texte, %d Zeichen -> %s" % (len(items), sum(len(i["text"]) for i in items), args.out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

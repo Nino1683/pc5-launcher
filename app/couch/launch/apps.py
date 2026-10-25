@@ -97,13 +97,18 @@ def browser_args(ctx) -> list:
     return args
 
 
+def _lang(ctx) -> str:
+    from .. import i18n
+    return i18n.language(getattr(ctx, "config", None))
+
+
 def _browser(entry, ctx, check: bool) -> LaunchSpec:
     """Browser der Konsole (E59, Wunsch 2026-10-18: „ein für eine Spielekonsole optimierter Browser
     … Der jetzige ist einfach Chrome im Desktop-Modus“). Chrome bleibt mit browser.app="chrome"."""
     if str(ctx.config.get("browser.app", "couch") or "couch") == "chrome":
         return _chrome(entry, ctx, check)
     width, height = _screen(ctx)
-    env = {"COUCH_BROWSER_SCALE": "2" if height >= 2000 else "1",
+    env = {"COUCH_BROWSER_SCALE": "2" if height >= 2000 else "1", "COUCH_LANG": _lang(ctx),
            "COUCH_BROWSER_DOWNLOADS": os.path.join(ctx.state_dir, "downloads.json")}
     for key, name in (("browser.home", "COUCH_BROWSER_HOME"), ("browser.search", "COUCH_BROWSER_SEARCH")):
         value = str(ctx.config.get(key, "") or "").strip()
@@ -195,7 +200,8 @@ def _claude(entry, ctx, check: bool) -> LaunchSpec:
     if check and not os.access(exe, os.X_OK):
         raise LaunchError("Das Terminal fehlt in dieser Fassung.", exe, reason="not-installed")
     _width, height = _screen(ctx)
-    return LaunchSpec(entry_id=entry.id, argv=[exe], env={"COUCH_TERM_SCALE": "2" if height >= 2000 else "1"},
+    return LaunchSpec(entry_id=entry.id, argv=[exe], env={"COUCH_TERM_SCALE": "2" if height >= 2000 else "1",
+                                                                    "COUCH_LANG": _lang(ctx)},
                       cwd=ctx.home, kind="tool", freeze=False, mouse="term", title=entry.title)
 
 

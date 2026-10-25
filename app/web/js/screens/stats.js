@@ -26,7 +26,7 @@ function dayOf(key) {
   const [y, m, d] = String(key).split("-").map(Number);
   return new Date(y, (m || 1) - 1, d || 1, 12);
 }
-const fmtDate = (date, opts) => date.toLocaleDateString("de-DE", opts);
+const fmtDate = (date, opts) => date.toLocaleDateString(S.locale, opts);
 function todayKey(range) {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");

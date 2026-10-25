@@ -1,11 +1,12 @@
 # PC5 Launcher
 
-A console-style home screen for the game mode of Linux PCs: games from Steam, GOG, Epic, itch.io, Lutris and
-emulators, TV apps, a browser and the PC's settings, all with a controller. It runs in the same Gamescope session as
+A console-style home screen for the game mode of Linux PCs: games from Steam, GOG, Epic, itch.io, Battle.net,
+Ubisoft, Rockstar, Lutris and emulators, TV apps, a browser and the PC's settings, all with a controller. It runs in the same Gamescope session as
 Steam Big Picture and starts Steam when a Steam game is chosen.
 
 Free and open source (GPL-3.0). This is a preview package: “unconfirmed” means not yet seen on a real device. The
-interface is in German.
+interface is available in English and German (Settings › System › System language; default from your system
+language).
 
 PC5 Launcher is an independent project and is not affiliated with Sony Interactive Entertainment or Valve.
 

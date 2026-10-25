@@ -30,7 +30,7 @@ const PARTS = [
 
 function stamp(seconds) {
   if (!seconds) return "";
-  return new Date(seconds * 1000).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(seconds * 1000).toLocaleString(S.locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function noteOf(item) {
