@@ -40,7 +40,7 @@ LIST_MAX = 20                       # Einträge je Gruppe, der Rest zählt nur m
 SHADER_MAX = 10                     # Steams Shader-Zwischenspeicher: die zehn größten
 DAY = 86400
 JOBS_FILE = "install-jobs.json"
-ACTIVE_JOBS = ("queued", "running", "finishing", "needs-choice")
+ACTIVE_JOBS = ("queued", "running", "finishing", "installing", "needs-choice")
 RECLAIMABLE = ("console-trash", "system-trash", "archives")
 TRASH_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
 
@@ -256,10 +256,15 @@ def _read_jobs(state_dir: str) -> list:
 
 
 def _archive_parts(path: str) -> list[str]:
-    """Alle vorhandenen Teile eines (mehrteiligen) Archivs, nur echte Dateien, keine Verweise."""
+    """Alle vorhandenen Teile eines (mehrteiligen) Archivs, nur echte Dateien, keine Verweise. Bei einem
+    Installationsprogramm (E114) dessen .bin-Dateien daneben (setup_x-1.bin …)."""
     try:
-        from .installer.probe import volume_set
-        parts = volume_set(path).get("parts") or [path]
+        if path.lower().endswith((".exe", ".msi")):
+            from .installer.setupexe import companions
+            parts = [path] + companions(path)
+        else:
+            from .installer.probe import volume_set
+            parts = volume_set(path).get("parts") or [path]
     except Exception:  # noqa: BLE001  (ohne Erkennung der Teile: nur die Datei selbst)
         parts = [path]
     return [p for p in parts if _plain_file(p) is not None]

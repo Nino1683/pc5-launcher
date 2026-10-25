@@ -42,6 +42,8 @@ CONFIRM_PREFIXES = frozenset({
     "games.itch.logout",                # E100: Abmelden widerruft den Schlüssel bei itch.io
     # E102: Proton-Versionen laden (hunderte MB), neu laden, in den Papierkorb legen
     "system.proton.get", "system.proton.build.reload", "system.proton.build.remove",
+    # E116: den PC5 Launcher von GitHub aktualisieren, danach neu starten (schließt laufende Spiele)
+    "system.launcher.update", "system.launcher.restart",
 })
 GENERIC_CONFIRM = {"title": "Wirklich ausführen?", "text": "Das lässt sich nicht rückgängig machen.",
                    "ok": "Ausführen", "cancel": "Abbrechen"}

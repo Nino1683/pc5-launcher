@@ -5,7 +5,7 @@ Battle.net, Ubisoft, Rockstar and Lutris, your emulators, TV apps, a browser and
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.3.0 · Interface in **English and German**
+Free and open source (GPL-3.0) · Preview version 0.3.1 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -31,15 +31,17 @@ Free and open source (GPL-3.0) · Preview version 0.3.0 · Interface in **Englis
 - The launchers of Battle.net, Ubisoft and Rockstar install and run hidden in the background; you rarely see them.
 - **From archives:** zip, 7z and rar, also split into several parts or protected with a password. PC5 Launcher finds
   the game's program and adds it to the library.
-- **Installers (setup.exe):** games from the GOG and itch.io stores run their installer (Inno Setup, NSIS, MSI)
-  silently. Installing with your own setup.exe from Downloads or the file explorer is coming in version 0.3.1.
+- **Installers (setup.exe, .msi):** your own installer from Downloads, the file explorer or inside an archive runs
+  silently through Proton (Inno Setup, NSIS, MSI), into its own game folder and the same prefix the game later
+  starts in. Games from the GOG and itch.io stores install the same way.
 - Start any .exe from Downloads or the file explorer; it becomes a library entry.
 - Download manager with pause, resume and the time left
 
 ### Windows games with Proton
 
 - Proton-CachyOS or GE-Proton, chosen per game; more Proton versions under Settings › System › Updates
-- Per-game switches for **FSR 4, HDR and OptiScaler**, frame-rate limit and resolution
+- Per-game switches for **FSR 4, HDR and OptiScaler**, frame-rate limit (every value that divides your refresh
+  rate, from 20 fps) and resolution
 - Damaged Proton versions are detected and downloaded again
 - The controller works in XInput games too, with no setting to change
 
@@ -70,6 +72,9 @@ Free and open source (GPL-3.0) · Preview version 0.3.0 · Interface in **Englis
   performance overlay
 - **Settings like on a console:** sound, screen and video (HDR, VRR), network (Wi-Fi, speed test), Bluetooth and
   controllers, storage, power (sleep, sleep timer, screensaver), updates for the system, Flatpaks and Proton
+- **Updates itself:** PC5 Launcher checks GitHub once a day, tells you when there's a new version and installs it
+  with one button (Settings › System › Updates). Your settings stay.
+- **Themes:** six built-in color themes or your own, see [Themes](#themes)
 - Back up your settings and take them to a new PC
 - Free up space: trash, archives of installed games, large downloads
 - Startup animation with its own sound, setup wizard on first start
@@ -93,9 +98,36 @@ Free and open source (GPL-3.0) · Preview version 0.3.0 · Interface in **Englis
 | ![Setup wizard](screenshots/setup-wizard.jpg) Setup wizard | ![Emulators](screenshots/setup-consoles.jpg) Choosing emulators |
 | ![Your week](screenshots/your-week.jpg) Your week | ![Sleep timer](screenshots/sleep-timer.jpg) Power menu and sleep timer |
 | ![Settings](screenshots/settings.jpg) Settings | ![Network](screenshots/network-speedtest.jpg) Network and speed test |
-| ![Free up space](screenshots/free-up-space.jpg) Free up space | |
+| ![Free up space](screenshots/free-up-space.jpg) Free up space | ![Themes](screenshots/theme-picker.jpg) Choosing a theme |
 
 *Game covers in the screenshots are blurred on purpose: they belong to their publishers.*
+
+## Themes
+
+Settings › Home screen › Theme: **Default, Ocean, Emerald, Purple, Ember, Graphite** or your own. The colors change
+at once, everywhere.
+
+![The six built-in themes](screenshots/themes.jpg)
+
+To make your own, put a `.css` file into `~/.config/couch/themes/`. The file name is the name in the list, so
+`~/.config/couch/themes/Midnight.css` appears as "Midnight":
+
+```css
+:root {
+  --c-accent: #4f8cff;                 /* dot for new items, progress bars */
+  --c-ring-a: #cfe0ff;                 /* focus ring */
+  --c-ring-b: #6d8fd6;
+  --c-bg: #05070d;                     /* base color behind everything */
+  --c-bd-a: rgba(40, 70, 160, .6);     /* moving lights of the background */
+  --c-bd-b: rgba(90, 60, 150, .35);
+  --c-bd-c: rgba(30, 100, 140, .35);
+  --g-settings: linear-gradient(to bottom, #0a0f1d, #10172a);
+}
+```
+
+Every color (`--c-…`) and gradient (`--g-…`) from [app/web/css/tokens.css](app/web/css/tokens.css) can be
+changed. Everything else is ignored: sizes, fonts, `url()`, `@import`. So a theme you download can only change
+colors; it can't load anything or break the layout. Made a nice one? Share it in [Issues](../../issues).
 
 ## Install
 
@@ -104,7 +136,8 @@ terminal inside the extracted folder:
 
     bash install.sh
 
-Updating works the same way; your settings stay. Everything else (supported systems, requirements, the way back to
+From 0.3.1 on, PC5 Launcher updates itself (Settings › System › Updates). Coming from 0.2.0 or 0.3.0, update once
+the same way as installing; your settings stay. Everything else (supported systems, requirements, the way back to
 Steam, updating and uninstalling): [packaging/README.en.md](packaging/README.en.md).
 
 | System | Status |
@@ -148,7 +181,7 @@ Battle.net, Ubisoft, Rockstar und Lutris, die Emulatoren, Apps für den Fernsehe
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.0 · Oberfläche auf **Deutsch und Englisch**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.1 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 
@@ -168,16 +201,18 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.0 · Oberfläche auf **D
 - Die Launcher von Battle.net, Ubisoft und Rockstar installieren und laufen versteckt im Hintergrund.
 - **Aus Archiven:** zip, 7z und rar, auch mehrteilig oder mit Kennwort. Der PC5 Launcher findet das Programm des
   Spiels und nimmt es in die Bibliothek auf.
-- **Installationsprogramme (setup.exe):** Spiele aus den Stores von GOG und itch.io laufen ihr Installationsprogramm
-  (Inno Setup, NSIS, MSI) unsichtbar durch. Installieren mit einer eigenen setup.exe aus den Downloads oder dem
-  Datei-Explorer kommt mit Fassung 0.3.1.
+- **Installationsprogramme (setup.exe, .msi):** Ein eigenes Installationsprogramm aus den Downloads, dem
+  Datei-Explorer oder aus einem Archiv läuft unsichtbar über Proton durch (Inno Setup, NSIS, MSI), in einen eigenen
+  Spielordner und im selben Prefix, in dem das Spiel später startet. Spiele aus den Stores von GOG und itch.io
+  installieren genauso.
 - Jede .exe aus den Downloads oder dem Datei-Explorer starten; sie wird zum Eintrag der Bibliothek.
 - Download-Manager mit Anhalten, Fortsetzen und Restzeit
 
 **Windows-Spiele mit Proton**
 
 - Proton-CachyOS oder GE-Proton je Spiel; weitere Proton-Versionen unter Einstellungen › System › Updates
-- Je Spiel schaltbar: **FSR 4, HDR und OptiScaler**, Bildratenbegrenzung und Auflösung
+- Je Spiel schaltbar: **FSR 4, HDR und OptiScaler**, Bildratenbegrenzung (jeder Wert, der die Bildwiederholrate glatt
+  teilt, ab 20) und Auflösung
 - Beschädigte Proton-Versionen werden erkannt und neu geladen
 - Der Controller geht auch in XInput-Spielen, ohne dass man etwas einstellen muss
 
@@ -209,6 +244,9 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.0 · Oberfläche auf **D
 - **Einstellungen wie bei einer Konsole:** Ton, Bildschirm und Video (HDR, VRR), Netzwerk (WLAN,
   Geschwindigkeitsmessung), Bluetooth und Controller, Speicher, Energie (Ruhemodus, Ruhemodus-Timer,
   Bildschirmschoner), Updates für System, Flatpaks und Proton
+- **Aktualisiert sich selbst:** Der PC5 Launcher schaut einmal am Tag auf GitHub nach, meldet eine neue Fassung und
+  installiert sie mit einem Knopfdruck (Einstellungen › System › Updates). Die Einstellungen bleiben.
+- **Designs:** sechs eingebaute Farbdesigns oder ein eigenes, siehe [Designs](#designs)
 - Einstellungen sichern und auf einen neuen PC mitnehmen
 - Platz schaffen: Papierkörbe, Archive installierter Spiele, große Downloads
 - Startanimation mit eigenem Klang, Einrichtungs-Assistent beim ersten Start
@@ -221,10 +259,19 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.0 · Oberfläche auf **D
 - Systemfreigaben: Die wenigen Schritte, die dein Kennwort brauchen (etwa für das Touchpad), richtest du nur auf
   Wunsch mit dem Controller ein und kannst sie wieder entfernen. Das Kennwort wird nie gespeichert.
 
+### Designs
+
+Einstellungen › Home-Bildschirm › Design: **Standard, Ozean, Smaragd, Violett, Glut, Graphit** oder ein eigenes. Die
+Farben wechseln sofort, überall. Ein eigenes Design ist eine `.css`-Datei in `~/.config/couch/themes/`; der
+Dateiname erscheint in der Liste (Beispiel oben bei [Themes](#themes)). Erlaubt sind alle Farben (`--c-…`) und
+Verläufe (`--g-…`) aus [app/web/css/tokens.css](app/web/css/tokens.css); alles andere (Größen, Schriften, `url()`,
+`@import`) wird übergangen. Ein Design aus dem Netz kann also nur Farben ändern.
+
 ### Installieren
 
 Paket unter [Releases](../../releases) laden, entpacken und im Desktop-Modus im entpackten Ordner `bash install.sh`
-ausführen. Aktualisieren geht genauso, die Einstellungen bleiben. Alles Weitere:
+ausführen. Ab 0.3.1 aktualisiert sich der PC5 Launcher selbst (Einstellungen › System › Updates); von 0.2.0 oder
+0.3.0 aus einmal genauso wie beim Installieren, die Einstellungen bleiben. Alles Weitere:
 [packaging/README.md](packaging/README.md).
 
 ### Unterstützen

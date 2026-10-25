@@ -20,7 +20,10 @@ if [[ "${1:-}" == --check ]]; then
     if [[ -x /usr/bin/python3 ]]; then py=/usr/bin/python3; else py=python3; fi
   fi
   exec "$py" -I "$here/couch/depcheck.py" "${@:2}"
-  echo "couch-home: Python nicht ausführbar: $py" >&2
+  case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in
+    en*) echo "couch-home: Python cannot be run: $py" >&2 ;;
+    *)   echo "couch-home: Python nicht ausführbar: $py" >&2 ;;
+  esac
   exit 1
 fi
 

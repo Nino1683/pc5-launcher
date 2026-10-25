@@ -39,8 +39,10 @@ const STORE_TILE = { ...SYSTEM, id: "sys:store", title: S.stTitle, icon: "store"
 function installTile() {
   const jobs = store.state.jobs || [];
   const choice = jobs.find((j) => j.state === "needs-choice");
-  const busy = jobs.find((j) => j.state === "running" || j.state === "finishing" || j.state === "queued");
+  const busy = jobs.find((j) => j.state === "running" || j.state === "finishing" || j.state === "installing" || j.state === "queued");
+  // Ein Installationsprogramm meldet keinen Anteil (E114)
   const note = choice ? fmt(S.installTileChoice, { title: choice.title })
+    : busy && busy.state === "installing" ? fmt(S.installTileInstalling, { title: busy.title })
     : busy ? fmt(S.installTileBusy, { title: busy.title, n: Math.round(Number(busy.percent) || 0) }) : S.installTileHint;
   return { ...INSTALL_TILE, note };
 }

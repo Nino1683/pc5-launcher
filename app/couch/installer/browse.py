@@ -18,7 +18,7 @@ import os
 import re
 
 from . import InstallError
-from . import probe, trash
+from . import probe, setupexe, trash
 
 ENTRY_LIMIT = 500        # so viele Einträge gehen höchstens an die Oberfläche
 SCAN_LIMIT = 5000        # so viele Verzeichniseinträge werden höchstens gelesen
@@ -110,10 +110,11 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
     """Listet einen Ordner der Dateiauswahl. Blockierend, nur lesend, nie rekursiv.
 
     path=None liefert die Wurzeln. Rückgabe:
-      {"path", "parent", "name", "entries": [{"name", "path", "type": "dir"|"archive"|"other", "size"}],
+      {"path", "parent", "name", "entries": [{"name", "path", "type": "dir"|"archive"|"installer"|"other", "size"}],
        "truncated": bool, "total": int, "message": str}
+    "installer" (E114): setup.exe bzw. .msi, mit Größe und Datum wie ein Archiv.
     parent ist None an einer Wurzel (von dort geht es nur zurück zur Liste der Wurzeln).
-    size steht nur bei Archiven (bei mehrteiligen die Summe; dazu "parts"), sonst None.
+    size steht nur bei Archiven und Installern (bei mehrteiligen die Summe; dazu "parts"), sonst None.
     Mehrteilige Archive erscheinen als ein Eintrag (ihr erster Teil).
     Wirft BrowseError mit deutschem Text, wenn der Ordner außerhalb der Wurzeln liegt oder nicht lesbar ist."""
     roots = default_roots() if roots is None else roots
@@ -192,14 +193,23 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
     dirs = dirs[:limit]
     shown = shown[:max(0, limit - len(dirs))]
 
-    # 2. Durchgang: nur für die gezeigten Dateien Art bestimmen; stat nur für Archive
+    # 2. Durchgang: nur für die gezeigten Dateien Art bestimmen; stat nur für Archive und Installer
     entries = [{"name": name, "path": os.path.join(real, name), "type": "dir", "size": None} for name in dirs]
+    budget = None if slow else setupexe.Budget()     # Blick in den Dateikopf nur für wenige .exe, nie auf langsamen Platten
     for name, forced in shown:
         full = os.path.join(real, name)
         kind = forced or archive_type_by_name(name)
         if kind is None:
             kind = "archive" if (not slow and probe.sniff(full, deep=False) in probe.SUPPORTED_FORMATS) else "other"
         item = {"name": name, "path": full, "type": kind, "size": None}
+        if kind == "other" and not forced and name.lower().endswith((".exe", ".msi")):
+            # E114: Installationsprogramme (erkannt, oder der Name sagt es: dann erklärt die Prüfung)
+            try:
+                st = os.stat(full)
+            except OSError:
+                st = None
+            if st is not None and (setupexe.listing_flag(full, name, st.st_size, budget) or setupexe.is_setup_name(name)):
+                item.update(type="installer", size=st.st_size, mtime=st.st_mtime)
         if kind == "archive":
             parts = volume_parts.get(name, [name])
             size, mtime = 0, None

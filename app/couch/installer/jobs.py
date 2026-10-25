@@ -17,6 +17,17 @@ Zustände eines Auftrags: "queued" → "running" → "finishing" → "done" | "n
 "cancelled". "needs-choice": Das Spiel liegt am Zielort, aber die Startdatei ist nicht eindeutig;
 erst set_exe() legt den Bibliothekseintrag an.
 
+E114, Installationsprogramme (Inno Setup, NSIS, MSI): Zustand "installing" zwischen dem Entpacken (bzw.
+gleich nach "running" bei einer setup.exe als Datei) und dem Abschluss. Der Installer läuft unsichtbar
+über Proton im Prefix des späteren Eintrags ("local:<entry_uuid>"; Befehlsanfang und Umgebung liefert
+setup_env der Verdrahtung, wie bei GOG und itch.io) in einen frisch angelegten Spielordner mit Marker,
+in eigener Prozessgruppe. Abbruch: SIGTERM an diese Gruppe, nach KILL_AFTER SIGKILL. Zeitgrenzen:
+SETUP_TIMEOUT insgesamt, SETUP_IDLE ohne jede Arbeit im Prozessbaum (wartet auf eine Eingabe), dazu der
+Platzwächter wie beim Entpacken. Danach Startdatei wie beim Archiv-Spiel (extract.start_candidates).
+Scheitert oder endet es vorher, kommen der angefangene Spielordner in den Papierkorb (umkehrbar), der
+Zwischenordner weg (trash.remove_staging) und der Prefix des nie eingetragenen Spiels über
+discard_prefix weg. Im Prüfmodus startet nur eine Attrappe (proc.manager.test_mode_allows).
+
 Der JobManager selbst hängt nicht an der GLib-Schleife. Hintergrundarbeit und Rückrufe laufen über
 den eingesteckten Planer (scheduler.run_in_thread, scheduler.call_soon).
 """
@@ -36,16 +47,43 @@ import uuid
 from typing import Any, Callable
 
 from .. import jsontext
-from . import InstallError, ThreadScheduler, games_root as cfg_games_root, reserve_bytes as cfg_reserve_bytes
-from . import extract, probe, trash
+from . import InstallError, ThreadScheduler, games_root as cfg_games_root, human_size, reserve_bytes as cfg_reserve_bytes
+from . import extract, probe, setupexe, trash
 
 JOBS_FILE = "install-jobs.json"
 LOG_FILE = "installer.log"
+SETUP_LOG = "setup-run.log"      # Ausgabe der Installationsprogramme, wenn setup_env keinen Ort nennt
 PROGRESS_MIN_INTERVAL = 0.25     # höchstens 4 Fortschritts-Ereignisse pro Sekunde
 KILL_AFTER = 10.0                # Sekunden zwischen SIGTERM und SIGKILL an die Gruppe des Arbeiters
 KEEP_FINISHED = 20               # so viele abgeschlossene Aufträge bleiben in der Liste
-ACTIVE = ("queued", "running", "finishing")
+ACTIVE = ("queued", "running", "finishing", "installing")
 MSG_INTERRUPTED = "Die Installation wurde unterbrochen, weil die Konsole beendet wurde."
+
+# E114: Zeitgrenzen des stillen Laufs. Insgesamt drei Stunden wie bei GOG (wiring_store): Große Spiele
+# (100 GB und mehr, LZMA) brauchen auf einer langsamen USB-Platte über eine Stunde. Ein Installer, der doch
+# ein Fenster zeigt und wartet, rechnet und schreibt nichts mehr: Nach SETUP_IDLE ohne nennenswerte Arbeit
+# im ganzen Prozessbaum wird er beendet. Nennenswert heißt je Messfenster (SETUP_SAMPLE Sekunden) mehr als
+# SETUP_BUSY_CPU eines Kerns Rechenzeit (1 s je 30 s) oder SETUP_BUSY_IO Bytes je Sekunde gelesen bzw.
+# geschrieben, oder ein neuer bzw. beendeter Prozess; ein entpackender Installer liegt weit darüber, ein
+# wartendes Fenster (Wine im Leerlauf) weit darunter.
+SETUP_TIMEOUT = 3 * 3600.0
+SETUP_IDLE = 15 * 60.0
+SETUP_SAMPLE = 30.0
+SETUP_BUSY_CPU = 1 / 30
+SETUP_BUSY_IO = 32 * 1024
+SPACE_SAMPLE = 3.0               # Platzwächter wie beim Entpacken (extract.WATCH_INTERVAL)
+MSG_SETUP_TRASHED = "Der angefangene Spielordner liegt im Papierkorb."
+MSG_NO_PROTON = "Proton ist gerade nicht bereit. Versuche es gleich noch einmal."
+MSG_SETUP_RC = "Das Installationsprogramm ist nicht durchgelaufen (Rückgabewert %s)."
+# Die Zahlen in den Sätzen gehören zu SETUP_TIMEOUT und SETUP_IDLE (nur Tests stellen kürzere Grenzen ein)
+MSG_SETUP_TIMEOUT = "Das Installationsprogramm ist nach drei Stunden nicht fertig geworden und wurde beendet."
+MSG_SETUP_IDLE = ("Das Installationsprogramm wartet offenbar auf eine Eingabe (seit 15 Minuten keine Arbeit) und "
+                  "wurde beendet. Still installieren lässt es sich so nicht.")
+MSG_SETUP_EMPTY = "Das Installationsprogramm ist durchgelaufen, aber im Spielordner liegt kein Programm."
+MSG_SETUP_SPACE = ("Der Speicherplatz auf der Spiele-Platte wird knapp (weniger als %s frei). "
+                   "Die Installation wurde abgebrochen.")
+MSG_SETUP_START = "Das Installationsprogramm ließ sich nicht starten (umu-run fehlt?)."
+MSG_PLAN_CHANGED = "Die Datei hat sich seit der Prüfung geändert. Bitte prüfe sie erneut."
 
 
 def io_idle_prefix() -> list:
@@ -63,6 +101,59 @@ def default_worker_argv() -> list:
     sich an bubblewrap und 7z/unrar. ionice ersetzt sich durch den Befehl: Die PID bleibt die des Arbeiters."""
     return io_idle_prefix() + [sys.executable, "-I", "-B",
                                os.path.join(os.path.dirname(os.path.realpath(__file__)), "extract.py")]
+
+
+def tree_activity(pid: int, proc_root: str = "/proc") -> tuple:
+    """(Rechenzeit in Ticks, gelesene plus geschriebene Bytes, PIDs) des Prozesses pid und aller seiner
+    Nachfahren (E114: Wacht über den stillen Installer). Nur lesend (/proc)."""
+    parents, ticks = {}, {}
+    try:
+        names = os.listdir(proc_root)
+    except OSError:
+        return 0, 0, frozenset()
+    for name in names:
+        if not name.isdigit():
+            continue
+        try:
+            with open(os.path.join(proc_root, name, "stat"), encoding="ascii", errors="replace") as fh:
+                fields = fh.read().rsplit(")", 1)[1].split()
+            parents[int(name)] = int(fields[1])
+            ticks[int(name)] = int(fields[11]) + int(fields[12])      # utime + stime
+        except (OSError, IndexError, ValueError):
+            continue
+    children: dict = {}
+    for child, parent in parents.items():
+        children.setdefault(parent, []).append(child)
+    tree, todo = set(), [pid]
+    while todo:
+        current = todo.pop()
+        if current in tree or current not in parents:
+            continue
+        tree.add(current)
+        todo.extend(children.get(current, ()))
+    io = 0
+    for member in tree:
+        try:
+            with open(os.path.join(proc_root, str(member), "io"), encoding="ascii") as fh:
+                io += sum(int(line.split()[1]) for line in fh if line.startswith(("rchar:", "wchar:")))
+        except (OSError, IndexError, ValueError):
+            continue                     # fremde oder eben beendete Prozesse: nicht lesbar
+    return sum(ticks[m] for m in tree), io, frozenset(tree)
+
+
+def setup_refusal(argv0: str, env: dict) -> str | None:
+    """Im Prüfmodus startet kein echtes Installationsprogramm: nur Attrappen (wie der AppManager,
+    proc.manager.test_mode_allows). Rückgabe: deutscher Grund oder None."""
+    from .. import paths
+    if not paths.test_mode():
+        return None
+    found = argv0 if os.sep in argv0 else shutil.which(argv0, path=(env or {}).get("PATH") or os.defpath)
+    if not found:
+        return None                      # gibt es nicht: Popen scheitert, es läuft nichts
+    from ..proc.manager import test_mode_allows
+    if test_mode_allows(found):
+        return None
+    return "Prüfmodus: Ein echtes Installationsprogramm (%s) startet hier nicht." % os.path.basename(found)
 
 
 def make_executable(install_dir: str, rel: str) -> None:
@@ -83,14 +174,20 @@ class JobManager:
     def __init__(self, *, config, state_dir: str, emit: Callable[[str, dict], None],
                  add_local: Callable[[dict], None], scheduler=None, rom_dirs: Callable[[], dict] | None = None,
                  tools: dict | None = None, worker_argv: list | None = None, version: str = "",
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, setup_env: Callable[..., dict] | None = None,
+                 discard_prefix: Callable[[str], None] | None = None, setup_limits: dict | None = None):
         """Legt nur Felder an und fasst die Platte nicht an (schnell).
 
         config: Einstellungen (get). state_dir: Ordner für install-jobs.json und installer.log.
         emit(event, payload), add_local(entry_dict): Rückrufe, laufen über scheduler.call_soon.
         scheduler: Objekt mit call_soon(fn, *args) und run_in_thread(fn, *args); Vorgabe ThreadScheduler.
         rom_dirs: liefert {"switch": ordner, "wiiu": ordner}; Vorgabe probe.default_rom_dirs.
-        tools, worker_argv: nur für Tests (Werkzeug-Attrappen, eigener Arbeiter-Befehl)."""
+        tools, worker_argv: nur für Tests (Werkzeug-Attrappen, eigener Arbeiter-Befehl).
+        E114: setup_env(entry_id, title, installer) -> {"argv": [umu-run …], "env": {…}, "log"?: pfad} für den
+        stillen Lauf eines Installationsprogramms im Prefix dieses Eintrags; wirft InstallError mit deutschem
+        Satz. Ohne setup_env scheitern Installationsprogramme mit MSG_NO_PROTON. discard_prefix(entry_id):
+        Prefix eines nie eingetragenen Spiels wegräumen (nach Abbruch oder Fehler). setup_limits: {"timeout",
+        "idle", "sample", "space"} in Sekunden, nur für Tests."""
         self._config = config
         self._state_dir = state_dir
         self._emit_cb = emit
@@ -101,6 +198,14 @@ class JobManager:
         self._worker_argv = list(worker_argv) if worker_argv else default_worker_argv()
         self._version = version
         self._clock = clock
+        self._setup_env = setup_env
+        self._discard_prefix = discard_prefix
+        limits = dict(setup_limits or {})
+        self._setup_timeout = float(limits.get("timeout", SETUP_TIMEOUT))
+        self._setup_idle = float(limits.get("idle", SETUP_IDLE))
+        self._setup_sample = float(limits.get("sample", SETUP_SAMPLE))
+        self._space_sample = float(limits.get("space", SPACE_SAMPLE))
+        self.proc_root = "/proc"                  # für die Aktivität des Installers (Tests: erfundenes /proc)
         self._lock = threading.RLock()            # schützt alle folgenden Felder
         self._jobs: dict[str, dict] = {}
         self._queue: list[str] = []
@@ -148,6 +253,10 @@ class JobManager:
         candidates = [{"archive_path": c.get("archive_path"), "path": c.get("path"), "score": c.get("score", 0)}
                       for c in (plan.get("candidates") or []) if isinstance(c, dict)][:12]
         password = choices.get("password") if isinstance(choices.get("password"), str) and choices.get("password") else None
+        # E114: ein Installationsprogramm als Datei läuft ohne Entpacker; entschieden am Dateikopf, nicht am Plan
+        setup = None
+        if content["kind"] == "windows-installer":
+            setup = "file" if probe.sniff(archive, deep=False) in ("exe", "ole") else "archive"
         with self._lock:
             self._ensure_loaded()
             for other in self._live_jobs():
@@ -162,7 +271,7 @@ class JobManager:
                    "final_dir": target["dir"], "folder": target["name"], "token": uuid.uuid4().hex,
                    "entry_uuid": str(uuid.uuid4()), "wanted_exe": choices.get("exe") if isinstance(choices.get("exe"), str) else None,
                    "plan_candidates": candidates, "created": self._clock(), "started": None, "finished": None,
-                   "staging": None, "staging_token": None}
+                   "staging": None, "staging_token": None, "setup": setup}
             self._jobs[job_id] = job
             self._queue.append(job_id)
             if password:
@@ -175,7 +284,8 @@ class JobManager:
     def cancel(self, job_id: str) -> bool:
         """Bricht einen Auftrag ab. Kehrt sofort zurück; das Ergebnis kommt als "install.done".
 
-        Wartend: wird gestrichen. Laufend: SIGTERM an die Prozessgruppe des Arbeiters.
+        Wartend: wird gestrichen. Laufend: SIGTERM an die Prozessgruppe des Arbeiters bzw. des
+        Installationsprogramms (E114, Zustand "installing").
         "needs-choice": Der fertig entpackte Ordner wandert in den Papierkorb (ein rename, umkehrbar).
         Rückgabe: False, wenn es nichts abzubrechen gab."""
         with self._lock:
@@ -192,7 +302,7 @@ class JobManager:
                 self._passwords.pop(job_id, None)
                 self._close(job, "cancelled", extract.MSG_CANCELLED)
                 return True
-            if job["state"] in ("running", "finishing"):
+            if job["state"] in ("running", "finishing", "installing"):
                 job["cancel_requested"] = time.monotonic()
                 self._signal_worker(job_id, signal.SIGTERM)
                 return True
@@ -203,7 +313,10 @@ class JobManager:
                 raise InstallError(result["code"], result["message"])
             job["trash_id"] = result["trash_id"]
             self._close(job, "cancelled", "Die Installation wurde verworfen. Der Ordner liegt im Papierkorb.")
-            return True
+            setup = bool(job.get("setup"))
+        if setup:
+            self._drop_prefix(job)           # außerhalb des Schlosses: fragt die Bibliothek
+        return True
 
     def list(self) -> list:
         """Alle bekannten Aufträge, älteste zuerst. Schnell (nur Speicher).
@@ -271,6 +384,9 @@ class JobManager:
                 if self._recover(job):
                     result["recovered"].append(job["id"])
                 else:
+                    if job.get("setup") and job.get("install_dir"):
+                        # E114: Ein halb gelaufenes Installationsprogramm hinterlässt nichts Brauchbares
+                        self._setup_discard(job)
                     with self._lock:
                         self._close(job, "cancelled", MSG_INTERRUPTED)
                     result["interrupted"].append(job["id"])
@@ -373,6 +489,9 @@ class JobManager:
             self._pump()
 
     def _work(self, job: dict) -> None:
+        if job.get("setup") == "file":
+            self._work_setup_file(job)
+            return
         job_id = job["id"]
         with self._lock:
             if job["state"] != "queued":
@@ -510,9 +629,271 @@ class JobManager:
         with self._lock:
             return any(job.get("staging") == path and job["state"] in ACTIVE for job in self._jobs.values())
 
+    # ------------------------------------------------------------ Installationsprogramme (E114)
+
+    def _fail(self, job: dict, code: str, message: str, state: str = "failed") -> None:
+        with self._lock:
+            if code and state == "failed":
+                job["code"] = code
+            self._close(job, state, message)
+
+    def _work_setup_file(self, job: dict) -> None:
+        """setup.exe bzw. .msi als Datei: neu prüfen, Spielordner mit Marker anlegen, still installieren.
+        Läuft im Hintergrund-Thread des Auftrags; die Datei selbst wird nur gelesen und bleibt liegen."""
+        with self._lock:
+            if job["state"] != "queued":
+                return                           # inzwischen abgebrochen
+            job.update(state="running", started=self._clock(), percent=0, file=None)
+            self._save()
+        self._progress(job, force=True)
+        # Dem Plan der Oberfläche wird nicht geglaubt (wie beim Entpacken)
+        plan = probe.probe(job["archive"], None, games_root=job["games_root"],
+                           reserve_bytes=cfg_reserve_bytes(self._config), folder=job.get("folder") or None)
+        if not plan["ready"]:
+            self._fail(job, plan["status"], plan["message"])
+            return
+        target = plan.get("target") or {}
+        if plan.get("format") not in probe.SETUP_FORMATS or plan.get("kind") != "windows-installer" \
+                or not target.get("dir") or os.path.realpath(target["dir"]) != os.path.realpath(job["final_dir"]):
+            self._fail(job, "plan-changed", MSG_PLAN_CHANGED)
+            return
+        if job.get("cancel_requested"):
+            self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            return
+        spec = {"token": job["token"], "entry_id": "local:" + job["entry_uuid"], "title": job["title"],
+                "version": self._version}
+        try:
+            extract.make_game_folder(job["final_dir"], extract.marker_fields(spec, plan, os.path.realpath(job["games_root"])))
+        except FileExistsError:
+            self._fail(job, "target-exists", "Auf der Spiele-Platte gibt es inzwischen schon einen Ordner „%s“." % job["folder"])
+            return
+        except OSError as exc:
+            self._log("job %s: Spielordner nicht angelegt: %s" % (job["id"], exc))
+            self._fail(job, "no-target", "Der Spielordner konnte nicht angelegt werden.")
+            return
+        with self._lock:
+            job["install_dir"] = job["final_dir"]
+            self._save()
+        self._setup(job, job["archive"], plan.get("installer_type") or "")
+
+    def _setup_from_archive(self, job: dict, final: dict) -> None:
+        """Der Arbeiter hat ein Archiv mit einem Installationsprogramm entpackt (es liegt im Zwischenordner)
+        und den leeren Spielordner angelegt. Nur, was dazu passt, wird ausgeführt."""
+        installer, staging = final.get("installer"), job.get("staging")
+        inside = isinstance(installer, str) and isinstance(staging, str) and staging and \
+            os.path.realpath(installer).startswith(os.path.realpath(staging) + os.sep)
+        same = isinstance(final.get("path"), str) and job.get("final_dir") and \
+            os.path.realpath(final["path"]) == os.path.realpath(job["final_dir"])
+        if not inside or not same:
+            self._log("job %s: Abschlussmeldung mit Installer passt nicht zum Auftrag" % job["id"])
+            self._cleanup_staging(job)
+            self._fail(job, "bad-result", "Die Installation ist an einem internen Fehler gescheitert.")
+            return
+        with self._lock:
+            job.update(install_dir=job["final_dir"], setup="archive")
+            self._save()
+        self._setup(job, os.path.realpath(installer), str(final.get("installer_type") or ""))
+
+    def _setup(self, job: dict, installer: str, kind: str) -> None:
+        """Installationsprogramm still in den Spielordner, dann Startdatei wie beim Archiv-Spiel. Blockiert."""
+        with self._lock:
+            job.update(state="installing", file=None)
+            self._save()
+        self._progress(job, force=True)
+        try:
+            stopped = self._setup_run(job, installer, kind)
+        except Exception as exc:                 # nie mit halbem Ordner und ohne Meldung enden
+            self._log("job %s: Installationsprogramm: interner Fehler %r" % (job["id"], exc))
+            stopped = ("failed", "setup-error", "Das Installationsprogramm ließ sich nicht ausführen.")
+        if stopped is None:
+            self._cleanup_staging(job)
+            found = self._setup_candidates(job)
+            if found["candidates"]:
+                self._on_done(job, {"mode": "game", "path": job["install_dir"], "candidates": found["candidates"],
+                                    "needs_choice": found["needs_choice"]})
+                return
+            stopped = ("failed", "setup-empty", MSG_SETUP_EMPTY)
+        state, code, message = stopped
+        trashed = self._setup_discard(job)
+        if trashed:
+            message = message + " " + MSG_SETUP_TRASHED
+        self._fail(job, code, message, state)
+
+    def _setup_run(self, job: dict, installer: str, kind: str) -> tuple | None:
+        """Der Lauf selbst. None = durchgelaufen, sonst (zustand, kürzel, satz)."""
+        if job.get("cancel_requested"):
+            return "cancelled", "", extract.MSG_CANCELLED
+        if not kind:
+            return "failed", "unknown-installer", setupexe.MSG_UNKNOWN
+        try:
+            marker = trash.read_marker(job["install_dir"])
+        except (trash.Refuse, OSError):
+            marker = {}
+        if marker.get("token") != job["token"]:
+            return "failed", "marker-mismatch", "Der Spielordner gehört nicht mehr zu diesem Auftrag."
+        if self._setup_env is None:
+            return "failed", "no-proton", MSG_NO_PROTON
+        try:
+            command = setupexe.silent_command(kind, installer, job["install_dir"])
+            launch = self._setup_env("local:" + job["entry_uuid"], job["title"], installer)
+        except InstallError as error:
+            return "failed", error.code, error.message
+        argv = [str(a) for a in list(launch.get("argv") or []) + command]
+        env = dict(launch.get("env") or {})
+        refusal = setup_refusal(argv[0], env)
+        if refusal:
+            return "failed", "test-mode", refusal
+        log_path = launch.get("log") or os.path.join(self._state_dir, SETUP_LOG)
+        self._log("job %s: Installationsprogramm (%s) läuft" % (job["id"], kind))
+        reason, rc = self._setup_process(job, argv, env, os.path.dirname(installer), log_path)
+        self._log("job %s: Installationsprogramm beendet: %s %s" % (job["id"], reason, rc))
+        if reason == "ok":
+            return None if setupexe.succeeded(kind, rc) else ("failed", "setup-failed", MSG_SETUP_RC % rc)
+        return {"cancelled": ("cancelled", "", extract.MSG_CANCELLED),
+                "timeout": ("failed", "setup-timeout", MSG_SETUP_TIMEOUT),
+                "idle": ("failed", "setup-waits", MSG_SETUP_IDLE),
+                "no-space": ("failed", "no-space", MSG_SETUP_SPACE % human_size(cfg_reserve_bytes(self._config))),
+                "disk-gone": ("failed", "no-target", "Die Spiele-Platte ist während der Installation nicht mehr erreichbar."),
+                }.get(reason, ("failed", "no-proton", MSG_SETUP_START))
+
+    def _setup_process(self, job: dict, argv: list, env: dict, cwd: str, log_path: str) -> tuple:
+        """Startet das Installationsprogramm in eigener Sitzung (Gruppe = seine PID) und wacht über Abbruch,
+        Zeit, Untätigkeit und Platz. Rückgabe: (grund, rückgabewert) mit grund in "ok" | "cancelled" |
+        "timeout" | "idle" | "no-space" | "disk-gone" | "no-tool"."""
+        job_id = job["id"]
+        try:
+            from .. import log as log_mod
+            log_path = log_mod.capped(log_path)          # Wine ist gesprächig: angehängt, vorher kappen
+            os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+            with open(log_path, "ab") as log_fh:
+                proc = subprocess.Popen(argv, env=env, cwd=cwd if os.path.isdir(cwd) else "/", stdin=subprocess.DEVNULL,
+                                        stdout=log_fh, stderr=log_fh, start_new_session=True)
+        except OSError as exc:
+            self._log("job %s: Installationsprogramm startet nicht: %s" % (job_id, exc.strerror or exc))
+            return "no-tool", None
+        with self._lock:
+            self._procs[job_id] = proc
+            job["worker_pid"] = proc.pid
+            if job.get("cancel_requested"):
+                self._signal_worker(job_id, signal.SIGTERM)
+        real_root = os.path.realpath(job["games_root"])
+        reserve = cfg_reserve_bytes(self._config)
+        ticks = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+        started = time.monotonic()
+        reason, stop_at, killed = None, None, False
+        last = tree_activity(proc.pid, self.proc_root)
+        last_work = last_at = started
+        next_sample, next_space = started + self._setup_sample, started + self._space_sample
+        rc = None
+        try:
+            while True:
+                with self._lock:                 # eingesammelt wird nur unter dem Schloss (siehe _signal_worker)
+                    rc = proc.poll()
+                    asked = job.get("cancel_requested")
+                if rc is not None:
+                    break
+                now = time.monotonic()
+                if reason is None:
+                    if asked:
+                        reason, stop_at = "cancelled", asked     # SIGTERM kam schon mit cancel()
+                    elif now - started > self._setup_timeout:
+                        reason = "timeout"
+                    else:
+                        if now >= next_sample:
+                            next_sample = now + self._setup_sample
+                            cpu, io, pids = tree_activity(proc.pid, self.proc_root)
+                            window = max(0.001, now - last_at)
+                            if cpu - last[0] >= SETUP_BUSY_CPU * ticks * window or io - last[1] >= SETUP_BUSY_IO * window \
+                                    or pids != last[2]:
+                                last_work = now
+                            last, last_at = (cpu, io, pids), now
+                            if now - last_work >= self._setup_idle:
+                                reason = "idle"
+                        if reason is None and now >= next_space:
+                            next_space = now + self._space_sample
+                            try:
+                                if probe.free_bytes(real_root) < reserve:
+                                    reason = "no-space"
+                            except OSError:
+                                reason = "disk-gone"
+                    if reason is not None and reason != "cancelled":
+                        stop_at = now
+                        with self._lock:
+                            self._signal_worker(job_id, signal.SIGTERM)
+                elif not killed and stop_at is not None and now - stop_at > KILL_AFTER:
+                    killed = True                # reagiert nicht: die ganze Gruppe hart beenden
+                    with self._lock:
+                        self._signal_worker(job_id, signal.SIGKILL)
+                time.sleep(0.2)
+        finally:
+            with self._lock:
+                if proc.poll() is None:          # nur bei einer Ausnahme oben: nichts zurücklassen
+                    self._signal_worker(job_id, signal.SIGKILL)
+                    proc.wait()
+                self._procs.pop(job_id, None)
+        if reason is None and job.get("cancel_requested"):
+            reason = "cancelled"                 # Abbruch kam, während es gerade endete
+        return reason or "ok", rc
+
+    def _setup_candidates(self, job: dict) -> dict:
+        """Startdateien im installierten Spielordner wie beim Archiv-Spiel; Deinstaller fallen weg. Nennt
+        ein GOG-Installer in goggame-*.info die Startdatei, gilt sie (samt Startoptionen)."""
+        folder, title = job["install_dir"], job["title"]
+        found = extract.start_candidates(folder, title, platform="windows")
+        candidates = [c for c in found["candidates"] if not probe.EXE_HARD_EXCLUDE.match(os.path.basename(c["path"]))]
+        # Bleibt nach dem Deinstaller genau ein Programm, ist es das Spiel (auch aus der unbewerteten Notliste)
+        needs = len(candidates) != 1 and probe.needs_choice(candidates)
+        try:
+            from ..store import gog_install
+            task = gog_install.play_task(folder, 0)
+        except Exception:                        # kaputte .info: dann eben ohne
+            task = None
+        exe = extract.verify_start_file(folder, task["exe"]) if task else None
+        if exe:
+            candidates = [{"path": exe, "score": 100, "why": ["Startdatei laut GOG-Angaben"]}] + \
+                [c for c in candidates if c["path"] != exe]
+            needs = False
+            with self._lock:
+                job.update(args=str(task.get("args") or ""), args_for=exe)
+        return {"candidates": candidates[:12], "needs_choice": needs}
+
+    def _setup_discard(self, job: dict) -> bool:
+        """Nach Abbruch oder Fehler: Zwischenordner weg, der angefangene Spielordner in den Papierkorb (nur
+        mit unserem Marker), der Prefix des nie eingetragenen Spiels weg. True, wenn der Ordner jetzt im
+        Papierkorb liegt."""
+        self._cleanup_staging(job)
+        trashed = False
+        folder = job.get("install_dir")
+        if isinstance(folder, str) and os.path.isdir(folder):
+            try:
+                ours = trash.read_marker(folder)["token"] == job["token"]
+            except (trash.Refuse, OSError):
+                ours = False
+            if ours:
+                result = trash.delete_install(self._entry_stub(job), job["games_root"])
+                if result["ok"]:
+                    trashed = True
+                    with self._lock:
+                        job["trash_id"] = result["trash_id"]
+                else:
+                    self._log("job %s: angefangener Spielordner bleibt liegen: %s" % (job["id"], result["message"]))
+        self._drop_prefix(job)
+        return trashed
+
+    def _drop_prefix(self, job: dict) -> None:
+        if self._discard_prefix is None:
+            return
+        try:
+            self._discard_prefix("local:" + job["entry_uuid"])
+        except Exception as exc:                 # lieber liegen lassen als den Abschluss verlieren
+            self._log("job %s: Prefix bleibt liegen: %r" % (job["id"], exc))
+
     # ------------------------------------------------------------ Abschluss
 
     def _on_done(self, job: dict, final: dict) -> None:
+        if final.get("installer"):
+            self._setup_from_archive(job, final)
+            return
         if final.get("mode") != "game":
             # ROM: kein eigener Bibliothekseintrag; die Emulator-Quelle findet das Spiel beim nächsten Einlesen
             with self._lock:
@@ -544,7 +925,9 @@ class JobManager:
                 "install_dir": job["install_dir"], "exe": exe,
                 "exe_candidates": [{"path": c["path"], "score": c.get("score", 0)} for c in candidates
                                    if isinstance(c, dict) and isinstance(c.get("path"), str)],
-                "args": "", "created": created or self._clock(), "archive": job["archive"], "marker": job["token"]}
+                # E114: Startoptionen aus goggame-*.info, wenn ein GOG-Installer sie nennt (nur für diese Startdatei)
+                "args": str(job.get("args") or "") if exe and exe == job.get("args_for") else "",
+                "created": created or self._clock(), "archive": job["archive"], "marker": job["token"]}
 
     def _complete(self, job: dict, exe: str) -> dict:
         """Bibliothekseintrag bauen, abgeben und den Auftrag als erledigt melden. Unter self._lock aufrufen."""
@@ -564,8 +947,9 @@ class JobManager:
         return entry
 
     def _recover(self, job: dict) -> bool:
-        """Nach einem Neustart: Lag das Spiel schon fertig am Zielort (Marker mit unserem Zufallswert)?"""
-        if job.get("mode") != "game" or job["state"] == "queued" or not job.get("final_dir"):
+        """Nach einem Neustart: Lag das Spiel schon fertig am Zielort (Marker mit unserem Zufallswert)?
+        Nie bei einem Installationsprogramm (E114): Dessen Spielordner gibt es schon vor dem Lauf."""
+        if job.get("mode") != "game" or job["state"] == "queued" or not job.get("final_dir") or job.get("setup"):
             return False
         try:
             if trash.read_marker(job["final_dir"])["token"] != job["token"]:
@@ -609,7 +993,7 @@ class JobManager:
     def _progress(self, job: dict, force: bool = False) -> None:
         """Meldet den Stand eines Auftrags, gedrosselt auf PROGRESS_MIN_INTERVAL (außer force)."""
         with self._lock:
-            if job["state"] not in ("queued", "running", "finishing", "needs-choice"):
+            if job["state"] not in ("queued", "running", "finishing", "installing", "needs-choice"):
                 return
             stand = (job["state"], job["percent"], job["file"])
             last_time, last_stand = self._emitted.get(job["id"], (0.0, None))

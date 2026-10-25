@@ -181,6 +181,11 @@ def t(key, *args):
     return text % args if args else text
 
 
+def tr(de, en):
+    """Einzelne Sätze ohne eigenen Schlüssel in MSG: deutsch oder englisch nach LANG."""
+    return en if LANG == "en" else de
+
+
 def say(text=""):
     print(text, flush=True)
 
@@ -326,7 +331,7 @@ def remove_own_tree(path, mark, parent):
                 if os.path.islink(full):
                     continue
                 if os.lstat(full).st_dev != device or os.path.ismount(full):
-                    say("lasse %s liegen: enthält eine Einhängung (%s)" % (path, full))
+                    say(tr("lasse %s liegen: enthält eine Einhängung (%s)", "leaving %s in place: it contains a mount (%s)") % (path, full))
                     return False
         for folder, dirs, files in os.walk(path, topdown=False, followlinks=False):
             for name in files:
@@ -340,7 +345,7 @@ def remove_own_tree(path, mark, parent):
         os.rmdir(path)
         return True
     except OSError as e:
-        say("konnte %s nicht entfernen: %s" % (path, e))
+        say(tr("konnte %s nicht entfernen: %s", "could not remove %s: %s") % (path, e))
         return False
 
 
@@ -358,7 +363,7 @@ def makedirs_noted(path, created, mode=0o755):
         os.mkdir(folder, mode)
         created.append(folder)
     if not os.path.isdir(path):
-        raise Failure("kein Ordner: %s" % path)
+        raise Failure(tr("kein Ordner: %s", "not a folder: %s") % path)
 
 
 def run_check(argv, timeout=120, env=None):
@@ -376,7 +381,7 @@ def run_check(argv, timeout=120, env=None):
 def system(argv):
     """Der eine Weg für Systembefehle: nur über den PATH, nie ein verbotener, mit PC5_DRY_SYSTEM=1 nur notiert."""
     if "/" in argv[0] or argv[0] in FORBIDDEN:
-        raise Failure("unerlaubter Befehl: %s" % shlex.join(argv))
+        raise Failure(tr("unerlaubter Befehl: %s", "command not allowed: %s") % shlex.join(argv))
     line = shlex.join(argv)
     if os.environ.get("PC5_DRY_SYSTEM") == "1":
         say(t("system_cmd", line))
@@ -387,7 +392,7 @@ def system(argv):
         return True
     ok, out = run_check(argv, timeout=60)
     if not ok:
-        say("Befehl gescheitert: %s\n%s" % (line, out.strip()))
+        say(tr("Befehl gescheitert: %s\n%s", "command failed: %s\n%s") % (line, out.strip()))
     return ok
 
 
@@ -406,7 +411,7 @@ def ask(question, yes):
 def load_module(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise Failure("nicht ladbar: %s" % path)
+        raise Failure(tr("nicht ladbar: %s", "cannot be loaded: %s") % path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -416,7 +421,7 @@ def load_module(name, path):
 def package_version(pkg):
     version = first_line(os.path.join(pkg, "VERSION"))
     if not version or not VERSION_OK.fullmatch(version):
-        raise Failure("VERSION fehlt oder ist unbrauchbar")
+        raise Failure(tr("VERSION fehlt oder ist unbrauchbar", "VERSION is missing or unusable"))
     return version
 
 
@@ -430,11 +435,11 @@ def read_manifest_sha(path):
                 continue
             m = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
             if not m:
-                raise Failure("MANIFEST.sha256: unbrauchbare Zeile: %r" % line[:80])
+                raise Failure(tr("MANIFEST.sha256: unbrauchbare Zeile: %r", "MANIFEST.sha256: unusable line: %r") % line[:80])
             rel = m.group(2)
             parts = rel.split("/")
             if rel.startswith("/") or ".." in parts or "" in parts:
-                raise Failure("MANIFEST.sha256: unerlaubter Pfad: %r" % rel)
+                raise Failure(tr("MANIFEST.sha256: unerlaubter Pfad: %r", "MANIFEST.sha256: path not allowed: %r") % rel)
             entries[rel] = m.group(1)
     return entries
 
@@ -465,9 +470,9 @@ def load_manifest(p):
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as e:
-        raise Failure("install-manifest.json unlesbar: %s" % e)
+        raise Failure(tr("install-manifest.json unlesbar: %s", "install-manifest.json is unreadable: %s") % e)
     if not isinstance(data, dict) or data.get("format") != MANIFEST_FORMAT:
-        raise Failure("install-manifest.json hat ein unbekanntes Format")
+        raise Failure(tr("install-manifest.json hat ein unbekanntes Format", "install-manifest.json has an unknown format"))
     data.setdefault("files", [])
     data.setdefault("dirs", [])
     data.setdefault("legacy", [])
@@ -723,10 +728,10 @@ def place_release(p, pkg, version, manifest):
         for rel in sorted(entries):
             src = os.path.join(pkg, rel)
             if os.path.islink(src) or not os.path.isfile(src):
-                raise Failure("Paketdatei fehlt oder ist ein Verweis: %s" % rel)
+                raise Failure(tr("Paketdatei fehlt oder ist ein Verweis: %s", "package file is missing or a symlink: %s") % rel)
             data = read_bytes(src)
             if sha256_bytes(data) != entries[rel]:
-                raise Failure("Prüfsumme stimmt nicht: %s" % rel)
+                raise Failure(tr("Prüfsumme stimmt nicht: %s", "checksum mismatch: %s") % rel)
             dst = os.path.join(staging, rel)
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             mode = 0o755 if os.stat(src).st_mode & stat.S_IXUSR else 0o644
@@ -736,7 +741,7 @@ def place_release(p, pkg, version, manifest):
         shutil.copyfile(os.path.join(pkg, "MANIFEST.sha256"), os.path.join(staging, "MANIFEST.sha256"))
         for rel, digest in entries.items():           # die Kopie selbst noch einmal gegen das Manifest
             if sha256_file(os.path.join(staging, rel)) != digest:
-                raise Failure("Kopie weicht ab: %s" % rel)
+                raise Failure(tr("Kopie weicht ab: %s", "copy differs: %s") % rel)
         problems = check_release(staging, None)
         if problems:
             for problem in problems:
@@ -815,7 +820,7 @@ def hook_gsp(p, info, manifest, release):
         path = os.path.join(p.sessions_d, client)
         real = os.path.realpath(path)
         if os.path.dirname(real) != sessions_real:
-            msgs.append(t("hook_kept", "%s (Verweis aus sessions.d hinaus)" % p.show(path)))
+            msgs.append(t("hook_kept", tr("%s (Verweis aus sessions.d hinaus)", "%s (symlink pointing out of sessions.d)") % p.show(path)))
             continue
         if real in done:
             continue                                   # Verweis wie ogui-steam -> steam: nur einmal
@@ -840,14 +845,14 @@ def hook_gsp(p, info, manifest, release):
             continue
         if LEGACY_MARK in text:
             note_legacy(manifest, rel, data)
-            msgs.append(t("hook_kept", "~/" + rel + " (Haken aus tools/install-release)"))
+            msgs.append(t("hook_kept", "~/" + rel + tr(" (Haken aus tools/install-release)", " (hook from tools/install-release)")))
             continue
         suffix = ("" if not data or data.endswith(b"\n") else "\n") + BLOCK
         new = data + suffix.encode("utf-8")
         write_atomic(real, new, stat.S_IMODE(os.stat(real).st_mode))
         note_file(manifest, rel, kind="appended", before=sha256_bytes(data), sha256=sha256_bytes(new),
                   suffix=suffix)
-        msgs.append(t("hooked_gsp", "~/" + rel + " (Block angehängt)"))
+        msgs.append(t("hooked_gsp", "~/" + rel + tr(" (Block angehängt)", " (block appended)")))
     return msgs
 
 
@@ -971,16 +976,17 @@ def cmd_install(opts):
         say(t("dry"))
         same = installed_same(p, pkg)
         say(t("would", t("same", os.path.basename(same)) if same else
-              "Fassung %s nach %s ablegen und prüfen" % (version, p.show(p.releases))))
+              tr("Fassung %s nach %s ablegen und prüfen", "place version %s in %s and check it") % (version, p.show(p.releases))))
         if allowed and want_hook and not opts["--no-hook"]:
             if info["session"]["kind"] == "gsp":
-                say(t("would", "einhängen in " + ", ".join(p.show(os.path.join(p.sessions_d, c))
+                say(t("would", tr("einhängen in ", "hook into ") + ", ".join(p.show(os.path.join(p.sessions_d, c))
                                                          for c in info["session"]["clients"])))
             else:
-                say(t("would", "Ergänzungsdatei " + p.show(p.dropin) + " anlegen, systemctl --user daemon-reload"))
+                say(t("would", tr("Ergänzungsdatei %s anlegen, systemctl --user daemon-reload",
+                                  "create drop-in %s, systemctl --user daemon-reload") % p.show(p.dropin)))
         elif not allowed:
             say(t("not_hooked", reason))
-        say(t("would", "Desktop-Einträge in " + p.show(p.apps)))
+        say(t("would", tr("Desktop-Einträge in ", "desktop entries in ") + p.show(p.apps)))
         return 0
     if foreign:
         say(t("adopt"))
@@ -1063,18 +1069,19 @@ def cmd_status(_opts):
         for path in foreign_setup(p):
             say("          " + p.show(path))
         return 0
-    say("PC5 Launcher %s (%s), installiert %s, zuletzt %s" % (manifest.get("version"), manifest.get("release"),
-                                                             manifest.get("installed"), manifest.get("updated")))
+    say(tr("PC5 Launcher %s (%s), installiert %s, zuletzt %s", "PC5 Launcher %s (%s), installed %s, last updated %s")
+        % (manifest.get("version"), manifest.get("release"), manifest.get("installed"), manifest.get("updated")))
     for name in ("current", "previous"):
         link = getattr(p, name)
         say("%-9s %s" % (name, os.readlink(link) if os.path.islink(link) else "–"))
-    say("Sitzung:  %s, Haken %s" % (manifest.get("session"), manifest.get("hook")))
+    say(tr("Sitzung:  %s, Haken %s", "Session:  %s, hook %s") % (manifest.get("session"), manifest.get("hook")))
     for item in manifest["files"]:
         path = p.abs(item["path"])
         now = file_sha(path)
-        state = "ok" if now == item.get("sha256") else ("fehlt" if now is None else "verändert")
+        state = "ok" if now == item.get("sha256") else (tr("fehlt", "missing") if now is None else tr("verändert", "changed"))
         say("  %-10s %-8s %s" % (item.get("kind"), state, item["path"]))
-    say("Notschalter: %s" % ("GESETZT" if os.path.lexists(os.path.join(p.config, "disabled")) else "aus"))
+    off = os.path.lexists(os.path.join(p.config, "disabled"))
+    say(tr("Notschalter: %s", "Kill switch: %s") % (tr("GESETZT", "SET") if off else tr("aus", "off")))
     return 0
 
 
@@ -1132,8 +1139,8 @@ def cmd_uninstall(opts):
     if opts["--dry-run"]:
         say(t("dry"))
         for item in manifest["files"]:
-            say(t("would", "entfernen: ~/" + item["path"]))
-        say(t("would", "entfernen: ~/" + p.rel(p.releases) + " (nur Fassungen mit Marke)"))
+            say(t("would", tr("entfernen: ~/", "remove: ~/") + item["path"]))
+        say(t("would", tr("entfernen: ~/%s (nur Fassungen mit Marke)", "remove: ~/%s (only versions with our marker)") % p.rel(p.releases)))
         return 0
     answer = ask(t("confirm_uninstall"), opts["--yes"])
     if not answer:
@@ -1278,7 +1285,7 @@ def main(argv):
         say(t("fail", e))
         return 1
     except KeyboardInterrupt:
-        say("abgebrochen")
+        say(tr("abgebrochen", "aborted"))
         return 1
 
 

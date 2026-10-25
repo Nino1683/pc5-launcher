@@ -637,6 +637,12 @@
   ]
  },
  {
+  "text": "%s verfügbar",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "%s wird abgebrochen …",
   "files": [
    "app/couch/wiring_proton.py"
@@ -912,6 +918,7 @@
    "app/couch/fetcher.py",
    "app/couch/files.py",
    "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py",
    "app/couch/setup/jobs.py",
    "app/couch/setup/umu.py",
    "app/couch/store/epic_account.py",
@@ -1054,6 +1061,12 @@
   ]
  },
  {
+  "text": "Aktualisieren unter Einstellungen › System › Systemsoftware › Updates.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Aktualisiert alle Flatpak-Apps. Schließe vorher laufende Apps.",
   "files": [
    "app/couch/settings/system.py"
@@ -1075,6 +1088,12 @@
   "text": "Alias",
   "files": [
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "All required parts are present.",
+  "files": [
+   "app/couch/depcheck.py"
   ]
  },
  {
@@ -1435,6 +1454,12 @@
   ]
  },
  {
+  "text": "Auf der Spiele-Platte gibt es inzwischen schon einen Ordner „%s“.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Auf der Spiele-Platte gibt es schon einen Ordner „%s“.",
   "files": [
    "app/couch/installer/jobs.py",
@@ -1475,6 +1500,12 @@
   "text": "Auflösung und Bildwiederholrate der Ausgabe sind in dieser Version fest.",
   "files": [
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Aufruf",
+  "files": [
+   "app/couch/depcheck.py"
   ]
  },
  {
@@ -1640,6 +1671,12 @@
  },
  {
   "text": "Automatisch gewählt",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Automatisch nach Updates suchen",
   "files": [
    "app/couch/settings/system.py"
   ]
@@ -2386,6 +2423,7 @@
    "app/couch/fetcher.py",
    "app/couch/library/artsources/base.py",
    "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py",
    "app/couch/store/gog_install.py",
    "app/couch/store/launchers.py"
   ]
@@ -2759,6 +2797,48 @@
   ]
  },
  {
+  "text": "Das Installationsprogramm fehlt im entpackten Archiv.",
+  "files": [
+   "app/couch/installer/extract.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm ist durchgelaufen, aber im Spielordner liegt kein Programm.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm ist nach drei Stunden nicht fertig geworden und wurde beendet.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm ist nicht durchgelaufen (Rückgabewert %s).",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm ließ sich nicht ausführen.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm ließ sich nicht starten (umu-run fehlt?).",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Installationsprogramm wartet offenbar auf eine Eingabe (seit 15 Minuten keine Arbeit) und wurde beendet. Still installieren lässt es sich so nicht.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Das Kennwort muss 8 bis 63 Zeichen lang sein.",
   "files": [
    "app/couch/settings/network.py"
@@ -2841,6 +2921,66 @@
   "text": "Das Netz verlangt eine Anmeldung im Browser.",
   "files": [
    "app/couch/settings/network.py"
+  ]
+ },
+ {
+  "text": "Das Paket enthält Unzulässiges und wird nicht entpackt (%s).",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket enthält Verweise oder Sonderdateien und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket enthält einen absoluten oder unzulässigen Pfad und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket enthält mehr als den Ordner „%s“ und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket enthält „..“ im Pfad und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket hat unplausibel viele Einträge und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket ist beschädigt und wird nicht installiert (%s).",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket ist unerwartet groß und wird nicht geladen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket nennt eine andere Fassung (%s statt %s) und wird nicht installiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Das Paket wäre entpackt unplausibel groß und wird nicht entpackt.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -2965,6 +3105,12 @@
   ]
  },
  {
+  "text": "Das Update hat nicht geklappt.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Das Update ist fehlgeschlagen. Versuche es später erneut.",
   "files": [
    "app/couch/settings/backends/osupdate.py"
@@ -3055,6 +3201,12 @@
   ]
  },
  {
+  "text": "Das geladene Stück wird verworfen; ein neuer Versuch lädt das Paket neu.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Das gibt es bei itch.io nicht (mehr).",
   "files": [
    "app/couch/store/itch_account.py"
@@ -3123,6 +3275,7 @@
  {
   "text": "Das ist gerade nicht verfügbar.",
   "files": [
+   "app/couch/selfupdate.py",
    "app/couch/settings/games.py",
    "app/couch/settings/home.py",
    "app/couch/settings/session.py",
@@ -3460,6 +3613,12 @@
   ]
  },
  {
+  "text": "Der Download brach ab. Versuch es noch einmal.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Der Download ist unvollständig. Ein neuer Versuch setzt fort.",
   "files": [
    "app/couch/proton_repair.py"
@@ -3581,6 +3740,12 @@
   ]
  },
  {
+  "text": "Der Installer hat nichts geändert: Diese Einrichtung stammt nicht aus dem Paket.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Der Installer ist durchgelaufen, aber im Spielordner liegt kein Programm.",
   "files": [
    "app/couch/wiring_itch.py"
@@ -3596,6 +3761,12 @@
   "text": "Der Installer ist nicht durchgelaufen (Rückgabewert %s).",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Der Installer meldete Erfolg, aber die neue Fassung ist nicht eingestellt. Einzelheiten stehen in %s.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -3779,6 +3950,24 @@
   ]
  },
  {
+  "text": "Der PC5 Launcher ist aktuell.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Der PC5 Launcher ist schon aktuell.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Der PC5 Launcher wird gerade aktualisiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Der Papierkorb ist leer.",
   "files": [
    "app/couch/files.py",
@@ -3891,7 +4080,8 @@
  {
   "text": "Der Speicherplatz auf der Spiele-Platte wird knapp (weniger als %s frei). Die Installation wurde abgebrochen.",
   "files": [
-   "app/couch/installer/extract.py"
+   "app/couch/installer/extract.py",
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -3934,6 +4124,13 @@
   "text": "Der Spielordner ist gerade nicht erreichbar.",
   "files": [
    "app/couch/installer/service.py"
+  ]
+ },
+ {
+  "text": "Der Spielordner konnte nicht angelegt werden.",
+  "files": [
+   "app/couch/installer/extract.py",
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -4075,6 +4272,12 @@
   ]
  },
  {
+  "text": "Der Zwischenordner für das Update ist kein echter Ordner.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Der Zwischenordner liegt nicht direkt im Spiele-Ordner.",
   "files": [
    "app/couch/installer/trash.py"
@@ -4090,6 +4293,12 @@
   "text": "Der alte Spielstand ließ sich nicht in den Papierkorb legen.",
   "files": [
    "app/couch/saves.py"
+  ]
+ },
+ {
+  "text": "Der angefangene Spielordner liegt im Papierkorb.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -4180,6 +4389,12 @@
   "text": "Der neue Ordner ließ sich nicht einsetzen (%s). Der alte ist wieder an seinem Platz.",
   "files": [
    "app/couch/proton_repair.py"
+  ]
+ },
+ {
+  "text": "Design",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -4373,6 +4588,12 @@
   ]
  },
  {
+  "text": "Die Datei hat sich seit der Prüfung geändert. Bitte prüfe sie erneut.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Die Datei ist als UTF-16 gekennzeichnet, aber beschädigt.",
   "files": [
    "app/couch/textedit.py"
@@ -4495,6 +4716,12 @@
   ]
  },
  {
+  "text": "Die Installation dauerte zu lange und wurde abgebrochen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Die Installation ist an einem internen Fehler gescheitert.",
   "files": [
    "app/couch/installer/jobs.py"
@@ -4504,6 +4731,18 @@
   "text": "Die Installation ist fehlgeschlagen.",
   "files": [
    "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Die Installation ist gescheitert (Rückgabewert %d). Einzelheiten stehen in %s.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Die Installation läuft schon und lässt sich nicht mehr abbrechen.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -4695,15 +4934,28 @@
   ]
  },
  {
+  "text": "Die Oberfläche wird beendet und startet mit der Fassung %s neu, der Rechner bleibt an.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Die Protokolle helfen bei der Fehlersuche. Hier lassen sie sich nicht öffnen.",
   "files": [
    "app/couch/settings/session.py"
   ]
  },
  {
+  "text": "Die Prüfsummen von GitHub passen nicht zueinander; es wird nichts installiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Die Prüfsummen-Datei von GitHub ist unlesbar; es wird nichts installiert.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -4807,7 +5059,8 @@
  {
   "text": "Die Spiele-Platte ist während der Installation nicht mehr erreichbar.",
   "files": [
-   "app/couch/installer/extract.py"
+   "app/couch/installer/extract.py",
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -5010,9 +5263,21 @@
   ]
  },
  {
+  "text": "Die bisherige Fassung bleibt als Rückfall erhalten.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Die geladene Datei fehlt.",
   "files": [
    "app/couch/installer/extract.py"
+  ]
+ },
+ {
+  "text": "Die geladene Datei ist beschädigt (Prüfsumme stimmt nicht). Sie wurde verworfen.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -5152,6 +5417,18 @@
   ]
  },
  {
+  "text": "Diese Datei ist kein Archiv. Bitte prüfe sie erneut.",
+  "files": [
+   "app/couch/installer/extract.py"
+  ]
+ },
+ {
+  "text": "Diese Datei ist kein Installationsprogramm. Ist sie das Spiel selbst, starte sie im Datei-Explorer oder unter Downloads mit „Starten“.",
+  "files": [
+   "app/couch/installer/setupexe.py"
+  ]
+ },
+ {
   "text": "Diese Datei liegt an keinem erlaubten Ort.",
   "files": [
    "app/couch/backup.py"
@@ -5210,6 +5487,30 @@
   "text": "Diese Farbe gibt es nicht.",
   "files": [
    "app/couch/settings/accessories.py"
+  ]
+ },
+ {
+  "text": "Diese Fassung (%s) ist ein eigener Stand und wird nicht selbst aktualisiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Fassung ist nicht neuer als die laufende.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Installation stammt nicht aus dem Paket und wird nicht selbst aktualisiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Installation stammt nicht aus dem Paket von GitHub. Der PC5 Launcher aktualisiert sie deshalb nicht selbst.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -5575,6 +5876,12 @@
   ]
  },
  {
+  "text": "Dieser PC5 Launcher läuft nicht aus einer installierten Fassung und wird nicht selbst aktualisiert.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Dieser Shop ist gerade nicht verfügbar.",
   "files": [
    "app/couch/wiring_launchers.py",
@@ -5666,10 +5973,22 @@
   ]
  },
  {
+  "text": "Dieses Design gibt es nicht (mehr).",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Dieses Gerät gibt es nicht mehr.",
   "files": [
    "app/couch/settings/accessories.py",
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "Dieses Installationsprogramm kennt der PC5 Launcher nicht. Still installieren lassen sich nur Inno Setup, NSIS und MSI.",
+  "files": [
+   "app/couch/installer/setupexe.py"
   ]
  },
  {
@@ -6030,6 +6349,12 @@
   ]
  },
  {
+  "text": "Eigenes Design",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Ein",
   "files": [
    "app/couch/settings/accessories.py",
@@ -6048,6 +6373,12 @@
   "files": [
    "app/couch/settings/network.py",
    "app/couch/wiring_settings.py"
+  ]
+ },
+ {
+  "text": "Ein Installationsprogramm läuft noch (%s)",
+  "files": [
+   "app/couch/wiring_install.py"
   ]
  },
  {
@@ -6153,6 +6484,12 @@
   ]
  },
  {
+  "text": "Eine neue Fassung ist schon installiert. Starte den PC5 Launcher neu.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Einen Ort selbst lässt sich nicht ändern.",
   "files": [
    "app/couch/files.py"
@@ -6204,6 +6541,12 @@
   "text": "Einhängungen nicht prüfbar (Liste unlesbar)",
   "files": [
    "app/couch/launch/prefix.py"
+  ]
+ },
+ {
+  "text": "Einmal am Tag fragt der PC5 Launcher bei GitHub nach einer neuen Fassung und meldet sie mit einer Mitteilung. Installiert wird nur, was du hier bestätigst.",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -6827,6 +7170,7 @@
   "text": "Fehlgeschlagen",
   "files": [
    "app/couch/settings/backends/osupdate.py",
+   "app/couch/settings/system.py",
    "app/couch/setup/jobs.py"
   ]
  },
@@ -6942,6 +7286,12 @@
   "text": "Foxconn",
   "files": [
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "Fragt GitHub gleich nach einer neuen Fassung des PC5 Launchers.",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -7423,6 +7773,12 @@
   ]
  },
  {
+  "text": "Gerade wird nichts geladen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Gerade wird schon gesichert oder wiederhergestellt.",
   "files": [
    "app/couch/wiring_saves.py"
@@ -7525,6 +7881,12 @@
   ]
  },
  {
+  "text": "Gilt nach dem Neustart: Einstellungen › System › Systemsoftware › Updates › PC5 Launcher.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Gio",
   "files": [
    "app/couch/files.py",
@@ -7532,21 +7894,42 @@
   ]
  },
  {
+  "text": "GitHub antwortete mit einem Fehler (HTTP %d).",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "GitHub hat auf eine fremde oder unsichere Adresse umgeleitet; es wird nichts geladen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "GitHub ist nicht erreichbar. Besteht eine Verbindung zum Internet?",
   "files": [
+   "app/couch/selfupdate.py",
    "app/couch/setup/umu.py"
+  ]
+ },
+ {
+  "text": "GitHub kennt diese Datei nicht (HTTP 404).",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
   "text": "GitHub lieferte eine unerwartet große Antwort.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py"
   ]
  },
  {
   "text": "GitHub lieferte eine unerwartete Antwort.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -7556,9 +7939,21 @@
   ]
  },
  {
+  "text": "GitHub lässt gerade keine Abfragen zu (zu viele in kurzer Zeit). Später noch einmal.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Glob",
   "files": [
    "app/couch/library/emulators.py"
+  ]
+ },
+ {
+  "text": "Glut",
+  "files": [
+   "app/couch/themes.py"
   ]
  },
  {
@@ -7645,6 +8040,12 @@
   "text": "Grand Theft Auto: Vice City",
   "files": [
    "app/couch/store/rockstar.py"
+  ]
+ },
+ {
+  "text": "Graphit",
+  "files": [
+   "app/couch/themes.py"
   ]
  },
  {
@@ -7957,6 +8358,12 @@
   ]
  },
  {
+  "text": "If-None-Match",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Im Archiv fehlt das Startskript „proton“.",
   "files": [
    "app/couch/proton_repair.py"
@@ -7996,6 +8403,18 @@
   "text": "Im Ordner %s liegt auch %s. Er wird nicht angefasst.",
   "files": [
    "app/couch/installer/service.py"
+  ]
+ },
+ {
+  "text": "Im Paket fehlt der Installer.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Im Paket fehlt der Ordner „%s“.",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -8251,6 +8670,12 @@
   ]
  },
  {
+  "text": "Inno Setup",
+  "files": [
+   "app/couch/installer/setupexe.py"
+  ]
+ },
+ {
   "text": "Insgesamt",
   "files": [
    "app/couch/library/index.py",
@@ -8273,12 +8698,6 @@
   "text": "Installation unterbrochen",
   "files": [
    "app/couch/wiring_install.py"
-  ]
- },
- {
-  "text": "Installationsprogramme werden noch nicht unterstützt.",
-  "files": [
-   "app/couch/installer/probe.py"
   ]
  },
  {
@@ -8316,6 +8735,12 @@
   "text": "Installierte Fassung",
   "files": [
    "app/couch/settings/session.py"
+  ]
+ },
+ {
+  "text": "Installierte Version",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -8405,6 +8830,12 @@
    "app/couch/launch/apps.py",
    "app/couch/library/apps.py",
    "app/couch/setup/catalog.py"
+  ]
+ },
+ {
+  "text": "Jetzt nach Updates suchen",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -9099,6 +9530,12 @@
   ]
  },
  {
+  "text": "Lädt %d %%",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Lädt %s (%d MB) und legt die Fassung neben die bisherige.",
   "files": [
    "app/couch/settings/system.py"
@@ -9123,6 +9560,12 @@
   ]
  },
  {
+  "text": "Lädt die Fassung %s (%s) von GitHub, prüft die Prüfsumme und legt sie neben die laufende. Was gerade läuft, wird nicht ersetzt: Die neue Fassung gilt nach einem Neustart des PC5 Launchers.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Lädt die Oberfläche neu, der Rechner bleibt an",
   "files": [
    "app/couch/power.py"
@@ -9144,6 +9587,12 @@
   "text": "Lädt jetzt die Bilder für alle Spiele und Apps. Eigene Bilder bleiben.",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Lädt … %d %%",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -9616,6 +10065,12 @@
   ]
  },
  {
+  "text": "Neue Fassungen des PC5 Launchers von GitHub.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Neuen Controller koppeln",
   "files": [
    "app/couch/settings/accessories.py"
@@ -9638,6 +10093,12 @@
   "text": "Nicht angemeldet",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Nicht aus dem Paket",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -10103,6 +10564,12 @@
   ]
  },
  {
+  "text": "Ozean",
+  "files": [
+   "app/couch/themes.py"
+  ]
+ },
+ {
   "text": "PC-Spiel (Linux)",
   "files": [
    "app/couch/installer/probe.py"
@@ -10122,9 +10589,57 @@
   ]
  },
  {
+  "text": "PC5 Launcher %s installieren?",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s installiert",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s ist da",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s ist da.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s ist installiert. Er gilt nach einem Neustart des PC5 Launchers.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s wird geladen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "PC5 Launcher Einstellungen ",
   "files": [
    "app/couch/backup.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher neu starten?",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher: Das Update hat nicht geklappt",
+  "files": [
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -10381,6 +10896,7 @@
  {
   "text": "Proton ist gerade nicht bereit. Versuche es gleich noch einmal.",
   "files": [
+   "app/couch/installer/jobs.py",
    "app/couch/wiring_launchers.py",
    "app/couch/wiring_store.py"
   ]
@@ -10552,7 +11068,8 @@
  {
   "text": "Prüfmodus ohne COUCH_TEST_ROOT: Es wird nichts geschrieben.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/selfupdate.py"
   ]
  },
  {
@@ -10581,6 +11098,18 @@
   ]
  },
  {
+  "text": "Prüfmodus: Ein echter Installer startet hier nicht.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Prüfmodus: Ein echtes Installationsprogramm (%s) startet hier nicht.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Prüfmodus: echte Geräte werden nicht geöffnet",
   "files": [
    "session/supervisor.py"
@@ -10589,6 +11118,7 @@
  {
   "text": "Prüfmodus: kein Netz",
   "files": [
+   "app/couch/selfupdate.py",
    "app/couch/wiring_proton.py"
   ]
  },
@@ -11260,6 +11790,12 @@
   ]
  },
  {
+  "text": "Smaragd",
+  "files": [
+   "app/couch/themes.py"
+  ]
+ },
+ {
   "text": "Snapshot fehlgeschlagen",
   "files": [
    "app/couch/ui/testctl.py"
@@ -11326,6 +11862,7 @@
   "files": [
    "app/couch/installer/jobs.py",
    "app/couch/installer/probe.py",
+   "app/couch/installer/setupexe.py",
    "app/couch/saves.py",
    "app/couch/wiring_library.py"
   ]
@@ -11559,6 +12096,7 @@
   "text": "Standard",
   "files": [
    "app/couch/library/describe.py",
+   "app/couch/settings/home.py",
    "app/couch/settings/system.py"
   ]
  },
@@ -12464,6 +13002,18 @@
   ]
  },
  {
+  "text": "Unerwartete Adresse; es wird nichts geladen.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Unerwartete Versionsangabe.",
+  "files": [
+   "app/couch/selfupdate.py"
+  ]
+ },
+ {
   "text": "Unerwarteter Name: %s",
   "files": [
    "app/couch/proton_repair.py"
@@ -12592,6 +13142,12 @@
   "text": "Ursprünglicher Name",
   "files": [
    "app/couch/library/describe.py"
+  ]
+ },
+ {
+  "text": "Usage",
+  "files": [
+   "app/couch/depcheck.py"
   ]
  },
  {
@@ -12781,7 +13337,8 @@
  {
   "text": "Violett",
   "files": [
-   "app/couch/settings/accessories.py"
+   "app/couch/settings/accessories.py",
+   "app/couch/themes.py"
   ]
  },
  {
@@ -13114,6 +13671,12 @@
   "text": "Wikipedia",
   "files": [
    "app/couch/browser/prefs.py"
+  ]
+ },
+ {
+  "text": "Windows Installer",
+  "files": [
+   "app/couch/installer/setupexe.py"
   ]
  },
  {
@@ -14078,7 +14641,37 @@
   ]
  },
  {
+  "text": "job %s: Abschlussmeldung mit Installer passt nicht zum Auftrag",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "job %s: Ausführungsrecht nicht gesetzt: %s",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Installationsprogramm (%s) läuft",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Installationsprogramm startet nicht: %s",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Installationsprogramm: interner Fehler %r",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Spielordner nicht angelegt: %s",
   "files": [
    "app/couch/installer/jobs.py"
   ]
@@ -14548,6 +15141,12 @@
   ]
  },
  {
+  "text": "not in PATH",
+  "files": [
+   "app/couch/depcheck.py"
+  ]
+ },
+ {
   "text": "not in the sudoers",
   "files": [
    "app/couch/sysadmin.py"
@@ -14915,6 +15514,12 @@
   "text": "couch-kein-kennwort",
   "files": [
    "app/couch/installer/probe.py"
+  ]
+ },
+ {
+  "text": "Ändert die Farben der ganzen Oberfläche. Eigene Designs: eine .css-Datei mit Farben aus tokens.css in den Ordner ~/.config/couch/themes legen.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {

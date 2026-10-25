@@ -13,6 +13,10 @@ Aus docs/research/prototypes/apps/archive_extract.py. Ablauf von run():
 
 Es wird nie in einen bestehenden Ordner entpackt. Das Archiv wird nur gelesen und bleibt liegen.
 Geschrieben wird ausschließlich unterhalb des Spiele-Ordners.
+E114: Enthält das Archiv ein Installationsprogramm (Inno Setup, NSIS, MSI), bleibt der Zwischenordner
+mit den entpackten Setup-Dateien stehen, und statt des Inhalts kommt ein leerer Spielordner mit Marker
+an den Zielort (make_game_folder). Den stillen Lauf dort hinein macht der JobManager; danach entfernt
+er den Zwischenordner über trash.remove_staging(), wie bei jedem anderen Auftrag.
 Einzige Ausnahme (E100): unpack_into() entpackt das Archiv eines Stores (itch.io) in dessen eigenen,
 frisch angelegten und markierten Spielordner, der außer dem Marker nur den Download-Ordner enthält;
 mit denselben Schutzregeln (Käfig, Zwischenordner im Spielordner, Verweise, rename ohne Ersetzen).
@@ -99,6 +103,20 @@ def staging_in_use(staging: str) -> bool:
         return True
     finally:
         os.close(fd)
+
+
+def make_game_folder(final_dir: str, fields: dict) -> dict:
+    """Leerer Spielordner mit unserem Marker (E114: Ziel eines Installationsprogramms). mkdir ersetzt nie
+    etwas (FileExistsError). Scheitert der Marker, verschwindet der eben angelegte, leere Ordner wieder."""
+    os.mkdir(final_dir, 0o755)
+    try:
+        return write_marker(final_dir, fields)
+    except BaseException:
+        try:
+            os.rmdir(final_dir)              # nur der eigene, eben angelegte und noch leere Ordner
+        except OSError:
+            pass
+        raise
 
 
 def write_marker(folder: str, fields: dict) -> dict:
@@ -412,6 +430,43 @@ def _move(source: str, final: str) -> None:
         pass
 
 
+def marker_fields(spec: dict, plan: dict, real_root: str) -> dict:
+    """Inhalt der Markerdatei eines Spielordners, den der Archiv-Installer anlegt."""
+    return {"version": 1, "token": spec["token"], "entry_id": spec.get("entry_id"),
+            "title": spec.get("title") or plan["title"], "archive": os.path.basename(plan["archive"]),
+            "games_root": real_root, "folder": plan["target"]["name"], "created": time.time(),
+            "created_iso": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "couch_version": str(spec.get("version") or "")}
+
+
+def _place_setup(plan: dict, spec: dict, payload: str, real_root: str, may_continue: Callable[[], bool]) -> dict:
+    """E114: Das Archiv enthält ein Installationsprogramm. Es bleibt im Zwischenordner (dort läuft es,
+    der JobManager entfernt ihn danach); an den Zielort kommt ein leerer Spielordner mit Marker.
+    Wirft _Abort, dann liegt am Zielort nichts."""
+    from . import setupexe
+    rel = str(plan.get("exe") or "")
+    if plan.get("layout") == "single-folder" and plan.get("top_folder"):
+        rel = plan["top_folder"] + "/" + rel
+    clean = verify_start_file(payload, rel)
+    if clean is None:
+        raise _Abort("bad-content", "Das Installationsprogramm fehlt im entpackten Archiv.")
+    installer = os.path.join(os.path.realpath(payload), clean)
+    kind = setupexe.installer_type(installer)
+    if not kind:
+        # erst hier sichtbar (die Auflistung nennt nur Namen); der Zwischenordner geht wie bei jedem Fehler weg
+        raise _Abort("unknown-installer", setupexe.MSG_UNKNOWN)
+    if not may_continue():
+        raise _Abort("cancelled", MSG_CANCELLED)
+    final = plan["target"]["dir"]
+    try:
+        make_game_folder(final, marker_fields(spec, plan, real_root))
+    except FileExistsError:
+        raise _Abort("target-exists", "Am Zielort gibt es inzwischen schon „%s“." % os.path.basename(final))
+    except OSError as exc:
+        raise _Abort("move-failed", "Der Spielordner konnte nicht angelegt werden.", str(exc.strerror or exc))
+    return {"path": final, "installer": installer, "installer_type": kind, "keep_staging": True,
+            "candidates": [], "needs_choice": False}
+
+
 def _install(plan: dict, spec: dict, payload: str, real_root: str, may_continue: Callable[[], bool]) -> dict:
     """Macht aus dem entpackten Inhalt das fertige Spiel und schiebt es an den Zielort.
 
@@ -423,6 +478,9 @@ def _install(plan: dict, spec: dict, payload: str, real_root: str, may_continue:
     if not names:
         raise _Abort("empty", "Das Archiv enthält keine Dateien.")
     result = {"mode": target["mode"], "removed_links": removed_links}
+
+    if target["mode"] == "game" and plan.get("kind") == "windows-installer":
+        return dict(result, **_place_setup(plan, spec, payload, real_root, may_continue))
 
     if target["mode"] == "game":
         # Ein einzelner echter Oberordner wird zum Spielordner (Beigaben daneben wie Lies-mich oder eine
@@ -446,12 +504,7 @@ def _install(plan: dict, spec: dict, payload: str, real_root: str, may_continue:
         os.chmod(source, 0o755)              # ein schreibgeschützter Oberordner ließe sich nicht verschieben
         candidates = _verified_candidates(plan, top, source)
         try:
-            write_marker(source, {
-                "version": 1, "token": spec["token"], "entry_id": spec.get("entry_id"),
-                "title": spec.get("title") or plan["title"], "archive": os.path.basename(plan["archive"]),
-                "games_root": real_root, "folder": target["name"], "created": time.time(),
-                "created_iso": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "couch_version": str(spec.get("version") or ""),
-            })
+            write_marker(source, marker_fields(spec, plan, real_root))
         except OSError as exc:
             raise _Abort("bad-content", "Die Markerdatei konnte nicht geschrieben werden.", str(exc.strerror or exc))
         if not may_continue():
@@ -531,6 +584,8 @@ def run(spec: dict, emit: Callable[[dict], None], *, statvfs=os.statvfs, watch_i
         "cleanup" / "cleanup-refused" {path, reason?}
         am Ende genau eines von:
         "done"      {mode, path, title, kind, platform, system, candidates, needs_choice, files, removed_links, warnings, seconds}
+                    E114 mit Installationsprogramm zusätzlich: installer (absoluter Pfad im Zwischenordner),
+                    installer_type, keep_staging (der Zwischenordner steht noch)
         "cancelled" {message}
         "failed"    {code, message, detail}
     statvfs, watch_interval, clock: einsteckbar für Tests (Platzwächter).
@@ -566,6 +621,9 @@ def run(spec: dict, emit: Callable[[dict], None], *, statvfs=os.statvfs, watch_i
                        verify_password=False, tools=tools, statvfs=statvfs)
     if not plan["ready"]:
         return fail(plan["status"], plan["message"])
+    if plan.get("format") not in probe.SUPPORTED_FORMATS:
+        # E114: Ein Installationsprogramm als Datei wird nicht entpackt; das macht der JobManager selbst
+        return fail("plan-changed", "Diese Datei ist kein Archiv. Bitte prüfe sie erneut.")
     target = plan["target"]
     if spec.get("final_dir") and os.path.realpath(spec["final_dir"]) != os.path.realpath(target["dir"]):
         return fail("plan-changed", "Das Archiv hat sich seit der Prüfung geändert. Bitte prüfe es erneut.")
@@ -615,8 +673,10 @@ def run(spec: dict, emit: Callable[[dict], None], *, statvfs=os.statvfs, watch_i
             except (trash.Refuse, OSError) as exc:
                 cleanup()
                 return fail("install-failed", "Das Spiel konnte nach dem Entpacken nicht eingerichtet werden.", str(exc))
-            # 5 Zwischenordner entfernen (der Inhalt ist schon am Zielort)
-            cleanup()
+            # 5 Zwischenordner entfernen (der Inhalt ist schon am Zielort). E114: Mit einem Installationsprogramm
+            #   bleibt er stehen; der JobManager lässt es daraus laufen und entfernt ihn danach
+            if not result.get("keep_staging"):
+                cleanup()
             return finish("done", title=spec.get("title") or plan["title"], kind=plan["kind"],
                           platform=plan["platform"], system=plan["system"], warnings=plan["issues"],
                           seconds=round(clock() - started, 1), **result)

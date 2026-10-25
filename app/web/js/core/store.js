@@ -3,10 +3,13 @@
 // Einstellungen der Oberfläche (state.ui, docs/RPC.md „State“) wirken hier sofort auf das Dokument:
 //   reduceMotion  -> Klasse reduce-motion am <html>
 //   scale         -> data-ui-scale="1.1" | "1.2" am <html> (tokens.css vergrößert dann nur die Schrift)
+//   themeCss      -> <style id="theme"> am Ende von <head>: überschreibt Farb-Tokens aus tokens.css (Design, E113;
+//                    der Kern liefert nur geprüfte :root-Deklarationen, couch/themes.py)
 //   clock24h, sounds, soundVolume, liveBackground lesen die Bausteine selbst (statusbar.js, sound.js, home.js)
 import { call, on, role } from "./bridge.js";
 
-const UI_DEFAULTS = { sounds: true, soundVolume: 60, reduceMotion: false, scale: 1, clock24h: true, liveBackground: true };
+const UI_DEFAULTS = { sounds: true, soundVolume: 60, reduceMotion: false, scale: 1, clock24h: true, liveBackground: true,
+  theme: "", themeCss: "" };
 const SCALES = [1, 1.1, 1.2];
 
 const DEFAULTS = {
@@ -37,6 +40,19 @@ function seen() {
   return !(role === "home" && state.foreground);
 }
 
+// Design (E113): ein eigenes <style> nach allen Stylesheets, gleiche Spezifität wie tokens.css (:root) gewinnt so
+function applyTheme(css) {
+  const text = typeof css === "string" ? css : "";
+  let el = document.getElementById("theme");
+  if (!text) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = "theme";
+    document.head.appendChild(el);
+  }
+  if (el.textContent !== text) el.textContent = text;
+}
+
 function applyClasses() {
   const el = document.documentElement;
   // Home: nicht sichtbar heißt, eine App liegt davor. Overlay: versteckt.
@@ -47,6 +63,7 @@ function applyClasses() {
   el.classList.toggle("reduce-motion", !!(state.ui && state.ui.reduceMotion));
   const scale = scaleOf(state.ui);
   if (scale === 1) el.removeAttribute("data-ui-scale"); else el.setAttribute("data-ui-scale", String(scale));
+  applyTheme(state.ui && state.ui.themeCss);
 }
 
 function merge(partial) {

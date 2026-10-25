@@ -5,6 +5,8 @@
 //                      Startdatei, Hinweise, Kollision mit Namensvorschlag, „nicht unterstützt“
 //   install-progress   Fortschritt (install.progress), läuft im Hintergrund weiter, wenn man geht;
 //                      danach „Spielen“ / „Zur Bibliothek“ bzw. der Fehler mit Text
+// E114: Auch ein Installationsprogramm (setup.exe, .msi) geht diesen Weg; solange es unsichtbar läuft,
+// steht der Auftrag in „installing“ (ohne Prozentzahl, nur die Dauer).
 // Alle install.*-Aufrufe antworten später; Fehlschläge stehen im Ergebnis (ok: false, code, message).
 import { h, icon, sizeText } from "../core/dom.js";
 import { call, on } from "../core/bridge.js";
@@ -18,7 +20,8 @@ import { chooseExe, activateEntry } from "../components/entry-actions.js";
 import { askText } from "../components/osk-input.js";
 import { createListScreen } from "./file-browser.js";
 
-const ACTIVE = ["queued", "running", "finishing", "needs-choice"];
+const ACTIVE = ["queued", "running", "finishing", "installing", "needs-choice"];
+const SETUP_FORMATS = ["exe", "msi"];      // Plan eines Installationsprogramms als Datei (E114)
 const REMAINING_AFTER_S = 10;     // vorher schwankt die Schätzung der Restzeit zu stark
 
 function durationText(seconds) {
@@ -31,6 +34,7 @@ function jobState(job) {
     case "queued": return S.insJobQueued;
     case "running": return Math.round(Number(job.percent) || 0) + " %";
     case "finishing": return S.insJobFinishing;
+    case "installing": return S.insJobInstalling;
     case "needs-choice": return S.insJobChoice;
     case "done": return S.insJobDone;
     case "cancelled": return S.insJobCancelled;
@@ -73,7 +77,7 @@ function createRoot() {
     shown.forEach((job, i) => {
       const id = job.jobId || job.id;
       const row = ACTIVE.includes(job.state) && job.state !== "needs-choice"
-        ? { id: "job:" + id, type: "progress", label: job.title, value: Number(job.percent) || 0, valueText: jobState(job), job }
+        ? { id: "job:" + id, type: "progress", label: job.title, value: Number(job.percent) || 0, valueText: jobState(job), busy: job.state === "installing", job }
         : { id: "job:" + id, type: job.state === "needs-choice" ? "action" : "info", label: job.title, value: jobState(job), note: job.state === "failed" ? job.message : "", job };
       if (i === 0) row.section = S.insJobs;
       out.push(row);
@@ -149,6 +153,7 @@ function createCheck(params) {
     if (!unsupported) out.push({ id: "title", type: "text", label: S.insName, value: choices.title || plan.title || "", hint: S.insNameHint });
     if (plan.kind_label) out.push({ id: "kind", type: "info", label: S.insKind, value: plan.kind_label });
     if (plan.unpacked_bytes) out.push({ id: "size", type: "info", label: S.insSize, value: sizeText(plan.unpacked_bytes) });
+    if (plan.installed_bytes) out.push({ id: "installed", type: "info", label: S.insSizeInstalled, value: sizeText(plan.installed_bytes) });
     if (target.dir) {
       const folder = choices.folder || target.name;
       const dir = choices.folder && target.parent ? target.parent + "/" + choices.folder : target.dir;
@@ -169,14 +174,20 @@ function createCheck(params) {
     }
     (plan.problems || []).forEach((p, i) => out.push({ id: "problem:" + i, type: "info", label: p.message || plan.message, enabled: false, section: i === 0 ? S.insWarning : undefined }));
     if (!(plan.problems || []).length && plan.message) out.push({ id: "problem:msg", type: "info", label: plan.message, enabled: false, section: S.insWarning });
-    out.push({ id: "archive", type: "info", label: S.insArchive, value: plan.name || params.name || "", section: (plan.problems || []).length || plan.message ? " " : undefined });
+    // Installationsprogramm als Datei (E114): samt der .bin-Dateien daneben
+    const setup = SETUP_FORMATS.includes(plan.format);
+    const extra = Math.max(0, (plan.setup_files || []).length - 1);
+    const name = plan.name || params.name || "";
+    const fileText = !setup || !extra ? name : fmt(extra === 1 ? S.insSetupWithOne : S.insSetupWith, { name, n: extra });
+    out.push({ id: "archive", type: "info", label: setup ? S.insSetupFile : S.insArchive, value: fileText, section: (plan.problems || []).length || plan.message ? " " : undefined });
     return out;
   }
 
   function paint() {
     const unsupported = plan && (plan.supported === false || plan.ready === false && plan.status !== "password-needed" && plan.status !== "password-wrong" && plan.status !== "target-exists");
-    screen.setTitle(plan && plan.supported === false ? S.insUnsupported : S.insCheckTitle);
-    button.querySelector(".btn-label").textContent = unsupported ? S.insOther : S.insStart;
+    const file = plan && SETUP_FORMATS.includes(plan.format);
+    screen.setTitle(plan && plan.supported === false ? (file ? S.insUnsupportedFile : S.insUnsupported) : S.insCheckTitle);
+    button.querySelector(".btn-label").textContent = unsupported ? (file ? S.insOtherFile : S.insOther) : S.insStart;
     button.dataset.mode = unsupported ? "other" : "start";
     const blocked = !unsupported && plan && plan.space && plan.space.ok === false;
     button.toggleAttribute("data-disabled", !!blocked);
@@ -267,10 +278,13 @@ function createProgress(params) {
 
   function paint() {
     const p = Math.max(0, Math.min(100, Math.round(Number(job.percent) || 0)));
-    percent.textContent = job.state === "queued" ? S.insJobQueued : p + " %";
+    // Ein Installationsprogramm meldet keinen Anteil (E114): nur „Wird installiert …“ und die Dauer
+    const installing = job.state === "installing";
+    percent.textContent = job.state === "queued" ? S.insJobQueued : installing ? S.insJobInstalling : p + " %";
     bar.style.setProperty("--p", p / 100);
-    bar.classList.toggle("is-busy", job.state === "queued");
-    file.textContent = job.state === "queued" ? S.insProgQueued : job.state === "finishing" ? S.insJobFinishing : job.file || "";
+    bar.classList.toggle("is-busy", job.state === "queued" || installing);
+    file.textContent = job.state === "queued" ? S.insProgQueued : job.state === "finishing" ? S.insJobFinishing
+      : installing ? S.insProgInstalling : job.file || "";
     elapsed.textContent = timeText();
     if (job.state === "needs-choice" && !asked) {
       asked = true;
@@ -293,7 +307,7 @@ function createProgress(params) {
   function tickTime() {
     clearInterval(timer);
     timer = setInterval(() => {
-      if (finished || job.state !== "running") return;
+      if (finished || (job.state !== "running" && job.state !== "installing")) return;
       job.elapsed = (job.elapsed || 0) + 1;
       elapsed.textContent = timeText();
     }, 1000);

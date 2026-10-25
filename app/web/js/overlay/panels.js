@@ -12,7 +12,7 @@ import { confirm } from "../components/dialog.js";
 import { openPicker } from "../components/picker.js";
 import { MOUSE_KEYS } from "./notices.js";
 
-const ACTIVE_JOBS = new Set(["queued", "running", "finishing"]);
+const ACTIVE_JOBS = new Set(["queued", "running", "finishing", "installing"]);   // installing: Installationsprogramm (E114)
 
 // Kandidaten für die Startdatei kommen mit install.progress {state: "needs-choice", candidates}
 // und mit install.jobs; gemerkt wird das Ereignis, falls die Tafel erst später aufgeht
@@ -27,6 +27,7 @@ export function jobText(job) {
   switch (job.state) {
     case "running": return fmt(S.jobRunning, { n: Math.round(Number(job.percent) || 0) });
     case "finishing": return S.jobFinishing;
+    case "installing": return S.jobInstalling;
     case "needs-choice": return S.jobNeedsChoice;
     case "done": return S.jobDone;
     case "failed": return S.jobFailed;
@@ -84,6 +85,7 @@ function storeJobNote(j) {
 
 // Was Kreuz auf einem Download anbietet (Auswahlliste), je nach Zustand
 // Windows-Programm (E93): „Starten“ läuft über den Startweg des Home (ui.open launch)
+// Installationsprogramm (E114, d.installer: der Name sagt es): „Installieren“ zuerst, „Starten“ bleibt dahinter
 const isExe = (d) => /\.exe$/i.test(String(d.name || ""));
 
 // Downloads, die WebKit selbst lädt (local, E99): Anhalten, Fortsetzen, Abbrechen und Neu laden kann
@@ -99,8 +101,8 @@ function downloadChoices(d) {
     case "paused": return [{ value: "resume", label: S.dlResume }, { value: "cancel", label: S.dlCancel }];
     case "failed": return [{ value: "resume", label: S.dlRetry }, { value: "remove", label: S.dlRemove }];
     case "cancelled": return [{ value: "resume", label: S.dlAgain }, { value: "remove", label: S.dlRemove }];
-    default: return (d.archive ? [{ value: "install", label: S.dlInstall }] : isExe(d) ? [{ value: "run", label: S.dlRun }] : [])
-      .concat([{ value: "remove", label: S.dlRemove }]);
+    default: return (d.archive || d.installer ? [{ value: "install", label: S.dlInstall }] : [])
+      .concat(isExe(d) ? [{ value: "run", label: S.dlRun }] : [], [{ value: "remove", label: S.dlRemove }]);
   }
 }
 
@@ -222,7 +224,7 @@ export const PANELS = {
         return;
       }
       if (what === "install") {
-        // Archiv: die Prüfung des Installers im Home (ui.open, wie „Spiel installieren“)
+        // Archiv oder Installationsprogramm: die Prüfung des Installers im Home (ui.open, wie „Spiel installieren“)
         call("ui.open", { screen: "install-check", params: { path: d.path, name: d.name } }).catch(ctx.fail);
         return;
       }
@@ -269,7 +271,7 @@ export const PANELS = {
           const below = (origin) => [downloadDetail(d), origin].join(" · ");
           if (downloadActive(d)) rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, busy: !(d.total > 0) || d.state === "queued", note: below(d.local === true ? S.dlLocalNote : S.dlFromBrowser) });
           else if (d.state === "paused") rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, note: below(d.local === true ? S.dlLocalNote : S.dlPausedNote) });
-          else if (d.state === "done" && d.archive) rows.push({ ...base, type: "action", value: S.dlInstall, hint: d.path || "" });
+          else if (d.state === "done" && (d.archive || d.installer)) rows.push({ ...base, type: "action", value: S.dlInstall, hint: d.path || "" });
           else if (d.state === "done" && isExe(d)) rows.push({ ...base, type: "action", value: S.dlRun, hint: d.path || "" });
           else rows.push({ ...base, type: "action", value: downloadText(d), hint: d.state === "done" ? d.path || "" : d.error || "" });
         }

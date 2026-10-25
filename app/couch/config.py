@@ -30,6 +30,7 @@ DEFAULTS: dict[str, Any] = {
     "ui.live_background": True,        # bewegter Hintergrund des Home (E33)
     "ui.language": "",                 # "de" | "en"; leer = nach der Systemsprache (i18n.language, 2026-10-25)
     "ui.intro": True,                  # Startanimation mit Ton beim Start des Home (E92)
+    "ui.theme": "",                    # Design (E113): "" Standard | eingebaute Kennung | "file:<name>" (themes.py)
     # --- Ton
     "audio.ui_sounds": True,
     "audio.ui_volume": 0.6,            # Anteil 0..1
@@ -45,6 +46,8 @@ DEFAULTS: dict[str, Any] = {
     "notify.battery": True,            # Akkuwarnung des Controllers
     "notify.seconds": 5,
     "notify.weekly": True,             # E108: Wochenrückblick „Deine Woche …“ montags
+    # --- Selbst-Update (E116, selfupdate.py)
+    "update.check": True,              # einmal am Tag bei GitHub nach einer neuen Fassung fragen und sie melden
     # --- Shell
     "shell.launch_timeout": 90,        # Sekunden bis "kein Bild" (Bauplan 4.5)
     "shell.resume_delay_ms": 150,      # Wartezeit nach neutralem Pad, bevor ein Spiel weiterläuft

@@ -3,6 +3,8 @@
 Aus docs/research/prototypes/apps/archive_probe.py. probe() ruft `7z l` bzw. `unrar lt` in
 bubblewrap auf (alles nur lesbar, kein Netz), mit Kennwort zusätzlich einen Test der kleinsten
 verschlüsselten Datei. Es wird nichts angelegt, entpackt oder gelöscht.
+E114: Auch ein Windows-Installationsprogramm (setup.exe, .msi) bekommt einen Plan; erkannt werden
+Inno Setup, NSIS und MSI (setupexe.py), ein Archiv mit einem Installer darin ist ebenso installierbar.
 
 probe() blockiert (Unterprozess, Platte): gehört in einen Thread.
 
@@ -19,16 +21,15 @@ import re
 import subprocess
 
 from . import human_size, test_mode_violation, thread_limit
-from . import trash
+from . import setupexe, trash
 from ..setup import catalog as _catalog
 
 DUMMY_PW = "\x7fcouch-kein-kennwort\x7f"   # verhindert, dass 7z nach einem Kennwort fragt
 SUPPORTED_FORMATS = ("zip", "7z", "rar")
+SETUP_FORMATS = ("exe", "msi")             # E114: ein Installationsprogramm als Datei (kein Archiv)
 LIST_TIMEOUT = 120
 PASSWORD_TEST_TIMEOUT = 300
 SPACE_FACTOR = 1.05                        # Aufschlag für Verwaltungsdaten des Dateisystems
-
-MSG_INSTALLER = "Installationsprogramme werden noch nicht unterstützt."
 
 # ---------------------------------------------------------------- Format und Teile
 
@@ -38,6 +39,8 @@ MAGIC = [
     (0, b"Rar!\x1a\x07\x01\x00", "rar"), (0, b"Rar!\x1a\x07\x00", "rar"),
     (0, b"\x1f\x8b", "gz"), (0, b"\xfd7zXZ\x00", "xz"), (0, b"BZh", "bz2"), (0, b"\x28\xb5\x2f\xfd", "zst"),
     (257, b"ustar", "tar"), (32769, b"CD001", "iso"), (0, b"MZ", "exe"),
+    # OLE-Verbunddatei: Windows Installer (.msi), aber auch alte Office-Dateien; als MSI zählt sie nur mit .msi
+    (0, b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", "ole"),
 ]
 
 
@@ -671,7 +674,8 @@ def resolve_target(content: dict, folder: str | None, games_root: str, rom_dirs:
     kind = content.get("kind")
     target = {"mode": None, "root": games_root, "parent": None, "name": None, "dir": None, "files": [],
               "exists": False, "existing": [], "suggestion": None, "problem": None}
-    if kind in ("windows-game", "linux-game"):
+    if kind in ("windows-game", "linux-game", "windows-installer"):
+        # E114: Ein Installationsprogramm installiert in einen eigenen Spielordner wie ein Archiv-Spiel
         target.update(mode="game", parent=games_root)
     elif kind == "rom":
         system = content.get("system")
@@ -719,8 +723,9 @@ def free_bytes(path: str, statvfs=os.statvfs) -> int:
 
 KIND_LABELS = {"windows-game": "PC-Spiel (Windows)", "linux-game": "PC-Spiel (Linux)", "rom": "Emulator-Spiel",
                "windows-installer": "Installationsprogramm (Windows)", "disc-image": "Datenträgerabbild",
-               "unknown": "Unbekannter Inhalt"}
-PLATFORMS = {"windows-game": "windows", "linux-game": "linux"}
+               "unknown": "Unbekannter Inhalt", "windows-exe": "Programm (Windows)"}
+SETUP_LABEL = "Installationsprogramm (%s)"     # mit setupexe.TYPE_LABELS, wenn die Art bekannt ist
+PLATFORMS = {"windows-game": "windows", "linux-game": "linux", "windows-installer": "windows"}
 
 
 def _problem(plan: dict, code: str, message: str) -> None:
@@ -761,6 +766,9 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
       candidates[{archive_path,path,score,why,size}], excluded, exe, needs_choice, rom_layout, rom_items,
       target{mode,root,parent,name,dir,files,exists,existing,suggestion}, space{needed_bytes,
       free_bytes,reserve_bytes,ok,missing_bytes,checked_at}
+    E114, Installationsprogramme: im Archiv zusätzlich installed_bytes (Schätzung); als Datei (format
+      "exe"/"msi") installer_type ("inno"|"nsis"|"msi"|None), setup_files, setup_bytes, installed_bytes,
+      kind "windows-installer" bzw. "windows-exe" (gewöhnliches Programm, nicht unterstützt)
     ready=True heißt: kann so installiert werden. supported=False heißt: Version 1 kann das nicht."""
     password = password or None
     plan = {"archive": os.path.abspath(path), "name": os.path.basename(path), "format": None, "volumes": None,
@@ -780,14 +788,18 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
     plan["archive"] = first
     plan["name"] = os.path.basename(first)
     kind = sniff(first)
+    if kind == "ole":
+        kind = "msi" if first.lower().endswith(".msi") else None
     plan["format"] = kind
     if kind is None:
         _problem(plan, "unknown-format", "Diese Datei ist kein Archiv, das die Konsole entpacken kann.")
         return _finish(plan)
+    if kind in SETUP_FORMATS:
+        return _probe_setup(plan, first, folder=folder, games_root=games_root, reserve_bytes=reserve_bytes,
+                            statvfs=statvfs, mounts=mounts)
     if kind not in SUPPORTED_FORMATS:
-        plan["kind"] = "windows-installer" if kind == "exe" else "unknown"
-        _problem(plan, "unsupported", MSG_INSTALLER if kind == "exe"
-                 else "Dieses Archivformat (%s) wird noch nicht unterstützt." % kind)
+        plan["kind"] = "unknown"
+        _problem(plan, "unsupported", "Dieses Archivformat (%s) wird noch nicht unterstützt." % kind)
         return _finish(plan)
 
     lister = list_rar if kind == "rar" else list_7z
@@ -838,8 +850,6 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
         plan["kind_label"] = "Spiel für " + SYSTEM_LABELS[content["system"]]
     if not files:
         _problem(plan, "unsupported", "Dieses Archiv ist leer.")
-    elif content["kind"] == "windows-installer":
-        _problem(plan, "unsupported", MSG_INSTALLER)
     elif content["kind"] == "disc-image":
         _problem(plan, "unsupported", "Datenträgerabbilder werden noch nicht unterstützt.")
     elif content["kind"] == "unknown":
@@ -858,6 +868,20 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
             elif verify_password and check_password(kind, first, password, entries, tools, run) is False:
                 _problem(plan, "password-wrong", "Das Kennwort stimmt nicht.")
 
+    need = int(total * SPACE_FACTOR)
+    if content["kind"] == "windows-installer":
+        # E114: Die Setup-Dateien liegen entpackt im Zwischenordner, bis der Installer in den Spielordner
+        # installiert hat; beides zugleich auf der Spiele-Platte (Annahme wie setupexe.INSTALL_FACTOR)
+        plan["installed_bytes"] = int(total * setupexe.INSTALL_FACTOR)
+        need += plan["installed_bytes"]
+    _target_and_space(plan, content, folder, games_root, rom_dirs, need + int(reserve_bytes), int(reserve_bytes),
+                      statvfs, mounts)
+    return _finish(plan)
+
+
+def _target_and_space(plan: dict, content: dict, folder: str | None, games_root: str, rom_dirs: dict | None,
+                      need: int, reserve: int, statvfs, mounts) -> None:
+    """Ziel (plan["target"]) und Platz (plan["space"]) eintragen, samt Problemen. need: Bytes inklusive Reserve."""
     target = resolve_target(content, folder, games_root, rom_dirs)
     problem = target.pop("problem")
     plan["target"] = target
@@ -874,8 +898,7 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
             else:
                 _problem(plan, "target-exists", "Auf der Spiele-Platte gibt es schon einen Ordner „%s“." % target["name"])
 
-    need = int(total * SPACE_FACTOR) + int(reserve_bytes)
-    plan["space"] = {"needed_bytes": need, "free_bytes": None, "reserve_bytes": int(reserve_bytes), "ok": False,
+    plan["space"] = {"needed_bytes": need, "free_bytes": None, "reserve_bytes": reserve, "ok": False,
                      "missing_bytes": None, "checked_at": games_root}
     if target["available"]:
         try:
@@ -886,4 +909,35 @@ def probe(path: str, password: str | None = None, *, games_root: str, reserve_by
             plan["space"].update(free_bytes=free, ok=free >= need, missing_bytes=max(0, need - free))
             if free < need and target["mode"] is not None:
                 _problem(plan, "no-space", "Nicht genug Speicherplatz. Es fehlen %s." % human_size(need - free))
+
+
+def _probe_setup(plan: dict, path: str, *, folder: str | None, games_root: str, reserve_bytes: int,
+                 statvfs, mounts) -> dict:
+    """E114: Plan für ein Installationsprogramm als Datei (setup.exe samt .bin daneben, .msi). Nur lesend.
+
+    Bekannt (Inno Setup, NSIS, MSI): kind "windows-installer", installer_type, title aus dem Dateinamen,
+    setup_files, setup_bytes, installed_bytes (Schätzung), Ziel im Spiele-Ordner. Sonst nicht unterstützt:
+    ein unbekannter Installer (der Name sagt „Setup“) oder ein gewöhnliches Programm (kind "windows-exe";
+    das startet man mit „Starten“, E93). Die Datei selbst bleibt liegen."""
+    itype = setupexe.installer_type(path)
+    plan.update(platform="windows" if itype else None, password="none", needs_password=False, issues=[], paths_safe=True,
+                layout=None, top_folder=None, candidates=[], excluded=[], exe=None, needs_choice=False, system=None,
+                rom_layout=None, rom_items=[], stray=[], unpacked_bytes=None, installer_type=itype or None,
+                title=setupexe.title_of(path))
+    need = 0
+    if itype:
+        found = setupexe.estimate(path)
+        plan.update(kind="windows-installer", kind_label=SETUP_LABEL % setupexe.TYPE_LABELS[itype],
+                    files=len(found["files"]), setup_files=found["files"], setup_bytes=found["setup_bytes"],
+                    installed_bytes=found["installed_bytes"])
+        need = found["installed_bytes"]
+    else:
+        named = setupexe.is_setup_name(plan["name"])
+        plan["kind"] = "windows-installer" if named else "windows-exe"
+        plan["kind_label"] = KIND_LABELS[plan["kind"]]
+        plan["files"] = 1
+        _problem(plan, "unsupported", setupexe.MSG_UNKNOWN if named else setupexe.MSG_NOT_SETUP)
+    content = {"kind": plan["kind"] if itype else "unknown", "title": plan["title"]}
+    _target_and_space(plan, content, folder, games_root, None, need + int(reserve_bytes), int(reserve_bytes),
+                      statvfs, mounts)
     return _finish(plan)

@@ -132,6 +132,16 @@ def _number(value: Any) -> float:
         return 0.0
 
 
+def _setup_name(name: Any) -> bool:
+    """E114: Sagt der Name „Installationsprogramm“ (setup_*.exe, *-setup.exe, .msi …)? Nur der Name: view()
+    läuft unter dem Schloss und oft; ob es wirklich Inno Setup, NSIS oder MSI ist, sagt install.probe."""
+    try:
+        from .installer.setupexe import is_setup_name
+        return is_setup_name(str(name or ""))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 class _Job:
     def __init__(self):
         self.stop = threading.Event()
@@ -659,7 +669,8 @@ class Fetcher:
                 out.append({"id": item["id"], "name": item["name"], "path": item["path"], "state": item["state"],
                             "received": received, "total": total, "percent": int(percent), "speed": 0,
                             "error": item["error"], "finished": item["finished"], "resumable": False,
-                            "archive": names.is_archive(item["name"]), "local": True, "started": item["started"]})
+                            "archive": names.is_archive(item["name"]), "installer": _setup_name(item["name"]),
+                            "local": True, "started": item["started"]})
             for item in self.items:
                 total, received = int(item.get("total") or 0), int(item.get("received") or 0)
                 percent = 100 if item["state"] == "done" else (min(100, received * 100 // total) if total > 0 else 0)
@@ -668,7 +679,8 @@ class Fetcher:
                             "received": received, "total": total, "percent": int(percent),
                             "speed": int(speed), "error": item.get("error") or "",
                             "finished": item.get("finished") or 0, "resumable": item.get("resumable", True) is not False,
-                            "archive": names.is_archive(item["name"]), "local": False,
+                            "archive": names.is_archive(item["name"]), "installer": _setup_name(item["name"]),
+                            "local": False,
                             "started": _number(item.get("started"))})
             out.sort(key=lambda i: i["started"], reverse=True)          # neueste zuerst, beide Quellen
             return out

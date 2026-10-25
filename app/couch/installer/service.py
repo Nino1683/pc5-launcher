@@ -17,7 +17,10 @@ deps (SimpleNamespace oder ähnliches Objekt):
     version       Zeichenkette für die Markerdatei
     browse_roots  Liste (oder Funktion, die sie liefert) aus Pfaden oder {"name", "path", "kind"}: ersetzt die
                   eingebauten Wurzeln der Dateiauswahl (für Tests mit erfundenen Ordnern)
-    rom_dirs, tools, worker_argv   nur für Tests
+    setup_env     E114: setup_env(entry_id, title, installer) -> {"argv", "env", "log"?} für den stillen Lauf
+                  eines Installationsprogramms im Prefix des späteren Eintrags (jobs.JobManager)
+    discard_prefix  E114: discard_prefix(entry_id), Prefix eines nie eingetragenen Spiels wegräumen
+    rom_dirs, tools, worker_argv, setup_limits   nur für Tests
 
 Blockierend (Platte, Unterprozess; in einen Thread legen): browse, probe, delete, restore, purge,
 purge_start, exe_candidates, trash_list, startup, shutdown. Schnell: start, cancel, jobs, jobs_state,
@@ -116,7 +119,9 @@ class Installer:
             config=self._config, state_dir=_value(deps.paths, "state_dir"), emit=deps.emit,
             add_local=deps.add_local, scheduler=self._scheduler, rom_dirs=self._rom_dirs,
             tools=getattr(deps, "tools", None), worker_argv=getattr(deps, "worker_argv", None),
-            version=getattr(deps, "version", None) or _package_version())
+            version=getattr(deps, "version", None) or _package_version(),
+            setup_env=getattr(deps, "setup_env", None), discard_prefix=getattr(deps, "discard_prefix", None),
+            setup_limits=getattr(deps, "setup_limits", None))
         # Endgültiges Löschen: eine Warteschlange, ein Thread. _purge_lock hält außerdem das
         # Aufräumen beim Start (purge_expired) und einen Lauf über die Oberfläche auseinander.
         self._purge_guard = threading.Lock()     # schützt die drei folgenden Felder

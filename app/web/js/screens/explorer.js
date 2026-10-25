@@ -1,5 +1,6 @@
 // Datei-Explorer (Bauplan E62): Orte und Ordner, ganz mit dem Pad.
-//   Kreuz     öffnen (Ordner betreten; Bild, Text, Archiv, Video/Musik, Startdatei); Textdateien
+//   Kreuz     öffnen (Ordner betreten; Bild, Text, Archiv, Video/Musik, Startdatei); ein
+//             Installationsprogramm (e.installer, E114) und ein Archiv gehen zur Prüfung des Installers; Textdateien
 //             (txt, ini, cfg, json …) bis 2 MB im Text-Editor (screens/text-editor.js, E99)
 //   Kreis     einen Ordner hoch, an den Orten zurück
 //   Quadrat   markieren (mehrere Dateien für Kopieren, Verschieben, Papierkorb)
@@ -130,7 +131,7 @@ function create(params = {}) {
     if (!e) return;
     if (e.type === "dir") { go(e.path); return; }
     if (e.kind === "image") { viewImage(e); return; }
-    if (e.kind === "archive") { router.go("install-check", { path: e.path, name: e.name }); return; }
+    if (e.kind === "archive" || e.installer) { router.go("install-check", { path: e.path, name: e.name }); return; }
     // Text-Editor (E99); größere Dateien wie bisher als Ausschnitt (64 KB)
     if (isEditable(e.name) && Number(e.size) <= EDIT_MAX_BYTES) { router.go("text-editor", { path: e.path, name: e.name }); return; }
     if (e.kind === "text") { showText(e); return; }
@@ -204,6 +205,7 @@ function create(params = {}) {
       items.push({ id: "copy", label: sel.length > 1 ? fmt(S.exCopyN, { n: sel.length }) : S.exCopy });
       items.push({ id: "move", label: sel.length > 1 ? fmt(S.exMoveN, { n: sel.length }) : S.exMove });
       if (one) items.push({ id: "rename", label: S.exRename });
+      if (one && (one.kind === "archive" || one.installer)) items.push({ id: "install", label: S.exInstall, icon: "archive" });
       if (one && RUNNABLE.has(one.kind)) items.push({ id: "run", label: S.exRun, icon: "play" }, { id: "add", label: S.exAddLib, icon: "library" });
       if (one && (one.kind === "video" || one.kind === "audio")) items.push({ id: "play", label: S.exPlay, icon: "play" });
       // wie Kreuz (E99): größere Textdateien öffnen nur als Ausschnitt, nicht im Editor
@@ -242,7 +244,8 @@ function create(params = {}) {
     } else if (choice === "trash") {
       const yes = await confirm({ title: S.exTrashTitle, text: fmt(S.exTrashText, { what: one ? "„" + one.name + "“" : fmt(S.exItems, { n: sel.length }) }), ok: S.exTrash });
       if (yes) run("trash", sel.map((e) => e.path));
-    } else if (choice === "run") runFile(one);
+    } else if (choice === "install") router.go("install-check", { path: one.path, name: one.name });
+    else if (choice === "run") runFile(one);
     else if (choice === "add") addToLibrary(one);
     else if (choice === "play") play(one);
     else if (choice === "edit") router.go("text-editor", { path: one.path, name: one.name });

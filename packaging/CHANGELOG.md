@@ -1,5 +1,24 @@
 # Änderungen
 
+## 0.3.1 (2026-10-25)
+
+- **Aktualisiert sich selbst:** Der PC5 Launcher sucht einmal am Tag bei GitHub nach einer neuen Fassung und meldet
+  sie mit einer Mitteilung. Unter Einstellungen › System › Updates › PC5 Launcher lädt „Aktualisieren“ das Paket,
+  prüft die Prüfsumme und installiert es neben die laufende Fassung; sie gilt nach „Neu starten“. Von 0.2.0 oder
+  0.3.0 aus einmal von Hand aktualisieren.
+- **Designs:** Einstellungen › Home-Bildschirm › Design. Sechs Farbdesigns (Standard, Ozean, Smaragd, Violett, Glut,
+  Graphit) oder ein eigenes: eine `.css`-Datei mit Farben in `~/.config/couch/themes/`. Ein Design ändert nur
+  Farben, nichts wird nachgeladen. Die Idee kam aus der Community auf Reddit.
+- **Eigene Installationsprogramme:** Eine setup.exe oder .msi aus den Downloads, dem Datei-Explorer oder aus einem
+  Archiv installiert der PC5 Launcher jetzt still über Proton (Inno Setup, NSIS, MSI), in einen eigenen Spielordner
+  und im selben Prefix, in dem das Spiel später startet. Fortschritt und Abbrechen stehen unter Downloads;
+  unbekannte Installer und gewöhnliche Programme bekommen eine klare Meldung. Mit echten Installern noch nicht am
+  Fernseher geprüft.
+- **Bildratenbegrenzung:** alle Werte, die die Bildwiederholrate glatt teilen, ab 20 (bei 144 Hz zum Beispiel 24,
+  36, 48, 72), statt nur 30, 40 und 60.
+- **Englisch:** `install.sh`, `uninstall.sh` und `couch-home --check` sprechen auf englischen Systemen Englisch;
+  einige Einstellungen standen noch auf Deutsch (24-Stunden-Anzeige, Zeitangaben, Wochentage, Bilder pro Sekunde).
+
 ## 0.3.0 (2026-10-25)
 
 - **Englische Oberfläche:** Einstellungen › System › Systemsprache (Deutsch/English); neue Geräte richten sich

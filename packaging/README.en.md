@@ -67,7 +67,12 @@ keys, firmware and games are yours to bring; PC5 Launcher never downloads any of
 
 ## Updating and rolling back
 
-Install a newer version the same way with `bash install.sh`. It is placed next to the old one, checked and only then
+From 0.3.1 on, PC5 Launcher updates itself: it checks GitHub once a day and shows a notification when there is a new
+version. Settings › System › Updates › PC5 Launcher › "Update" downloads the package from GitHub, verifies its
+checksum and runs this installer (`install.sh --yes`); the new version starts after "Restart". Turn the daily check
+off on the same page.
+
+You can also install a newer version the same way with `bash install.sh`. It is placed next to the old one, checked and only then
 switched on; settings stay. Hook files are replaced only when they changed and you did not edit them yourself.
 `bash install.sh --rollback` switches back to the previous version.
 

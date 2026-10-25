@@ -51,7 +51,7 @@ FONT_SCALES = {"small": 1.0, "medium": 1.5, "large": 2.0, "xlarge": 2.5}
 FONT_SCALE_LABELS = {"auto": "Automatisch", "small": "Klein", "medium": "Mittel", "large": "Groß",
                      "xlarge": "Sehr groß"}
 
-FPS_LIMITS = (30, 40, 60)         # angeboten wird nur, was die Bildwiederholrate ohne Rest teilt
+FPS_MIN = 20                      # kleinste angebotene Grenze; angeboten wird jeder ganzzahlige Teiler der Bildwiederholrate ab hier
 RESOLUTIONS = {"native": None, "1440p": (2560, 1440), "1080p": (1920, 1080)}
 RESOLUTION_LABELS = {"native": "Wie der Bildschirm", "1440p": "1440p", "1080p": "1080p"}
 
@@ -88,12 +88,14 @@ def auto_font_scale(root_height: int) -> float:
 
 
 def fps_choices(refresh_hz: int) -> list[int]:
-    """Erlaubte Grenzen: 0 (aus) und die Werte, die die Bildwiederholrate ganzzahlig teilen.
+    """Erlaubte Grenzen: 0 (aus) und jeder ganzzahlige Teiler der Bildwiederholrate ab FPS_MIN.
 
-    Ohne VRR lässt Gamescope nur jedes n-te Bild durch; 40 bei 60 Hz bliebe wirkungslos.
+    Ohne VRR lässt Gamescope nur jedes n-te Bild durch; 40 bei 60 Hz bliebe wirkungslos. Bis 0.3.0 gab es nur
+    30, 40 und 60, bei 144 Hz also gar nichts; seit 0.3.1 etwa 120 Hz -> 20, 24, 30, 40, 60, 120 und
+    144 Hz -> 24, 36, 48, 72, 144.
     """
     hz = int(refresh_hz or 60)
-    return [0] + [n for n in FPS_LIMITS if n <= hz and hz % n == 0]
+    return [0] + [n for n in range(FPS_MIN, hz + 1) if hz % n == 0]
 
 
 def resolution_size(choice: str, root: tuple[int, int]) -> tuple[int, int]:

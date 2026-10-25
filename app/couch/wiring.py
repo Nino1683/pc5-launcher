@@ -44,8 +44,9 @@ SLOW_STEP_MS = 50.0             # ab hier steht die Dauer eines Bausteins als Wa
 # E103 (Bauplan docs/research/e103/SPEC.md 4.5): die neuen Teile ans Ende, weil sie Attribute der
 # bisherigen nutzen (store_routes, proton_jobs, idle, library): Einrichtung (E105), Sichern und
 # Übernehmen (E106), Ruhemodus-Timer (E107), Rückblick (E108), Platz schaffen (E110)
+# E116: "selfupdate" (Selbst-Update von GitHub) als letzter, er braucht nur Dienste des Kerns
 PARTS = ("library", "art", "launch", "settings", "install", "files", "saves", "store", "itch", "launchers", "proton",
-         "home", "setup", "backup", "sleeptimer", "stats", "cleanup")
+         "home", "setup", "backup", "sleeptimer", "stats", "cleanup", "selfupdate")
 
 UNAVAILABLE = "Das ist gerade nicht verfügbar."
 # RPC-Methoden je Baustein von Wiring.run(): Fällt er aus, antworten sie mit UNAVAILABLE

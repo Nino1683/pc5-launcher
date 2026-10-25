@@ -27,6 +27,11 @@ Proton-Versionen (E102): Unter Updates öffnet die Zeile „Proton-Versionen“ 
 installierter Version system.proton.build:<ordner> (Als Standard verwenden, Reparieren bzw. Neu laden,
 Entfernen in den Papierkorb). Alles kommt aus deps.extra["proton"]() (wiring_proton.ProtonJobs);
 fehlt sie, entfallen Zeile und Seite. Der Standard bleibt der eine Schlüssel games.proton (E22).
+
+PC5 Launcher (E116): Unter Updates öffnet die Zeile „PC5 Launcher“ die Seite system.launcher (Version,
+Zustand, Aktualisieren mit Rückfrage, danach Neu starten wie im Ein/Aus-Menü, Jetzt suchen, Schalter
+update.check). Der Dienst ist selfupdate.SelfUpdate, spät gebunden über deps.extra["late"]("self_update")
+(wiring_selfupdate); fehlt er, entfallen Zeile und Seite.
 """
 from __future__ import annotations
 
@@ -127,6 +132,9 @@ PROTON_PHASES = {"queued": "Wartet", "download": "Lädt", "verify": "Prüft", "e
                  "swap": "Setzt ein", "done": "Fertig"}
 PROTON_DOING = {"repair": "wird neu geladen", "install": "wird installiert"}
 PROTON_BACKUP_TEXT = "Der bisherige Ordner kommt nach ~/Games/backups/proton und bleibt dort, bis du ihn löschst."
+# PC5 Launcher aktualisieren (E116, selfupdate.py)
+LAUNCHER_PAGE = "system.launcher"
+UPDATE_CHECK_KEY = "update.check"           # automatisch nach einer neuen Fassung suchen (config.DEFAULTS)
 
 
 def german_datetime(dt: datetime.datetime) -> str:
@@ -263,11 +271,16 @@ class SystemArea:
     def pages(self) -> list[str]:
         out = ["system", "system.software", "system.apps", "system.info", "system.datetime", "system.power",
                ADMIN_PAGE]
+        out += [LAUNCHER_PAGE] if self._launcher() is not None else []
         return out + ([PROTON_PAGE] if self._proton() is not None else [])
 
     def page(self, page_id: str) -> Page:
         if page_id == PROTON_PAGE or page_id.startswith(PROTON_BUILD):
             return self._proton_page(page_id)
+        if page_id == LAUNCHER_PAGE:
+            if self._launcher() is None:
+                raise KeyError(page_id)
+            return Page(LAUNCHER_PAGE, "PC5 Launcher", self._launcher_rows())
         builders = {"system": ("System", self._main_rows),
                     "system.software": ("Systemsoftware", self._software_rows),
                     "system.apps": ("Updates", self._apps_rows),
@@ -436,6 +449,7 @@ class SystemArea:
         os_status = "Neustart erforderlich" if reboot else self.updater.status()["text"]
         rows = [
             R.link("system.updates.os", "Systemsoftware", "system.software", note=os_status),
+            *self._launcher_link(),
             R.action("system.apps.check", "Nach Updates suchen", enabled=not busy,
                      hint="Sucht nach Updates für Apps, Proton und Spiele. Das geschieht auch von selbst alle 12 Stunden."),
             R.info("system.apps.status", "Apps und Laufzeiten", status, hint=fp["error"]),
@@ -459,7 +473,153 @@ class SystemArea:
         """Für die Zeile „Updates“: Apps (ohne Laufzeiten), Proton, Spiele."""
         found = getattr(self._watch(), "found", None) or {}
         apps = [u for u in (found.get("apps") if found else self._flatpak["updates"]) or [] if not u.get("runtime")]
-        return len(apps) + (1 if found.get("proton") else 0) + len(found.get("games") or [])
+        s = self._launcher_status()
+        launcher = 1 if s and s["available"] and s["phase"] != "installed" else 0
+        return len(apps) + (1 if found.get("proton") else 0) + len(found.get("games") or []) + launcher
+
+    # --- PC5 Launcher aktualisieren (E116) ---------------------------------------------------
+
+    def _launcher(self):
+        """Der Dienst selfupdate.SelfUpdate (wiring_selfupdate) oder None: dann entfallen Zeile und Seite."""
+        fn = self.deps.extra.get("late")
+        try:
+            svc = fn("self_update") if callable(fn) else None
+        except Exception:  # noqa: BLE001
+            log.exception("self_update")
+            return None
+        return svc if callable(getattr(svc, "status", None)) else None
+
+    def _launcher_status(self) -> dict | None:
+        svc = self._launcher()
+        if svc is None:
+            return None
+        try:
+            return svc.status()
+        except Exception:  # noqa: BLE001  (eine kaputte Zustandsdatei darf die Seite nicht kosten)
+            log.exception("Selbst-Update: Zustand")
+            return None
+
+    @staticmethod
+    def _launcher_text(s: dict) -> tuple[str, str]:
+        """(Zustand auf der Seite, kurzer Zustand in der Zeile unter Updates)."""
+        phase = s["phase"]
+        if phase == "downloading":
+            return "Lädt … %d %%" % s["percent"], "Lädt %d %%" % s["percent"]
+        if phase == "installing":
+            return "Wird installiert …", "Wird installiert …"
+        if phase == "installed":
+            return "%s installiert, neu starten" % s["pending"], "Neu starten"
+        if phase == "failed":
+            return "Update fehlgeschlagen", "Fehlgeschlagen"
+        if phase == "available":
+            text = "%s verfügbar" % s["available"]
+            return text, text
+        if phase == "current":
+            return "Aktuell", "Aktuell"
+        text = "Unbekannt" if s["error"] else "Noch nicht geprüft"
+        return text, text
+
+    def _launcher_link(self) -> list:
+        s = self._launcher_status()
+        if s is None:
+            return []
+        return [R.link("system.updates.launcher", "PC5 Launcher", LAUNCHER_PAGE, note=self._launcher_text(s)[1],
+                       hint="Neue Fassungen des PC5 Launchers von GitHub.")]
+
+    def _launcher_rows(self) -> list:
+        s = self._launcher_status()
+        if s is None:
+            return [R.info("system.launcher.gone", "Das ist gerade nicht verfügbar.", enabled=False)]
+        package = s["kind"] == "package"
+        state, _short = self._launcher_text(s)
+        phase = s["phase"]
+        if phase == "failed":
+            hint = s["job_error"]
+        elif not package and s["available"]:
+            hint = s["why"]
+        elif s["error"] and phase in ("unknown", "current"):
+            hint = s["error"]
+        elif isinstance(s["checked_at"], (int, float)) and phase in ("current", "available"):
+            hint = "Zuletzt geprüft: " + german_datetime(datetime.datetime.fromtimestamp(s["checked_at"]))
+        else:
+            hint = ""
+        rows = [R.info("system.launcher.version", "Installierte Version", s["own"],
+                       note="" if package else "Nicht aus dem Paket"),
+                R.info("system.launcher.status", "Zustand", state, hint=hint)]
+        version = s["available"]
+        if phase == "downloading":
+            rows.append(R.action("system.launcher.cancel", "Abbrechen",
+                                 hint="Das geladene Stück wird verworfen; ein neuer Versuch lädt das Paket neu."))
+        elif phase == "installed":
+            power = callable(self.deps.extra.get("power"))
+            rows.append(R.confirm_action(
+                "system.launcher.restart", "Neu starten", title="PC5 Launcher neu starten?",
+                text=("Die Oberfläche wird beendet und startet mit der Fassung %s neu, der Rechner bleibt an."
+                      % s["pending"]) + self._game_warning(),
+                ok="Neu starten", enabled=power, note="" if power else "Nicht verfügbar"))
+        elif version and package and phase != "installing":
+            rows.append(R.confirm_action(
+                "system.launcher.update", "Aktualisieren", title="PC5 Launcher %s installieren?" % version,
+                text="Lädt die Fassung %s (%s) von GitHub, prüft die Prüfsumme und legt sie neben die laufende. Was "
+                     "gerade läuft, wird nicht ersetzt: Die neue Fassung gilt nach einem Neustart des PC5 Launchers."
+                     % (version, fmt_bytes(s["size"])),
+                ok="Aktualisieren", enabled=phase in ("available", "failed"),
+                hint="Die bisherige Fassung bleibt als Rückfall erhalten."))
+        elif version and not package:
+            rows.append(R.info("system.launcher.dev", "Aktualisieren", "Nicht möglich", hint=s["why"]))
+        busy = phase in ("downloading", "installing")
+        rows.append(R.action("system.launcher.check", "Jetzt nach Updates suchen", enabled=not busy and not s["checking"],
+                             note="Suche läuft …" if s["checking"] else "",
+                             hint="Fragt GitHub gleich nach einer neuen Fassung des PC5 Launchers."))
+        rows.append(R.toggle("system.launcher.auto", "Automatisch nach Updates suchen",
+                             bool(self.deps.config.get(UPDATE_CHECK_KEY, True)), default=True,
+                             hint="Einmal am Tag fragt der PC5 Launcher bei GitHub nach einer neuen Fassung und meldet "
+                                  "sie mit einer Mitteilung. Installiert wird nur, was du hier bestätigst."))
+        return rows
+
+    def _launcher_action(self, row_id: str):
+        svc = self._launcher()
+        if svc is None:
+            raise SettingsError("Das ist gerade nicht verfügbar.")
+        if row_id == "system.launcher.restart":
+            return self._launcher_restart()
+        from ..selfupdate import UpdateError
+        try:
+            if row_id == "system.launcher.check":
+                s = svc.check(force=True, quiet=True)       # die Seite zeigt es selbst, keine Mitteilung dazu
+                if s["available"]:
+                    message = "PC5 Launcher %s ist da." % s["available"]
+                elif s["error"]:
+                    message = s["error"]
+                else:
+                    message = "Der PC5 Launcher ist aktuell."
+            elif row_id == "system.launcher.update":
+                message = svc.start_update()
+            elif row_id == "system.launcher.cancel":
+                message = svc.cancel()
+            else:
+                raise SettingsError("Diese Aktion gibt es nicht.")
+        except UpdateError as e:
+            raise SettingsError(e.message) from None
+        self.deps.changed("system.apps")
+        return {"message": message, "refresh": True}
+
+    def _launcher_restart(self):
+        """Wie „PC5 Launcher neu starten“ im Ein/Aus-Menü (power.do restart-session): Die Sitzung beginnt neu
+        und nimmt die Fassung, auf die current jetzt zeigt."""
+        fn = self.deps.extra.get("power")
+        if not callable(fn):
+            raise SettingsError("Das ist gerade nicht verfügbar.")
+        try:
+            fn("restart-session")
+        except SettingsError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            message = getattr(e, "message", None)
+            if isinstance(message, str) and message:
+                raise SettingsError(message) from e
+            raise
+        return None
 
     def _proton_rows(self) -> list:
         return self._proton_update_rows() + self._proton_link()
@@ -866,6 +1026,11 @@ class SystemArea:
             return {"refresh": True}
         if row_id.startswith(("system.admin.install:", "system.admin.remove:")):
             return self._admin_set(row_id, value)
+        if row_id == "system.launcher.auto":
+            if not isinstance(value, bool):
+                raise SettingsError("Ungültiger Wert.")
+            self.deps.config.set(UPDATE_CHECK_KEY, value)
+            return None
         if row_id in IDLE_ROWS:
             key, choices, _label, _hint = IDLE_ROWS[row_id]
             if isinstance(value, bool) or value not in [v for v, _ in choices]:
@@ -920,6 +1085,8 @@ class SystemArea:
                 raise SettingsError(str(e)) from None
         if row_id.startswith("system.proton."):
             return self._proton_action(row_id, value)
+        if row_id.startswith("system.launcher."):
+            return self._launcher_action(row_id)
         if row_id.startswith("system.updates.game:"):
             fn = self.deps.extra.get("epic_update")
             if not callable(fn):

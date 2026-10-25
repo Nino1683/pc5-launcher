@@ -731,6 +731,43 @@ def _installer_running(path: str) -> bool:
     return False
 
 
+def installer_launch(wiring: Any, entry_id: str, title: str, installer: str, detail: dict | None = None,
+                     proc_root: str = "/proc") -> tuple:
+    """(umu-run, Umgebung) für einen Installer, der unsichtbar im Prefix des späteren Eintrags entry_id
+    läuft (GOG E99, itch.io E100, eigene setup.exe E114): derselbe Prefix wie beim späteren Start, weil
+    proton.build ihn aus der Eintrags-ID bildet (<prefixe>/local-<id>). Blockierend (Platte, /proc).
+    E101: Ist der einzige Proton-Build beschädigt, oder arbeitet im Prefix schon Wine, wirft es
+    gog_install.InstallError mit dem Satz des Starters; dann startet nichts."""
+    from .launch import proton
+    from .launch.spec import LaunchError, strip_env
+    from .library.model import Entry
+    from .proc.manager import SCRUB
+    ctx = getattr(wiring, "launch", None)
+    if ctx is None:
+        raise gog_install.InstallError("Proton ist gerade nicht bereit. Versuche es gleich noch einmal.")
+    temp = Entry(id=entry_id, title=title, source="local",
+                 detail=dict({"platform": "windows", "install_dir": os.path.dirname(installer),
+                              "exe": os.path.basename(installer)}, **(detail or {})))
+    try:
+        spec = proton.build(temp, ctx, check=False)
+        prefix = str((spec.env or {}).get("WINEPREFIX") or "")
+        if prefix:
+            proton.prefix_free(prefix, str((spec.env or {}).get("PROTONPATH") or ""), proc_root)
+    except LaunchError as e:
+        raise gog_install.InstallError(e.message) from e
+    # Wie beim AppManager (E99): Reste der Sitzung weg (SCRUB) und spec.unset samt Mustern ("LUTRIS_*");
+    # vorher wurde wörtlich verglichen, und Muster blieben stehen
+    env = strip_env(dict(os.environ), SCRUB + tuple(spec.unset or ()))
+    env.update(spec.env or {})
+    try:
+        display = wiring.app.gs.game_display()
+    except Exception:
+        display = None
+    if display:
+        env["DISPLAY"] = display
+    return spec.argv[0], env
+
+
 def _net_error(e: BaseException) -> bool:
     """Netz oder Server kurz gestört (urllib, Verbindung, Zeitlimit, TLS, HTTP-Protokoll)."""
     import http.client
@@ -960,9 +997,6 @@ class _FolderQueue(_StoreQueue):
         ohne umu-run davor (Installer oder msiexec samt stillen Schaltern). Rückgabe: Rückgabewert.
         E101: Ist der einzige Proton-Build beschädigt, oder arbeitet im Prefix schon Wine (auch fremdes,
         auch eine andere Proton-Fassung), startet nichts: InstallError mit dem Satz des Starters."""
-        from .launch import proton
-        from .launch.spec import LaunchError
-        from .library.model import Entry
         ctx = getattr(self.wiring, "launch", None)
         if ctx is None:
             raise gog_install.InstallError("Proton ist gerade nicht bereit. Versuche es gleich noch einmal.")
@@ -973,29 +1007,8 @@ class _FolderQueue(_StoreQueue):
             if job["cancel"].is_set():
                 raise gog_install.InstallError("Abgebrochen.")
             time.sleep(5)
-        temp = Entry(id=entry_id, title=job["title"], source="local",
-                     detail=dict({"platform": "windows", "install_dir": os.path.dirname(installer),
-                                  "exe": os.path.basename(installer)}, **(detail or {})))
-        try:
-            spec = proton.build(temp, ctx, check=False)
-            prefix = str((spec.env or {}).get("WINEPREFIX") or "")
-            if prefix:
-                proton.prefix_free(prefix, str((spec.env or {}).get("PROTONPATH") or ""), self.PROC_ROOT)
-        except LaunchError as e:
-            raise gog_install.InstallError(e.message) from e
-        # Wie beim AppManager (E99): Reste der Sitzung weg (SCRUB) und spec.unset samt Mustern ("LUTRIS_*");
-        # vorher wurde wörtlich verglichen, und Muster blieben stehen
-        from .launch.spec import strip_env
-        from .proc.manager import SCRUB
-        env = strip_env(dict(os.environ), SCRUB + tuple(spec.unset or ()))
-        env.update(spec.env or {})
-        try:
-            display = self.app.gs.game_display()
-        except Exception:
-            display = None
-        if display:
-            env["DISPLAY"] = display
-        argv = [spec.argv[0]] + [str(a) for a in command]
+        umu, env = installer_launch(self.wiring, entry_id, job["title"], installer, detail, self.PROC_ROOT)
+        argv = [umu] + [str(a) for a in command]
         _log.info("%s: Installer läuft: %s", self.NAME, " ".join(argv))
         log_path = log.capped(paths.app_log(self.LOG_NAME))     # angehängt: vorher kappen (E99)
         import subprocess

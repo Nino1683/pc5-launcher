@@ -66,7 +66,7 @@ export function networkLabel(network) {
 
 // Was gerade lädt: Installationen, Downloads des Stores und des Browsers. null, wenn nichts läuft,
 // sonst {percent} des ersten mit bekanntem Stand (null: Stand noch unbekannt)
-const JOB_ACTIVE = new Set(["queued", "running", "finishing"]);
+const JOB_ACTIVE = new Set(["queued", "running", "finishing", "installing"]);    // installing: ohne Anteil (E114)
 export function activeTransfer(state) {
   const items = [];
   for (const j of state.store_jobs || []) items.push(Number(j.percent) || null);

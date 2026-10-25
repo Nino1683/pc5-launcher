@@ -1,7 +1,9 @@
-"""Archiv-Installer am Kern (Bauplan 4.10, E16, E17, E27, E28, E30, E31).
+"""Archiv-Installer am Kern (Bauplan 4.10, E16, E17, E27, E28, E30, E31, E114).
 
 Wiring._installer ruft setup(wiring): genau ein Installer, seine RPC-Methoden install.* und der
-Weg seiner Ereignisse an die Oberfläche. extend(wiring) hängt am Ende von Wiring.run() ein, was
+Weg seiner Ereignisse an die Oberfläche. E114: Für Installationsprogramme (setup.exe, .msi) liefert
+_Hub.setup_env Befehlsanfang und Umgebung im Prefix des späteren Eintrags (wie GOG und itch.io) und
+_Hub.discard_prefix räumt den Prefix eines nie eingetragenen Spiels weg. extend(wiring) hängt am Ende von Wiring.run() ein, was
 die Haken der Verdrahtung braucht: Aufräumen nach dem Bereit-Signal, Ende, Sätze für die
 Rückfrage vor dem Ausschalten. Dort wird auch lib.exeCandidates ersetzt.
 
@@ -45,9 +47,10 @@ NOT_AVAILABLE = "Der Archiv-Installer ist gerade nicht verfügbar."
 NOT_LOCAL = "Nur Spiele, die die Konsole selbst aus einem Archiv installiert hat, lassen sich löschen."
 RPC_NAMES = ("install.browse", "install.probe", "install.start", "install.cancel", "install.jobs",
              "install.setExe", "install.delete", "install.trashList", "install.restore", "install.purge")
-OPEN_STATES = ("queued", "running", "finishing")        # hier arbeitet oder wartet der Installer
-# Nur im Prüfmodus beachtet: Zusätze für deps (tools, worker_argv, rom_dirs), damit Tests einen
-# langsamen Entpacker oder eine volle Platte nachstellen können.
+OPEN_STATES = ("queued", "running", "finishing", "installing")   # hier arbeitet oder wartet der Installer
+SETUP_LOG_NAME = "setup-install"   # E114: Ausgabe der Installationsprogramme (paths.app_log, wie gog-install)
+# Nur im Prüfmodus beachtet: Zusätze für deps (tools, worker_argv, rom_dirs, setup_env, setup_limits), damit
+# Tests einen langsamen Entpacker, eine volle Platte oder ein Attrappen-Installationsprogramm nachstellen können.
 TEST_DEPS: dict = {}
 
 
@@ -383,6 +386,53 @@ class _Hub:
                 return "„%s“" % title
         return None
 
+    # ------------------------------------------------------------ Installationsprogramme (E114)
+    def setup_env(self, entry_id: str, title: str, installer: str) -> dict:
+        """Arbeits-Thread des JobManagers: Befehlsanfang (umu-run) und Umgebung für ein
+        Installationsprogramm im Prefix des späteren Eintrags entry_id, genau wie bei GOG und itch.io
+        (wiring_store.installer_launch); so startet das Spiel später im selben Prefix (Registry,
+        Abhängigkeiten). Wirft InstallError mit deutschem Satz (Proton nicht bereit, beschädigt, Prefix belegt)."""
+        from . import wiring_store
+        from .installer import InstallError
+        from .store import gog_install
+        try:
+            umu, env = wiring_store.installer_launch(self.wiring, entry_id, title, installer)
+        except gog_install.InstallError as error:
+            raise InstallError("no-proton", str(error)) from error
+        return {"argv": [umu], "env": env, "log": paths.app_log(SETUP_LOG_NAME)}
+
+    def discard_prefix(self, entry_id: str) -> None:
+        """Arbeits-Thread: Prefix eines nie eingetragenen Spiels nach Abbruch oder Fehler in den Papierkorb,
+        wie die Store-Warteschlange (wiring_store._FolderQueue._cleanup): nur <prefixe>/local-<id>, ein echter
+        Ordner, die Bibliothek kennt den Eintrag nicht, und in ihm läuft kein Wine. Sonst bleibt er liegen."""
+        from .installer import trash
+        match = trash.ENTRY_ID_RE.match(entry_id) if isinstance(entry_id, str) else None
+        ctx = getattr(self.wiring, "launch", None)
+        if match is None or ctx is None:
+            return
+        try:
+            if self.wiring.main.call(self.app.library.get, entry_id) is not None:
+                return                          # eingetragen: dort liegen Spielstände
+        except Exception:
+            return                              # nicht zu klären (das Home endet): liegen lassen
+        from .launch import prefix as prefix_mod
+        from .library.model import Entry
+        folder = os.path.join(ctx.prefix_root_dir(), prefix_mod.prefix_name(Entry(id=entry_id, title="", source="local")))
+        if os.path.islink(folder) or not os.path.isdir(folder):
+            return
+        from .launch import proton
+        from .launch.spec import LaunchError
+        try:
+            proton.prefix_free(folder, settle=False)
+        except LaunchError:
+            _log.info("Prefix %s bleibt liegen: darin läuft noch Wine", folder)
+            return
+        from . import textedit
+        try:
+            textedit.default_trash(folder)      # Papierkorb des Systems, im Prüfmodus der im Käfig
+        except (OSError, ValueError) as error:
+            _log.warning("Prefix %s nicht in den Papierkorb: %s", folder, error)
+
     def is_running(self, entry_id: str) -> bool:
         """Aus jedem Thread. Ein laufendes oder gerade startendes Spiel wandert nie in den
         Papierkorb; lässt es sich nicht klären, gilt es als laufend."""
@@ -463,6 +513,8 @@ class _Hub:
             return "%d Installationen warten noch." % waiting
         if active["state"] == "finishing":
             text = "Eine Installation wird gerade abgeschlossen (%s)" % active["title"]
+        elif active["state"] == "installing":
+            text = "Ein Installationsprogramm läuft noch (%s)" % active["title"]
         else:
             text = "Eine Installation läuft noch (%s, %d %%)" % (active["title"], int(active["percent"] or 0))
         if waiting == 1:
@@ -523,7 +575,9 @@ def setup(wiring: Any) -> Any:
         scheduler=installer_mod.GLibScheduler(), is_running=hub.is_running, shared_folder=hub.shared_folder,
         # Orte des Explorers (E99), damit dessen Archive die Prüfung bestehen; im Prüfmodus nie die Ordner des Nutzers
         browse_roots=install_roots,
-        rom_dirs=lambda: _rom_dirs(wiring))
+        rom_dirs=lambda: _rom_dirs(wiring),
+        # E114: Installationsprogramme still über Proton im Prefix des späteren Eintrags
+        setup_env=hub.setup_env, discard_prefix=hub.discard_prefix)
     if paths.test_mode():
         slow = os.environ.get("COUCH_TEST_INSTALL_7Z") or ""
         if slow and os.path.basename(slow).startswith("fake") and os.path.isfile(slow):

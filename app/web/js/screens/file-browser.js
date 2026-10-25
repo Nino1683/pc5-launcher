@@ -3,7 +3,7 @@
 // Tastenhinweise unten rechts.
 //
 // Dateiauswahl: mode "archive" (install.browse: Ordner und Archive mit Größe, mehrteilige als ein
-// Eintrag) oder "image" (lib.artBrowse: Ordner und Bilder, je Bild ein Vorschaubild über
+// Eintrag, dazu Installationsprogramme setup.exe/.msi, E114) oder "image" (lib.artBrowse: Ordner und Bilder, je Bild ein Vorschaubild über
 // lib.artPreview, beginnt im Download-Ordner). Neueste Dateien zuerst, Ordner davor. Die Unterzeile
 // nennt den Weg ab dem Ort („Downloads › Archive“), die Zeilen Größe und Datum.
 // Kreis geht einen Ordner hoch, an den Orten zurück. params.onPick(eintrag) bekommt die Wahl.
@@ -94,7 +94,7 @@ function create(params = {}) {
   }
 
   function paint(result) {
-    const entries = (result.entries || []).filter((e) => e && typeof e === "object" && (e.type === "dir" || (image ? e.type === "image" : e.type === "archive")));
+    const entries = (result.entries || []).filter((e) => e && typeof e === "object" && (e.type === "dir" || (image ? e.type === "image" : e.type === "archive" || e.type === "installer")));
     entries.sort(byNewest);
     const rows = entries.map(rowOf);
     if (result.ok === false) rows.unshift({ id: "_err", type: "info", label: result.message || S.fbFailed, enabled: false });

@@ -1831,12 +1831,13 @@ class Shell:
 
     def jobs_running(self) -> int:
         """Archiv-Installationen laut sys.state (die Verdrahtung führt die Liste), die ein
-        Ausschalten abbräche: wartende, laufende und solche im Abschluss. Eine offene Frage
+        Ausschalten abbräche: wartende, laufende, solche im Abschluss und laufende Installationsprogramme
+        (E114, "installing"). Eine offene Frage
         nach der Startdatei (needs-choice) zählt nicht, sie übersteht einen Neustart."""
         try:
             jobs = self.state.get().get("jobs") or []
             return sum(1 for j in jobs if isinstance(j, dict)
-                       and j.get("state") in ("queued", "running", "finishing"))
+                       and j.get("state") in ("queued", "running", "finishing", "installing"))
         except Exception:
             return 0
 

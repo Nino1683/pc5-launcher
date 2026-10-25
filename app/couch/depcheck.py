@@ -266,30 +266,57 @@ def load_fake(path):
     return data
 
 
-def text(result):
+def lang(env=None):
+    """Sprache der Textausgabe wie bei install.sh: Englisch, wenn die Locale mit "en" beginnt, sonst Deutsch."""
+    env = os.environ if env is None else env
+    loc = env.get("LC_ALL") or env.get("LC_MESSAGES") or env.get("LANG") or ""
+    return "en" if loc.lower().startswith("en") else "de"
+
+
+# Textausgabe: (deutsch, englisch)
+_TEXT = {"ok": ("ok   ", "ok   "), "MISSING": ("FEHLT", "MISSING"), "missing": ("fehlt", "missing"),
+         "required": ("(Pflicht) ", "(required) "), "effect": ("       Folge: ", "       Effect: "),
+         "all": ("Alle Pflichtteile sind vorhanden.", "All required parts are present."),
+         "lacking": ("Es fehlen Pflichtteile: ", "Required parts are missing: "),
+         "packages": ("Paketnamen auf diesem System (nur als Hinweis): ",
+                      "Package names on this system (for reference only): ")}
+_DETAIL_EN = (("PyGObject (gi) fehlt", "PyGObject (gi) is missing"), ("nicht im PATH", "not in PATH"))
+
+
+def text(result, language=None):
+    en = (language or lang()) == "en"
+
+    def say(key):
+        return _TEXT[key][1 if en else 0]
+
     lines = []
     for item in result.get("items", []):
-        mark = "ok   " if item.get("ok") else ("FEHLT" if item.get("required") else "fehlt")
+        mark = say("ok") if item.get("ok") else say("MISSING" if item.get("required") else "missing")
         extra = item.get("detail") if not item.get("ok") else ""
-        lines.append("%s  %-22s %s%s" % (mark, item.get("name", ""), "(Pflicht) " if item.get("required") and not
+        if en and extra:
+            for de, eng in _DETAIL_EN:
+                extra = extra.replace(de, eng)
+        lines.append("%s  %-22s %s%s" % (mark, item.get("name", ""), say("required") if item.get("required") and not
                                            item.get("ok") else "", extra or ""))
-        if not item.get("ok") and item.get("effect"):
-            lines.append("       Folge: " + item["effect"])
+        effect = item.get("effect_en" if en else "effect") or (item.get("effect") if en else "")
+        if not item.get("ok") and effect:
+            lines.append(say("effect") + effect)
     if result.get("ok"):
-        lines.append("Alle Pflichtteile sind vorhanden.")
+        lines.append(say("all"))
     else:
-        lines.append("Es fehlen Pflichtteile: " + ", ".join(result.get("missing_required", [])))
+        lines.append(say("lacking") + ", ".join(result.get("missing_required", [])))
     if result.get("packages"):
-        lines.append("Paketnamen auf diesem System (nur als Hinweis): " + result["packages"])
-    if result.get("note") and not result.get("ok"):
-        lines.append(result["note"])
+        lines.append(say("packages") + result["packages"])
+    note = result.get("note_en" if en else "note") or (result.get("note") if en else "")
+    if note and not result.get("ok"):
+        lines.append(note)
     return "\n".join(lines)
 
 
 def main(argv):
     args = argv[1:]
     if any(a not in ("--json",) for a in args):
-        sys.stderr.write("Aufruf: couch-home --check [--json]\n")
+        sys.stderr.write("%s: couch-home --check [--json]\n" % ("Usage" if lang() == "en" else "Aufruf"))
         return 2
     fake = os.environ.get("PC5_DEPCHECK")
     result = load_fake(fake) if fake else check()

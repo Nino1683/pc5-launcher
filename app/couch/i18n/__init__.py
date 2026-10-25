@@ -31,6 +31,12 @@ _MONTHS = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August
 _MONTHS_EN = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
               "November", "December")
 _DATE = re.compile(r"\b(\d{1,2})\. (%s)(?: (\d{4}))?" % "|".join(_MONTHS))
+# settings/system.german_datetime: „Samstag, 25. Oktober 2026, 10:30 Uhr“ (0.3.1: Wochentag und „Uhr“ blieben deutsch)
+_DAYS = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+_DAYS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_WEEKDAY = re.compile(r"\b(%s)\b" % "|".join(_DAYS))
+_WEEKDAY_LEAD = re.compile(r"^(?:%s), " % "|".join(_DAYS))
+_CLOCK = re.compile(r"\b(\d{1,2}:\d{2}) Uhr\b")
 # Deutsche Zahlen („87,4“, „1.234,6“) auf Englisch mit Dezimalpunkt; Versionen und Uhrzeiten haben kein Komma
 _DECIMAL = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d+),(\d+)(?![\d,])")
 _SENTENCE = re.compile(r"(?<=[.!?…“])\s+(?=[A-ZÄÖÜ„])")
@@ -39,7 +45,8 @@ SKIP_KEYS = frozenset({"id", "ids", "path", "paths", "url", "uri", "href", "src"
                        "key", "kind", "type", "page", "rows_page", "role", "state", "source", "store", "sid",
                        "slug", "code", "reason", "phase", "action", "event", "method", "name_id", "uuid", "mac",
                        "address", "ssid", "sink", "profile", "connector", "lang", "language", "version",
-                       "error", "exts", "flatpak", "game_id", "gameId"})
+                       "error", "exts", "flatpak", "game_id", "gameId",
+                       "theme", "themeCss"})       # Design (E113): CSS bleibt, wie es ist („hsl(200,50%)“ ist keine Dezimalzahl)
 
 
 def language(config: Any = None, env: Any = None) -> str:
@@ -125,7 +132,7 @@ class Catalog:
                 rest = text[len(de):]
                 return en + _dates(self.exact.get(rest) or self._template(rest) or rest)
         # Sonst nur ein reines Datum („24. Oktober 2026, 21:14“): kein halb übersetzter deutscher Satz
-        return _dates(text) if _DATE.fullmatch(text.split(",")[0].strip()) else text
+        return _dates(text) if _DATE.fullmatch(_WEEKDAY_LEAD.sub("", text).split(",")[0].strip()) else text
 
 
 def _dates(text: str) -> str:
@@ -136,7 +143,9 @@ def _dates(text: str) -> str:
     def put(m: re.Match) -> str:
         month = _MONTHS_EN[_MONTHS.index(m.group(2))]
         return "%s %s, %s" % (month, m.group(1), m.group(3)) if m.group(3) else "%s %s" % (month, m.group(1))
-    return _DATE.sub(put, text)
+    text = _DATE.sub(put, text)
+    text = _WEEKDAY.sub(lambda m: _DAYS_EN[_DAYS.index(m.group(1))], text)
+    return _CLOCK.sub(lambda m: m.group(1), text)
 
 
 def _fill(en: str, marks: list, values: tuple) -> str:

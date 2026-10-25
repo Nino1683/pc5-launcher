@@ -1,4 +1,4 @@
-"""Einstellungen › Home-Bildschirm: bewegter Hintergrund (E33), Zeitformat, Cover und
+"""Einstellungen › Home-Bildschirm: Design (E113), bewegter Hintergrund (E33), Zeitformat, Cover und
 Hintergründe aus dem Netz (E34).
 
 Hier steht nur, was die Oberfläche selbst umsetzt bzw. was die Bilder der Kacheln betrifft. Die
@@ -21,13 +21,15 @@ from __future__ import annotations
 import logging
 import re
 
-from .rows import AREA_ORDER, Page, SettingsError, action, text, toggle
+from .. import themes
+from .rows import AREA_ORDER, Page, SettingsError, action, option, select, text, toggle
 
 log = logging.getLogger("couch.settings.home")
 
 AREA_ID = "home"
 
 DEFAULTS: dict = {
+    "ui.theme": "",
     "ui.live_background": True,
     "ui.intro": True,
     "ui.clock_24h": True,
@@ -43,6 +45,11 @@ SGDB_RESTING_HINT = ("SteamGridDB hat zuletzt nicht geantwortet oder den Schlüs
                      "fragt der PC5 Launcher wieder.")
 # SteamGridDB vergibt 32 Hex-Zeichen; etwas großzügiger, aber nie Leerzeichen oder Steuerzeichen
 _KEY = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+
+THEME_HINT = ("Ändert die Farben der ganzen Oberfläche. Eigene Designs: eine .css-Datei mit Farben aus tokens.css "
+              "in den Ordner ~/.config/couch/themes legen.")
+THEME_STANDARD = "Standard"
+THEME_OWN = "Eigenes Design"
 
 # Schalter: Zeile -> (Schlüssel, Beschriftung, Erklärung)
 _TOGGLES = {
@@ -108,8 +115,9 @@ class HomeArea:
             minutes = -(-resting // 60)                 # aufgerundet: nie „0 Minuten“
             key_note = SGDB_RESTING_NOTE % ("%d Min." % minutes)
             key_hint += " " + SGDB_RESTING_HINT % ("1 Minute" if minutes == 1 else "%d Minuten" % minutes)
-        rows = [toggle(row_id, label, self._cfg(key), hint=hint, default=DEFAULTS[key])
-                for row_id, (key, label, hint) in _TOGGLES.items()]
+        rows = [self._theme_row()]
+        rows += [toggle(row_id, label, self._cfg(key), hint=hint, default=DEFAULTS[key])
+                 for row_id, (key, label, hint) in _TOGGLES.items()]
         rows += [
             action("home.fetch_all_art", "Cover und Hintergründe laden",
                    enabled=can_fetch, note="" if can_fetch else "Nicht verfügbar",
@@ -119,7 +127,21 @@ class HomeArea:
         ]
         return Page(AREA_ID, self.label, rows)
 
+    def _theme_row(self):
+        current = str(self._cfg("ui.theme") or "")
+        options = [option("", THEME_STANDARD)]
+        options += [option(key, name) for key, (name, _) in themes.BUILTIN.items()]
+        options += [option(themes.FILE_PREFIX + name, name, note=THEME_OWN) for name in themes.user_themes()]
+        if not any(o["value"] == current for o in options):
+            current = ""                                # gelöschtes eigenes Design: es gilt wieder Standard
+        return select("home.theme", "Design", current, options, hint=THEME_HINT, default=DEFAULTS["ui.theme"])
+
     def set(self, row_id: str, value):
+        if row_id == "home.theme":
+            if not themes.valid(value):
+                raise SettingsError("Dieses Design gibt es nicht (mehr).")
+            self.config.set("ui.theme", str(value or ""))
+            return None
         if row_id in _TOGGLES:
             self.config.set(_TOGGLES[row_id][0], bool(value))
             return None

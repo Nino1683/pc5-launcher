@@ -140,6 +140,24 @@ def entry_of(path: str, name: str | None = None) -> dict | None:
             "hidden": name.startswith(".")}
 
 
+def _setup_budget(path: str):
+    """Wie viele .exe dieser Liste in den Dateikopf schauen dürfen (setupexe.Budget); None auf langsamen
+    Platten (NTFS, FUSE, Netz: dort entscheidet nur der Name, wie in der Dateiauswahl des Installers)."""
+    try:
+        from .installer import browse, setupexe
+        return None if browse._slow_filesystem(os.path.realpath(path)) else setupexe.Budget()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _is_setup(e: dict, budget) -> bool:
+    try:
+        from .installer import setupexe
+        return setupexe.listing_flag(e["path"], e["name"], int(e.get("size") or 0), budget)
+    except Exception:  # noqa: BLE001  (ohne Erkennung bleibt es eine gewöhnliche Startdatei)
+        return False
+
+
 def listing(path: str | None, hidden: bool = False) -> dict:
     """Inhalt eines Ordners. Ohne path: die Orte."""
     places = roots()
@@ -156,11 +174,15 @@ def listing(path: str | None, hidden: bool = False) -> dict:
     except OSError as e:
         return {"ok": False, "code": "error", "message": "Ordner nicht lesbar: %s" % e.strerror, "path": path, "entries": []}
     entries = []
+    budget = _setup_budget(path)
     for name in names:
         if not hidden and name.startswith("."):
             continue
         e = entry_of(os.path.join(path, name), name)
         if e is not None:
+            if e["kind"] == "windows" and e["type"] == "file":
+                # E114: Installationsprogramm (Inno Setup, NSIS, MSI): Kreuz heißt „Installieren“, nicht „Starten“
+                e["installer"] = _is_setup(e, budget)
             entries.append(e)
     entries.sort(key=lambda e: (e["type"] != "dir", e["name"].casefold()))
     total = len(entries)

@@ -290,10 +290,11 @@ def ui_percent(raw: Any) -> int:
 
 def ui_state(config: Any) -> dict:
     """sys.state.ui: was die Seite selbst auswertet (Töne, Bewegung, Textgröße, Uhr, Hintergrund,
-    Anzeigebereich)."""
+    Anzeigebereich, Design)."""
     from .settings.accessibility import nearest_scale
     from .settings.display import area_percent
     from .settings.audio import ui_pack
+    from . import themes
     return {"sounds": bool(config.get("audio.ui_sounds", True)),
             "soundVolume": ui_percent(config.get("audio.ui_volume", 0.6)),
             "soundPack": ui_pack(config),
@@ -302,6 +303,8 @@ def ui_state(config: Any) -> dict:
             "clock24h": bool(config.get("ui.clock_24h", True)),
             "liveBackground": bool(config.get("ui.live_background", True)),
             "intro": bool(config.get("ui.intro", True)),
+            "theme": str(config.get("ui.theme", "") or ""),
+            "themeCss": themes.css_for(config.get("ui.theme", "")),
             "areaScale": area_percent(config.get("display.area_scale", 100))}
 
 
@@ -1409,6 +1412,16 @@ def _updater(wiring: Any) -> tuple[Any, Any]:
     return system, updater
 
 
+def _launcher_new(wiring: Any) -> bool:
+    """E116: Gibt es eine neue Fassung des PC5 Launchers, die noch nicht installiert ist (wiring_selfupdate)?"""
+    svc = getattr(wiring, "self_update", None)
+    try:
+        return bool(svc is not None and svc.available() and not svc.pending())
+    except Exception:
+        _log.exception("Selbst-Update: Stand")
+        return False
+
+
 def push_update_badge(wiring: Any) -> None:
     """Arbeits-Thread: Marke am Zahnrad (sys.state.update_available)."""
     system, _updater_obj = _updater(wiring)
@@ -1423,7 +1436,7 @@ def push_update_badge(wiring: Any) -> None:
     # dazu Apps, Proton und Spiele (updates.py; Laufzeiten allein machen keinen Punkt)
     found = getattr(getattr(wiring, "update_watch", None), "found", None) or {}
     others = any(not a.get("runtime") for a in found.get("apps") or []) or bool(found.get("proton")) \
-        or bool(found.get("games"))
+        or bool(found.get("games")) or _launcher_new(wiring)
     wiring.main.post(lambda: app.state.update(update_available=bool(available or others)))
 
 
