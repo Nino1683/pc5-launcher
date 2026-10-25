@@ -5,7 +5,7 @@ Battle.net, Ubisoft, Rockstar and Lutris, your emulators, TV apps, a browser and
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.3.1 · Interface in **English and German**
+Free and open source (GPL-3.0) · Preview version 0.3.2 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -70,7 +70,7 @@ Free and open source (GPL-3.0) · Preview version 0.3.1 · Interface in **Englis
 
 - **Control Center:** switch between running apps, downloads, notifications, sound, microphone, accessories,
   performance overlay
-- **Settings like on a console:** sound, screen and video (HDR, VRR), network (Wi-Fi, speed test), Bluetooth and
+- **Settings like on a console:** sound, screen and video (HDR, VRR, force composition for streaming with Sunshine), network (Wi-Fi, speed test), Bluetooth and
   controllers, storage, power (sleep, sleep timer, screensaver), updates for the system, Flatpaks and Proton
 - **Updates itself:** PC5 Launcher checks GitHub once a day, tells you when there's a new version and installs it
   with one button (Settings › System › Updates). Your settings stay.
@@ -181,7 +181,7 @@ Battle.net, Ubisoft, Rockstar und Lutris, die Emulatoren, Apps für den Fernsehe
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.1 · Oberfläche auf **Deutsch und Englisch**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.2 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 
@@ -241,7 +241,7 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.1 · Oberfläche auf **D
 
 - **Control Center:** zwischen laufenden Apps wechseln, Downloads, Mitteilungen, Ton, Mikrofon, Zubehör,
   Leistungsanzeige
-- **Einstellungen wie bei einer Konsole:** Ton, Bildschirm und Video (HDR, VRR), Netzwerk (WLAN,
+- **Einstellungen wie bei einer Konsole:** Ton, Bildschirm und Video (HDR, VRR, Komposition erzwingen fürs Streaming mit Sunshine), Netzwerk (WLAN,
   Geschwindigkeitsmessung), Bluetooth und Controller, Speicher, Energie (Ruhemodus, Ruhemodus-Timer,
   Bildschirmschoner), Updates für System, Flatpaks und Proton
 - **Aktualisiert sich selbst:** Der PC5 Launcher schaut einmal am Tag auf GitHub nach, meldet eine neue Fassung und

@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.3.2 (2026-10-25)
+
+- **Komposition erzwingen** (Einstellungen › Bildschirm und Video): Für Streaming mit Sunshine und ähnlichen
+  Programmen, wenn dort nur ein schwarzes Bild ankommt (Ton und Steuerung gehen). Entspricht „Force composition“ in
+  den Entwickler-Einstellungen von Steam Big Picture. Gemeldet auf Reddit, danke!
+
 ## 0.3.1 (2026-10-25)
 
 - **Aktualisiert sich selbst:** Der PC5 Launcher sucht einmal am Tag bei GitHub nach einer neuen Fassung und meldet

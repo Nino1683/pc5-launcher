@@ -48,6 +48,10 @@ ATOM_VRR_ENABLED = "GAMESCOPE_VRR_ENABLED"
 ATOM_VRR_CAPABLE = "GAMESCOPE_VRR_CAPABLE"
 ATOM_REFRESH = "GAMESCOPE_DISPLAY_REFRESH_RATE_FEEDBACK"
 ATOM_SCALING_FILTER = "GAMESCOPE_NEW_SCALING_FILTER"
+# Komposition erzwingen (0.3.2, Rückmeldung auf Reddit: Sunshine streamt sonst nur Schwarz, mit Ton und Steuerung;
+# in Steam Big Picture half „Force composition“ in den Entwickler-Einstellungen). Dieselbe Wurzel-Eigenschaft
+# schreibt Steam; Gamescope zeichnet dann jedes Bild selbst, statt Ebenen direkt auszugeben (kein Scanout).
+ATOM_COMPOSITE_FORCE = "GAMESCOPE_COMPOSITE_FORCE"
 
 # Auswahl -> Wert der Eigenschaft (0 linear, 2 FSR). Im unsichtbaren Gamescope gesehen: Mit 2
 # meldet GAMESCOPE_FSR_FEEDBACK 1, sobald ein Spiel kleiner als die Ausgabe gerechnet wird.
@@ -69,6 +73,7 @@ DEFAULTS = {
     "display.game_resolution": perf_mod.DEFAULTS["display.game_resolution"],
     "display.scaling_filter": "linear",
     "display.overlay_blur": True,
+    "display.force_composition": False,
     "display.area_scale": 100,
 }
 AREA_MIN, AREA_MAX = 90, 100        # Anzeigebereich in Prozent der Bildfläche (Home und Overlay)
@@ -154,6 +159,12 @@ class DisplayArea:
             self._cfg("display.overlay_blur"),
             hint="Zeichnet das Spiel weich, solange das Control Center darüber liegt.",
             default=DEFAULTS["display.overlay_blur"]))
+        rows.append(toggle(
+            "display.force_composition", "Komposition erzwingen",
+            bool(self._cfg("display.force_composition")),
+            hint="Für Streaming mit Sunshine und ähnlichen Programmen: Kommt dort nur ein schwarzes Bild an, "
+                 "hilft das meist. Kostet etwas Leistung.",
+            default=DEFAULTS["display.force_composition"]))
         # Der Anzeigebereich wirkt nur auf die Oberfläche der Konsole (die Seite zeichnet sich so
         # viel kleiner, settings.set {id: display.area, value: Prozent}); Spiele sehen nichts davon
         percent = area_percent(self._cfg("display.area_scale"))
@@ -191,6 +202,10 @@ class DisplayArea:
         if row_id == "display.overlay_blur":
             self.config.set("display.overlay_blur", bool(value))
             return None
+        if row_id == "display.force_composition":
+            self._gs_set(ATOM_COMPOSITE_FORCE, [1 if value else 0])
+            self.config.set("display.force_composition", bool(value))
+            return None
         if row_id == "display.area":
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise SettingsError("Dieser Wert ist kein Anzeigebereich.")
@@ -224,6 +239,7 @@ class DisplayArea:
             self._gs_set(ATOM_ITM, [0], quiet=True)
             self._gs_set(ATOM_SDR_BRIGHTNESS, [f2u(self._sdr_nits())], quiet=True)
             self._gs_set(ATOM_SCALING_FILTER, [SCALING_FILTERS[self._scaling_filter()]], quiet=True)
+            self._gs_set(ATOM_COMPOSITE_FORCE, [1 if self._cfg("display.force_composition") else 0], quiet=True)
             if "display.hdr" not in self._pending:
                 on = bool(self._cfg("display.hdr")) and bool(self._cfg("display.hdr_confirmed"))
                 self._gs_set(ATOM_HDR_ENABLED, [1 if on else 0], quiet=True)

@@ -7368,6 +7368,12 @@
   ]
  },
  {
+  "text": "Für Streaming mit Sunshine und ähnlichen Programmen: Kommt dort nur ein schwarzes Bild an, hilft das meist. Kostet etwas Leistung.",
+  "files": [
+   "app/couch/settings/display.py"
+  ]
+ },
+ {
   "text": "Für das Update ist nicht genug Platz.",
   "files": [
    "app/couch/store/epic_account.py"
@@ -9171,6 +9177,12 @@
   "text": "Kommt dran, sobald der laufende Proton-Auftrag fertig ist.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Komposition erzwingen",
+  "files": [
+   "app/couch/settings/display.py"
   ]
  },
  {

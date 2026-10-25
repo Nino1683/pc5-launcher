@@ -97,6 +97,7 @@ DEFAULTS: dict[str, Any] = {
     "display.game_resolution": "native",
     "display.scaling_filter": "linear",
     "display.overlay_blur": True,      # Unschärfe hinter dem aktiven Overlay
+    "display.force_composition": False,  # Komposition erzwingen, für Sunshine-Streaming (0.3.2)
     "display.hdr": False,
     "display.hdr_confirmed": False,    # HDR wurde einmal am Bildschirm bestätigt (E12)
     "display.sdr_brightness": 200,     # Nits
