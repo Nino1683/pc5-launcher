@@ -63,11 +63,24 @@ HINT_SECONDS = 8.0          # so lange bleibt das Overlay für einen Bedienhinwe
 HINT_MOUSE = "mouse-mode"
 HINT_CARDS = "cards-mode"
 HINT_CARDS_SECONDS = 12.0   # Belegung des Zeiger-Modus: mehr Zeilen als beim Maus-Modus
+HINT_OPTI = "opti-mode"     # Belegung im Menü von OptiScaler (E118) …
+OPTI_HINT_TIMES = 3         # … so oft insgesamt
 CARDS_HINT_STARTS = 3       # so oft je Spiel
 OWN_PROFILES = ("keys", "game", "term", "cards")     # eigene Belegung einer App (spec.mouse), nicht der Maus-Modus
 # Eigene Sprungstellen (E99): so heißen die Tasten in der Mitteilung „Sprungstelle für R1 gemerkt“
 SPOT_LABELS = {"up": "Steuerkreuz ↑", "down": "Steuerkreuz ↓", "left": "Steuerkreuz ←", "right": "Steuerkreuz →",
                "l1": "L1", "r1": "R1"}
+# Menü von OptiScaler (E118): Taste (Vorgabe von OptiScaler, ShortcutKey=auto), wie lange nach dem Control
+# Center sie noch gilt und wie lange nach dem Weiterlaufen des Spiels sie kommt
+OPTISCALER_KEY = "Insert"
+OPTISCALER_WAIT_S = 10.0
+OPTISCALER_DELAY_MS = 250
+# Controller fällt kurz nach dem Fortsetzen eines angehaltenen Spiels ab (E119; Wunsch 2026-10-25, am Fernseher
+# bestätigt: ohne Anhalten blieb er verbunden). Das Spiel spricht den DualSense selbst an und reißt nach dem
+# Weiterlaufen die Bluetooth-Verbindung ab. So lange nach dem Fortsetzen zählt ein Abfall, ab so vielen je Spiel
+# (in dieser Sitzung) wird es nicht mehr angehalten
+PAD_DROP_WINDOW_S = 30.0
+PAD_DROP_LIMIT = 2
 
 # Kennungen im Ereignis app.error (Feld code), soweit die Shell sie selbst vergibt. Die der
 # Starter stehen als LaunchError.reason in couch/launch (needs-exe, missing-file, disk-missing,
@@ -202,6 +215,10 @@ class Shell:
         # Schalter „Im Hintergrund anhalten“ je Spiel (lib.setOption freeze), für laufende Apps:
         self._freeze_opts: dict[int, bool] = {}     # zuletzt gesehener Wert je App
         self._freeze_wait: dict[int, tuple] = {}    # eingeschaltet: erst ab dem nächsten Wechsel
+        self._key_after: tuple | None = None        # (App, Taste, bis wann): Taste, sobald die App weiterläuft (E118)
+        self._opti: set[int] = set()                # Apps, deren OptiScaler-Menü wir geöffnet haben: Pad bedient es
+        self._thawed_at: dict[int, float] = {}      # App -> wann sie zuletzt nach dem Overlay weiterlief (E119)
+        self._pad_drops: dict[str, int] = {}        # Eintrag -> Controller-Abfälle kurz danach
 
     # ================================================================ Start
     def start(self) -> None:
@@ -352,14 +369,17 @@ class Shell:
             self._apply()
 
     def _mouse_on(self, app: Any) -> bool:
-        return self._mouse.get(app.app_id, bool(app.spec.mouse))
+        return app.app_id in self._opti or self._mouse.get(app.app_id, bool(app.spec.mouse))
 
     def _pad_profile(self, app: Any) -> str:
         """Was das Pad in der Route "mouse" tut: "keys" (nur Pfeile, Enter, Escape) für Apps mit
         Fernseh-Oberfläche (spec.mouse == "keys", z. B. YouTube), "game" (Tastatur und Maus, E64)
         für Spiele ohne Controller (Spieleinstellung „Controller“), "cards" (Zeiger, E97) für Spiele,
         die man nur mit der Maus spielt, jeweils solange niemand den Maus-Modus im Control Center
-        eingeschaltet hat; sonst "mouse"."""
+        eingeschaltet hat; sonst "mouse". Vor allem anderen "opti" (E118), solange das Menü von OptiScaler
+        offen ist, das optiscaler_menu geöffnet hat."""
+        if app.app_id in self._opti:
+            return "opti"
         own = app.spec.mouse if app.spec.mouse in OWN_PROFILES else None
         return own if own and app.app_id not in self._mouse else "mouse"
 
@@ -407,6 +427,13 @@ class Shell:
         if front is not None and held is not None and held != self._pad_spots(front):
             self._apply()
 
+    @staticmethod
+    def _optiscaler(app: Any) -> bool:
+        """Lief der Start mit OptiScaler (E118)? Proton lädt ihn nur bei PROTON_USE_OPTISCALER=1 (launch/proton.py,
+        steam_game_env); der Schalter in den Spieleinstellungen gilt erst ab dem nächsten Start."""
+        env = getattr(getattr(app, "spec", None), "env", None)
+        return isinstance(env, dict) and env.get("PROTON_USE_OPTISCALER") == "1"
+
     def _real_mouse(self, app: Any) -> bool:
         """Maus-Modus im Sinn des Control Centers (der Tasten-Modus zählt nicht als Maus)."""
         return self._mouse_on(app) and self._pad_profile(app) == "mouse"
@@ -422,7 +449,8 @@ class Shell:
                  "kind": a.spec.kind, "frozen": bool(a.frozen), "started": a.started,
                  "launching": a.app_id in self._launching,
                  # wird gerade beendet: nicht mehr „Fortsetzen“ anbieten
-                 "closing": a.app_id in self._closing}
+                 "closing": a.app_id in self._closing,
+                 "optiscaler": self._optiscaler(a)}
                 for a in self.procs.running()]
 
     def _emit_running(self, force: bool = False) -> None:
@@ -537,13 +565,14 @@ class Shell:
             route = "mouse" if (self._settled and not blocked and self._mouse_on(front)) else "app"
         else:
             route = "home"
+        profile = self._pad_profile(front) if route == "mouse" else "mouse"
         # Liegt das Home oder das Control Center über einer laufenden App, liest nur couch das Pad
-        # (Kodi, YouTube, Browser lasen sonst mit und reagierten auf die Bedienung des Overlays)
-        exclusive = route in ("overlay", "home") and any(True for _ in self.procs.running())
+        # (Kodi, YouTube, Browser lasen sonst mit und reagierten auf die Bedienung des Overlays); ebenso im
+        # Menü von OptiScaler (E118), soweit das Spiel das Pad nicht über hidraw liest
+        exclusive = (route in ("overlay", "home") and any(True for _ in self.procs.running())) or profile == "opti"
         set_exclusive = getattr(self.input, "set_exclusive", None)
         if set_exclusive is not None:
             set_exclusive(exclusive)
-        profile = self._pad_profile(front) if route == "mouse" else "mouse"
         look = self._pad_look(front) if profile == "game" else 1.0
         layout = self._pad_layout(front) if profile == "cards" else ""
         spots = self._pad_spots(front) if route == "mouse" and profile == "cards" else {}
@@ -558,6 +587,8 @@ class Shell:
                 self._mouse_hint(front)
             elif route == "mouse" and profile == "cards":
                 self._cards_hint(front, layout, spots)
+            elif route == "mouse" and profile == "opti":
+                self._opti_hint(front)
         # Eigene Sprungstellen (E99) eigens: Sie ändern sich im Spiel (gemerkt, zurückgesetzt), und das
         # darf die Maus nicht neu aufbauen (ein gehaltener Klick fiele ab)
         set_spots = getattr(self.input, "set_spots", None)
@@ -626,7 +657,9 @@ class Shell:
         front = self._effective_front()
         if front is not None and front.frozen and self.focus.overlay_mode != ACTIVE:
             self.procs.thaw(front)
+            self._thawed_at[front.app_id] = self.sched.now()
         self._apply()
+        self._key_when_running()
 
     # ================================================================ Ansichten im Overlay
     def open_view(self, name: str, params: dict | None = None, mode: str = ACTIVE,
@@ -809,6 +842,19 @@ class Shell:
         except Exception:
             _log.exception("Hinweis zum Zeiger-Modus")
 
+    def _opti_hint(self, app: Any) -> None:
+        """OptiScaler-Menü (E118): Die Seite zeigt die Belegung (Ereignis hint {id: "opti-mode"}), die ersten
+        OPTI_HINT_TIMES Male; gezählt in hints.opti_seen."""
+        try:
+            count = int(self.config.get("hints.opti_seen", 0) or 0)
+            if count >= OPTI_HINT_TIMES:
+                return
+            self.rpc.emit("hint", {"id": HINT_OPTI, "entryId": app.entry_id, "seconds": HINT_SECONDS})
+            self.config.set("hints.opti_seen", count + 1)
+            self._show_passive(HINT_SECONDS + 0.8)
+        except Exception:
+            _log.exception("Hinweis zum OptiScaler-Menü")
+
     # ================================================================ Eingabe
     def on_spot(self, name: str, spot: dict) -> None:
         """Zeiger-Modus (E99): Create gehalten + Sprungtaste hat die Zeigerstelle gemerkt. Je Spiel als
@@ -859,6 +905,12 @@ class Shell:
                 self.osk_open("app")
             except RpcError as e:
                 _log.info("Bildschirmtastatur: %s", e.message)
+        elif route == "mouse" and button == "options" and not repeat:
+            # OptiScaler-Menü (E118): Options hat Einfg gedrückt und das Menü geschlossen
+            front = self._effective_front()
+            if front is not None and front.app_id in self._opti:
+                self._opti.discard(front.app_id)
+                self._apply()
 
     def on_ps(self, kind: str, progress: float = 0.0) -> None:
         if kind in ("short", "long") and self.ending:
@@ -999,6 +1051,8 @@ class Shell:
         pads = self._pads()
         self.state.update(pads=pads)
         front = self._effective_front()
+        if front is not None and set(self._known_pads) - {p.get("id") for p in pads}:
+            self._pad_dropped(front)
         shown = next((v for v in self._views if v.name == "disconnected"), None)
         if shown is not None and shown.params.get("resume") and pads:
             # nach dem Aufwachen wieder verbunden: Hinweis weg, die Mitteilung „Controller verbunden“ genügt
@@ -1019,6 +1073,32 @@ class Shell:
                 self._emit_open(shown)
         self._had_pads = bool(pads)
         self._pad_toasts(pads, quiet=any(v.name == "disconnected" for v in self._views))
+
+    def _pad_dropped(self, app: Any) -> None:
+        """Ein Pad ist weg, während app vorn ist (E119). Lief sie gerade erst nach dem Anhalten weiter (nicht nach
+        dem Aufwachen: Dann fallen die Pads ohnehin ab), zählt das für ihr Spiel; ab PAD_DROP_LIMIT schaltet die
+        Konsole „Im Hintergrund anhalten“ dafür aus (Option freeze, wie in den Spieleinstellungen) und sagt es."""
+        now = self.sched.now()
+        at = self._thawed_at.pop(app.app_id, None)
+        if (at is None or now - at > PAD_DROP_WINDOW_S or now < self._resume_until
+                or app.spec.kind not in GAME_KINDS or not self._may_freeze(app)):
+            return
+        count = self._pad_drops.get(app.entry_id, 0) + 1
+        self._pad_drops[app.entry_id] = count
+        _log.info("Controller %.1f s nach dem Fortsetzen von %s getrennt (%d. Mal)", now - at, app.entry_id, count)
+        if count < PAD_DROP_LIMIT:
+            return
+        try:
+            self.library.set_option(app.entry_id, "freeze", False)
+        except (KeyError, ValueError) as e:
+            _log.warning("Anhalten für %s nicht abgeschaltet: %s", app.entry_id, e)
+            return
+        notify = getattr(self.app, "notify", None)
+        if notify is not None:
+            notify.push("Spiel wird nicht mehr angehalten",
+                        "Nach dem Fortsetzen von „%s“ hat sich der Controller mehrmals getrennt. Es läuft deshalb unter "
+                        "dem Overlay weiter (Spieleinstellungen › Im Hintergrund anhalten)." % self._app_title(app),
+                        icon="gamepad", important=True)
 
     def _pad_toasts(self, pads: list, quiet: bool) -> None:
         """Mitteilungen zu den Pads: verbunden, getrennt, Akku unter 15 % (Befund 24).
@@ -1210,6 +1290,8 @@ class Shell:
                 _log.exception("record_play")
         self._mouse.pop(app.app_id, None)
         self._reveal_mouse.pop(app.app_id, None)
+        self._opti.discard(app.app_id)
+        self._thawed_at.pop(app.app_id, None)
         self._remove_views([v for v in self._views if v.app_id == app.app_id], None, hold=False)
         back = self.procs.by_app_id(self._return_to.pop(app.entry_id, 0) or 0)
         if self._front_id == app.app_id and back is not None and back.app_id not in self._closing:
@@ -1945,11 +2027,51 @@ class Shell:
             self._on_visible(app)
         self._apply()
 
+    def optiscaler_menu(self) -> dict:
+        """Control Center › Leistung › „OptiScaler-Menü“ (E118). Das Menü von OptiScaler öffnet und schließt
+        nur eine Taste (Einfg); offen lässt es sich mit dem Controller bedienen (OptiScaler schaltet dafür die
+        Gamepad-Steuerung von ImGui ein, die den DualSense unter Proton aber nicht sieht). Die Seite schließt danach
+        das Control Center; die Taste geht an das Spiel, sobald es weiterläuft (_settle_done): Unter dem Overlay ist
+        es angehalten und ohne Fokus. Mit dem Öffnen bedient das Pad das Menü (padmouse profile "opti": Steuerkreuz,
+        Kreuz = Leertaste, Kreis = Escape), Options oder dieser Eintrag schließen es wieder."""
+        front = self._front_app()
+        if front is None or not self._optiscaler(front):
+            raise RpcError("Dieses Spiel läuft ohne OptiScaler.", "NoOptiScaler")
+        self._key_after = (front.app_id, OPTISCALER_KEY, self.sched.now() + OPTISCALER_WAIT_S)
+        return {}
+
+    def _key_when_running(self) -> None:
+        pending, self._key_after = self._key_after, None
+        if pending is None:
+            return
+        app_id, key, until = pending
+        front = self._effective_front()
+        if self.sched.now() > until or front is None or front.app_id != app_id or self._top() is not None:
+            return
+        self.sched.later(OPTISCALER_DELAY_MS, lambda: self._press_for(app_id, key))
+
+    def _press_for(self, app_id: int, key: str) -> None:
+        front = self._effective_front()
+        if front is None or front.app_id != app_id or front.frozen or self._top() is not None:
+            return                          # inzwischen gewechselt oder wieder im Overlay
+        try:
+            self.input.press_key(key)
+        except Exception:
+            _log.exception("Taste %s für %s", key, front.entry_id)
+            return
+        # Dieselbe Taste öffnet und schließt das Menü: Mit ihr wechselt das Pad zwischen Menü und Spiel
+        if app_id in self._opti:
+            self._opti.discard(app_id)
+        else:
+            self._opti.add(app_id)
+        self._apply()
+
     def set_mouse(self, on: bool) -> dict:
         front = self._front_app()
         if front is None:
             raise RpcError("Der Maus-Modus geht nur, wenn eine App vorn ist.", "NoApp")
         self._reveal_mouse.pop(front.app_id, None)     # der Nutzer hat selbst entschieden: das gilt, auch im Spiel
+        self._opti.discard(front.app_id)               # auch gegenüber dem OptiScaler-Menü (E118)
         if not on and front.spec.mouse in OWN_PROFILES:
             self._mouse.pop(front.app_id, None)        # zurück zum Tasten- bzw. Spiel-Modus der App, nicht „gar nichts“
         else:
@@ -2012,6 +2134,7 @@ class Shell:
         rpc.register("app.close", app_close)
         rpc.register("app.kill", app_kill)
         rpc.register("app.adopt", lambda p: self.adopt_answer(str(p.get("id", "")), bool(p.get("ok"))))
+        rpc.register("app.optiscaler", lambda p: self.optiscaler_menu())
         rpc.register("overlay.close", lambda p: self.page_closed(p.get("view"), p.get("serial")) or {})
         rpc.register("overlay.confirmResult",
                      lambda p: self.confirm_result(str(p.get("id", "")), p.get("value")) or {})

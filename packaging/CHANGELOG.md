@@ -1,5 +1,16 @@
 # Änderungen
 
+## 0.3.3 (2026-10-25)
+
+- **OptiScaler-Menü mit dem Controller:** Läuft ein Spiel mit OptiScaler, steht im Control Center unter Leistung
+  „OptiScaler-Menü“. Es öffnet das Menü von OptiScaler (sonst nur über die Einfg-Taste), und der Controller bedient
+  es: Steuerkreuz wählt, Kreuz ändert, Kreis geht zurück, L1/R1 blättern, Options schließt das Menü. Danach steuert
+  der Controller wieder das Spiel.
+- **Controller bleibt verbunden:** Manche Spiele sprechen den DualSense selbst an und trennen ihn über Bluetooth,
+  wenn sie nach dem Anhalten (Control Center, Home) weiterlaufen. Passiert das zweimal kurz nach dem Fortsetzen,
+  hält der PC5 Launcher dieses Spiel nicht mehr an und sagt es per Mitteilung. Umstellen lässt es sich in den
+  Spieleinstellungen unter „Im Hintergrund anhalten“.
+
 ## 0.3.2 (2026-10-25)
 
 - **Komposition erzwingen** (Einstellungen › Bildschirm und Video): Für Streaming mit Sunshine und ähnlichen

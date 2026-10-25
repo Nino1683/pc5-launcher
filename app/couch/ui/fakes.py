@@ -400,13 +400,19 @@ class FakeInput:
             if self.on_pads_changed:
                 self.on_pads_changed()
         else:
+            # wie InputService: Im OptiScaler-Menü (E118) meldet das Loslassen von Options on_button("options")
+            opti_leave = button == "options" and self.route == "mouse" and self.mouse_profile == "opti"
             if phase == "up":
                 self.held.discard(button)
+                if opti_leave and self.on_button:
+                    self.on_button("options", False)
                 return
             if phase == "down":
                 self.held.add(button)
             if self.route in ("home", "overlay") and self.on_button:
                 self.on_button(button, False)
+            elif opti_leave and phase == "press" and self.on_button:
+                self.on_button("options", False)
 
     def all_neutral(self) -> bool:
         return not self.held
@@ -427,6 +433,8 @@ class FakeInput:
         return False
 
     def press_key(self, name: str) -> None:
+        from ..input.xtest import keycode_for
+        keycode_for(name)               # wie InputService.press_key: unbekannter Name ist ein Fehler
         self.keys.append(name)
 
 

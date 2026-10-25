@@ -83,8 +83,9 @@ KEYCODES = {
     "Return": 36, "BackSpace": 22, "Escape": 9, "Tab": 23, "space": 65, "Delete": 119,
     "Up": 111, "Down": 116, "Left": 113, "Right": 114,
     "Home": 110, "End": 115, "Page_Up": 112, "Page_Down": 117,
+    "Insert": 118,                      # Einfg: öffnet das Menü von OptiScaler (E118)
 }
-_ALIASES = {"enter": "Return", "esc": "Escape", "backspace": "BackSpace", "del": "Delete",
+_ALIASES = {"enter": "Return", "esc": "Escape", "backspace": "BackSpace", "del": "Delete", "ins": "Insert",
             "pageup": "Page_Up", "pagedown": "Page_Down", "page_up": "Page_Up", "page_down": "Page_Down"}
 _BY_LOWER = {name.lower(): name for name in KEYCODES}
 

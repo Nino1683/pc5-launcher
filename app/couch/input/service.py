@@ -9,7 +9,8 @@ Overlay über einer laufenden App liegen (set_exclusive, E56).
 Ziel der Tasten (route):
     home, overlay   on_button(taste, wiederholung); die Shell reicht an die richtige Seite
     app             nichts an on_button (ein Spiel ist vorn und liest das Pad selbst)
-    mouse           padmouse: das Pad als Maus/Tastatur per XTEST; Dreieck meldet on_button("triangle", False)
+    mouse           padmouse: das Pad als Maus/Tastatur per XTEST; Dreieck meldet on_button("triangle", False),
+                    im OptiScaler-Menü (profile "opti", E118) Options on_button("options", False)
 PS-Ereignisse (on_ps) kommen in jeder Route. Ausnahme Zeiger-Modus (profile "cards"): Create allein
 ("create-solo", Bildschirmfoto E83) kommt erst beim Loslassen von Create und gar nicht, wenn
 Create gehalten eine Sprungstelle gemerkt hat (E99, on_spot).
@@ -45,7 +46,7 @@ from .padreader import Pad, PadEvent, PadManager
 log = logging.getLogger("couch.input")
 
 ROUTES = ("home", "overlay", "app", "mouse")
-TOUCH_POINTER_PROFILES = ("mouse", "game", "cards")    # hier darf das Touchpad den Zeiger bewegen
+TOUCH_POINTER_PROFILES = ("mouse", "game", "cards", "opti")    # hier darf das Touchpad den Zeiger bewegen
 TICK_MS = 16                    # 60 Hz
 BATTERY_FIRST_MS = 3000         # der Treiber meldet nach dem Verbinden zunächst 100 % / Unknown
 BATTERY_EVERY_MS = 45000        # Akkustand ändert sich ohne Ereignis: nachsehen
@@ -604,7 +605,7 @@ class InputService:
         Tempo des Umschauens; keys = Tastenbelegung des Spiels {taste: ziel}, Option pad_keys, E109,
         None bzw. {} = E64), "term" = Terminal „Claude Code“ (padmouse.KEYS_TERM, E72), "cards" =
         Zeiger für Spiele, die man nur mit der Maus spielt (E97; layout = Sprungstellen,
-        padmouse.LAYOUTS)."""
+        padmouse.LAYOUTS), "opti" = Menü von OptiScaler (padmouse.KEYS_OPTI, E118)."""
         if route not in ROUTES:
             raise ValueError(f"unbekanntes Ziel: {route!r}")
         keys = dict(keys) if isinstance(keys, dict) and profile == "game" else {}
@@ -734,7 +735,8 @@ class InputService:
         mouse = PadMouse(self._sink, self._mouse_config(), self._osk, state=pad.state,
                          profile=getattr(self, "_mouse_profile", "mouse"), look=getattr(self, "_mouse_look", 1.0),
                          layout=getattr(self, "_mouse_layout", ""), spots=self._mouse_spots,
-                         on_spot=self._spot_remembered, keys=getattr(self, "_mouse_keys", None))
+                         on_spot=self._spot_remembered, keys=getattr(self, "_mouse_keys", None),
+                         on_leave=self._opti_leave)
         # Was schon gehalten wird, löst nichts aus; solange PS gehalten wird, gehört das Pad der Shell
         self._mouse_call(mouse.set_enabled, c.PS not in pad.state.buttons)
         self._mice[pad.path] = mouse
@@ -757,6 +759,9 @@ class InputService:
 
     def _osk(self) -> None:
         self._call(self.on_button, "triangle", False)
+
+    def _opti_leave(self) -> None:
+        self._call(self.on_button, "options", False)
 
     def _on_raw(self, pad: Pad, etype: int, code: int, _value: int, change: tuple | None) -> None:
         mouse = self._mice.get(pad.path)

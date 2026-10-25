@@ -34,6 +34,7 @@ CLEANUP_AGE_S = 3600.0          # ältere Zwischenordner abgebrochener Kopien en
 DEFAULTS = {
     "hints.mouse_mode_seen": False,     # Hinweis zur Belegung im Maus-Modus schon gezeigt
     "hints.cards_seen": {},             # Zeiger-Modus (E97): Hinweis zur Belegung gezeigt, je Spiel wie oft
+    "hints.opti_seen": 0,               # OptiScaler-Menü (E118): Hinweis zur Belegung so oft gezeigt
 }
 
 

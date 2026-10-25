@@ -4,7 +4,8 @@
 //   disconnected   „Controller getrennt“ (letztes Pad weg, Spiel vorn)
 //   quit-progress  Fortschrittsring, solange PS + Optionen gehalten werden
 //   Hinweis-Karte  Ereignis hint {id: "mouse-mode", seconds}: Belegung des Maus-Modus, ohne Fokus;
-//                  {id: "cards-mode", layout, spots?, seconds}: Belegung des Zeiger-Modus
+//                  {id: "cards-mode", layout, spots?, seconds}: Belegung des Zeiger-Modus;
+//                  {id: "opti-mode", seconds}: Belegung im Menü von OptiScaler (E118)
 //   saver          Bildschirmschoner nach Leerlauf (idle.py): schwarz, eine leise Uhr, die jede
 //                  Minute woanders steht (gegen Einbrennen); jede Taste und PS schließen ihn
 import { h, icon, after, enter } from "../core/dom.js";
@@ -153,6 +154,17 @@ export const CARDS_KEYS = [
   ["mouseTriangle", "mouseTriangleDo"],
   ["mousePs", "mousePsDo"],
 ];
+// OptiScaler-Menü (profile "opti", E118): Kreuz ist dort die Leertaste, Options Einfg (padmouse.KEYS_OPTI)
+export const OPTI_KEYS = [
+  ["mouseDpad", "optiDpadDo"],
+  ["optiCross", "optiCrossDo"],
+  ["mouseCircle", "optiCircleDo"],
+  ["mouseL1R1", "optiL1R1Do"],
+  ["mouseStickL", "mouseStickLDo"],
+  ["optiR2", "optiR2Do"],
+  ["mouseStickR", "mouseStickRDo"],
+  ["cardsOptions", "optiOptionsDo"],
+];
 export const CARDS_SPOTS = {
   hearthstone: [
     ["cardsR1", "hsEndTurn"], ["cardsL1", "hsBoard"], ["cardsUp", "hsEnemyHero"],
@@ -175,6 +187,10 @@ const HINTS = {
   "mouse-mode": () => ({
     icon: "mouse", title: S.hintMouseTitle, text: S.hintMouseText,
     items: MOUSE_KEYS.map(([key, does]) => [S[key], S[does]]),
+  }),
+  "opti-mode": () => ({
+    icon: "gamepad", title: S.hintOptiTitle, text: S.hintOptiText,
+    items: OPTI_KEYS.map(([key, does]) => [S[key], S[does]]),
   }),
   "cards-mode": (p) => {
     const spots = cardsSpots(p);

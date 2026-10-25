@@ -6107,6 +6107,12 @@
   ]
  },
  {
+  "text": "Dieses Spiel läuft ohne OptiScaler.",
+  "files": [
+   "app/couch/shell.py"
+  ]
+ },
+ {
   "text": "Dieses Spiel läuft über %s und lässt sich hier nicht installieren.",
   "files": [
    "app/couch/wiring_store.py"
@@ -8682,6 +8688,13 @@
   ]
  },
  {
+  "text": "Insert",
+  "files": [
+   "app/couch/input/xtest.py",
+   "app/couch/shell.py"
+  ]
+ },
+ {
   "text": "Insgesamt",
   "files": [
    "app/couch/library/index.py",
@@ -9928,6 +9941,12 @@
   "text": "Nach Updates suchen",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Nach dem Fortsetzen von „%s“ hat sich der Controller mehrmals getrennt. Es läuft deshalb unter dem Overlay weiter (Spieleinstellungen › Im Hintergrund anhalten).",
+  "files": [
+   "app/couch/shell.py"
   ]
  },
  {
@@ -11913,6 +11932,12 @@
   "text": "Spiel schließen",
   "files": [
    "app/couch/library/describe.py"
+  ]
+ },
+ {
+  "text": "Spiel wird nicht mehr angehalten",
+  "files": [
+   "app/couch/shell.py"
   ]
  },
  {

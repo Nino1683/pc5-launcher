@@ -446,12 +446,17 @@ export const PANELS = {
             options: perf.resolutions.map((v) => ({ value: v, label: resLabel[v] || String(v) })) });
         }
         if (perf.refresh) rows.push({ id: "refresh", type: "info", label: S.ccPerfRefresh, value: fmt(S.ccPerfHz, { n: perf.refresh }) });
+        // OptiScaler (E118): nur, wenn das Spiel vorn mit ihm gestartet wurde (running[].optiscaler)
+        const front = (store.state.running || []).find((r) => r.entryId === store.state.foreground);
+        if (front && front.optiscaler) rows.push({ id: "optiscaler", type: "action", label: S.ccOpti, hint: S.ccOptiHint, icon: "gamepad" });
         return rows;
       },
       onSet: async (row, value) => {
         perf = { ...perf, [row.id]: value, ...((await call("perf.set", { [row.id]: value })) || {}) };
         ctx.refresh();
       },
+      // Die Taste kommt erst, wenn das Control Center zu ist und das Spiel weiterläuft (shell.optiscaler_menu)
+      onAction: async () => { await call("app.optiscaler", {}); ctx.api.close(); },
     };
   },
 

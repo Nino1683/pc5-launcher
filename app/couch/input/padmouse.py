@@ -42,6 +42,15 @@ anlasse, passiert nichts“):
                       Stellen, Option pad_spots; liegen über LAYOUTS); dieser Create-Druck ist dann
                       kein Bildschirmfoto (die Zurückhaltung macht service.py)
 
+OptiScaler-Menü (profile="opti", E118), solange das Menü von OptiScaler offen ist, das die Shell geöffnet hat
+(Wunsch 2026-10-25: „Kann man das nicht komplett mit dem Controller steuern?“). Das ImGui-Menü von OptiScaler
+lässt sich mit der Tastatur bedienen, seine Gamepad-Steuerung sieht den DualSense unter Proton aber nicht:
+    Steuerkreuz       Pfeiltasten (Eintrag wählen; nach Kreuz auf einem Regler: Wert ändern)
+    Kreuz             Leertaste (auswählen, umschalten, Regler bearbeiten)
+    Kreis             Escape (zurück)       L1 / R1   Bild auf / Bild ab
+    Options           Einfg (schließt das Menü), danach meldet on_leave: Das Pad gehört wieder dem Spiel
+    sonst wie im Maus-Modus: linker Stick Zeiger, rechter Stick Rollen, R2 / L2 linke / rechte Maustaste
+
 Terminal-Modus (profile="term", E72) für die App „Claude Code“ (couch-terminal). Was die Tasten
 im Terminal tun, entscheidet die App; padmouse schickt nur feste Tasten:
     Steuerkreuz, linker Stick  Pfeiltasten        rechter Stick  Rollen
@@ -68,6 +77,7 @@ from .padlogic import PadState, curve
 BTN_LEFT, BTN_RIGHT, BTN_MIDDLE, BTN_SIDE, BTN_EXTRA = 0x110, 0x111, 0x112, 0x113, 0x114
 KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_ENTER = 1, 14, 15, 28
 KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN = 103, 105, 106, 108
+KEY_PAGEUP, KEY_PAGEDOWN, KEY_INSERT = 104, 109, 110
 WHEEL_NOTCH = 120                      # eine Raste in hochauflösenden Rolleinheiten
 
 KEYS = {c.CIRCLE: KEY_ESC, c.SQUARE: KEY_BACKSPACE}
@@ -126,6 +136,8 @@ def game_keymap(keys: dict | None = None) -> dict:
 KEYS_TERM = {c.CROSS: KEY_ENTER, c.CIRCLE: KEY_ESC, c.SQUARE: KEY_BACKSPACE, c.TRIANGLE: KEY_F9,
              c.OPTIONS: KEY_F12, c.L1: KEY_F10, c.R1: KEY_TAB, c.L2: KEY_F7, c.R2: KEY_F8}
 TRIGGERS_TERM = {c.L2_ANALOG: KEY_F7, c.R2_ANALOG: KEY_F8}
+# OptiScaler-Menü (profile="opti", E118): Kreuz ist hier die Leertaste (Auswahl in ImGui), geklickt wird mit R2
+KEYS_OPTI = {c.CROSS: KEY_SPACE, c.L1: KEY_PAGEUP, c.R1: KEY_PAGEDOWN, c.OPTIONS: KEY_INSERT}
 # Zeiger-Modus (profile="cards", E97)
 KEYS_CARDS = {c.OPTIONS: KEY_ESC}
 BUTTONS_CARDS = {c.CROSS: BTN_LEFT, c.CIRCLE: BTN_RIGHT, c.R3: BTN_MIDDLE}
@@ -156,7 +168,7 @@ SPOT_HOLD = c.CREATE
 ASPECT_TOLERANCE = 0.03
 ARROWS = (KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN)
 WASD = (KEY_A, KEY_D, KEY_W, KEY_S)
-PROFILES = ("mouse", "keys", "game", "term", "cards")
+PROFILES = ("mouse", "keys", "game", "term", "cards", "opti")
 OSK_BUTTON, PRECISION_BUTTON = c.TRIANGLE, c.L3
 
 
@@ -203,8 +215,9 @@ class PadMouse:
     def __init__(self, sink: Sink, config: Config | None = None, osk_toggle: Callable[[], None] | None = None,
                  state: PadState | None = None, profile: str = "mouse", look: float = 1.0, layout: str = "",
                  spots: dict | None = None, on_spot: Callable[[str, dict], None] | None = None,
-                 keys: dict | None = None):
+                 keys: dict | None = None, on_leave: Callable[[], None] | None = None):
         self.sink = sink
+        self.on_leave = on_leave                # OptiScaler-Menü: Options hat es geschlossen (E118)
         self.profile = profile if profile in PROFILES else "mouse"
         # Spiel-Modus: wirksame Belegung je Pad-Taste (E64, mit keys = Option pad_keys umbelegt, E109)
         self._game = game_keymap(keys) if self.profile == "game" else {}
@@ -439,7 +452,12 @@ class PadMouse:
             return
         if change:
             _, button, down = change
-            if button in KEYS:
+            if self.profile == "opti" and button in KEYS_OPTI:
+                self._key(KEYS_OPTI[button], bool(down))
+                if button == c.OPTIONS and not down and self.enabled and self.on_leave is not None:
+                    self.sink.flush()                   # erst Einfg, dann zurück zum Spiel
+                    self.on_leave()
+            elif button in KEYS:
                 self._key(KEYS[button], bool(down))
             elif button in BUTTONS:
                 self._button(BUTTONS[button], bool(down), button)

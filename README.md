@@ -5,7 +5,7 @@ Battle.net, Ubisoft, Rockstar and Lutris, your emulators, TV apps, a browser and
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.3.2 · Interface in **English and German**
+Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -42,6 +42,8 @@ Free and open source (GPL-3.0) · Preview version 0.3.2 · Interface in **Englis
 - Proton-CachyOS or GE-Proton, chosen per game; more Proton versions under Settings › System › Updates
 - Per-game switches for **FSR 4, HDR and OptiScaler**, frame-rate limit (every value that divides your refresh
   rate, from 20 fps) and resolution
+- **OptiScaler menu with the controller:** Control Center › Performance opens it in the running game. The D-pad,
+  Cross and Circle work the menu, Options closes it; no keyboard needed
 - Damaged Proton versions are detected and downloaded again
 - The controller works in XInput games too, with no setting to change
 
@@ -57,6 +59,8 @@ Free and open source (GPL-3.0) · Preview version 0.3.2 · Interface in **Englis
 - On-screen keyboard with word suggestions (QWERTY and QWERTZ)
 - Keyboard-and-mouse mode for games without controller support, with per-game button mapping
 - Pointer mode for games that only use the mouse (card games, for example)
+- If a game drops the DualSense over Bluetooth whenever it resumes after a pause, PC5 Launcher notices and stops
+  pausing that game
 - DualSense: light bar color and brightness, vibration; the touchpad no longer moves the mouse in games
 
 ### Apps and media
@@ -99,6 +103,7 @@ Free and open source (GPL-3.0) · Preview version 0.3.2 · Interface in **Englis
 | ![Your week](screenshots/your-week.jpg) Your week | ![Sleep timer](screenshots/sleep-timer.jpg) Power menu and sleep timer |
 | ![Settings](screenshots/settings.jpg) Settings | ![Network](screenshots/network-speedtest.jpg) Network and speed test |
 | ![Free up space](screenshots/free-up-space.jpg) Free up space | ![Themes](screenshots/theme-picker.jpg) Choosing a theme |
+| ![OptiScaler menu](screenshots/optiscaler-menu.jpg) OptiScaler menu in the Control Center | ![OptiScaler controls](screenshots/optiscaler-controls.jpg) Controller layout in the OptiScaler menu |
 
 *Game covers in the screenshots are blurred on purpose: they belong to their publishers.*
 
@@ -181,7 +186,7 @@ Battle.net, Ubisoft, Rockstar und Lutris, die Emulatoren, Apps für den Fernsehe
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.2 · Oberfläche auf **Deutsch und Englisch**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 
@@ -213,6 +218,8 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.2 · Oberfläche auf **D
 - Proton-CachyOS oder GE-Proton je Spiel; weitere Proton-Versionen unter Einstellungen › System › Updates
 - Je Spiel schaltbar: **FSR 4, HDR und OptiScaler**, Bildratenbegrenzung (jeder Wert, der die Bildwiederholrate glatt
   teilt, ab 20) und Auflösung
+- **OptiScaler-Menü mit dem Controller:** Control Center › Leistung öffnet es im laufenden Spiel. Steuerkreuz, Kreuz
+  und Kreis bedienen das Menü, Options schließt es; keine Tastatur nötig
 - Beschädigte Proton-Versionen werden erkannt und neu geladen
 - Der Controller geht auch in XInput-Spielen, ohne dass man etwas einstellen muss
 
@@ -228,6 +235,8 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.2 · Oberfläche auf **D
 - Bildschirmtastatur mit Wortvorschlägen (QWERTZ und QWERTY)
 - Tastatur-und-Maus-Modus für Spiele ohne Controller-Unterstützung, mit Tastenbelegung je Spiel
 - Zeiger-Modus für Spiele, die nur die Maus kennen (etwa Kartenspiele)
+- Trennt ein Spiel den DualSense jedes Mal über Bluetooth, wenn es nach dem Anhalten weiterläuft, merkt der PC5
+  Launcher das und hält dieses Spiel nicht mehr an
 - DualSense: Farbe und Helligkeit der Leuchtleiste, Vibration; das Touchpad bewegt in Spielen nicht mehr die Maus
 
 **Apps und Medien**
