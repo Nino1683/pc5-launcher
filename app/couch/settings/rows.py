@@ -30,8 +30,10 @@ ROW_TYPES = ("toggle", "select", "slider", "action", "info", "page", "text", "co
 # Rückfrage; page -> die Oberfläche öffnet Row.page selbst. settings.reset -> set(row_id,
 # Row.default) für Zeilen mit Vorgabe (der Baum schlägt sie auf der zuletzt gezeichneten Seite nach).
 
-# Empfohlene Werte für Area.order (Reihenfolge der Kategorien wie in tree.AREA_MODULES)
-AREA_ORDER = {"audio": 10, "display": 20, "network": 30, "accessories": 40, "games": 50,
+# Empfohlene Werte für Area.order (Reihenfolge der Kategorien wie in tree.AREA_MODULES). E133: „Updates“ unter „Spiele“
+# (Wunsch 2026-10-27), damit der Bereich samt Punkt ohne Rollen zu sehen ist (die Wurzel zeigt acht Bereiche, System
+# stand an elfter Stelle)
+AREA_ORDER = {"audio": 10, "display": 20, "network": 30, "accessories": 40, "games": 50, "updates": 55,
               "performance": 60, "storage": 70, "home": 80, "notifications": 90,
               "accessibility": 100, "system": 110, "session": 120}
 

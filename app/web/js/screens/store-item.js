@@ -4,6 +4,10 @@
 // Installieren lädt über Steam unsichtbar im Hintergrund, der Fortschritt steht auf dem Knopf.
 // itch.io (E100): Browserspiele spielt man auf ihrer Seite, das kleine Cover steht scharf rechts oben
 // vor einer unscharfen Fassung von sich selbst.
+// E132: Steam-Spiele (andere Shops nur mit sicherer Steam-App-ID, steam_appid) zeigen ihren Trailer: ruht man auf der
+// Seite, läuft er stumm im Kopfbild (components/trailer.js, dieselben Abbruchregeln wie im Hub); in „Bilder“ stehen
+// vorn Kacheln „Trailer“ (je Trailer eine), Kreuz spielt ihn groß mit Ton (components/media-viewer.js), Links/Rechts
+// blättert über Trailer und Bilder. Store-Spiele sind nicht installiert: immer nur gestreamt, nichts auf der Platte.
 import { h, icon, cssPx } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
@@ -14,6 +18,15 @@ import { S, fmt } from "../core/strings.js";
 import { confirm, dialog, imageViewer, messageDialog, scrollTextDialog } from "../components/dialog.js";
 import { toast } from "../components/toast.js";
 import { activateEntry } from "../components/entry-actions.js";
+import { storeTrailer, storeTrailers } from "../components/gameinfo.js";
+import { mediaViewer } from "../components/media-viewer.js";
+import { createTrailer } from "../components/trailer.js";
+
+// Gestaltung des Trailers (.trailer) liegt in css/hub-info.css; die Store-Seite braucht sie auch ohne Hub
+function ensureTrailerStyle() {
+  if (document.querySelector("link[data-part=hub-info]")) return;
+  document.head.append(h("link", { rel: "stylesheet", href: "css/hub-info.css", "data-part": "hub-info" }));
+}
 
 // Browser des PC5 Launchers mit einer Adresse (Kaufen, Anmelden). Läuft vorn etwas anderes, fragt
 // die Seite wie bei jedem Start, ob es geschlossen werden darf.
@@ -113,18 +126,26 @@ function create(params = {}) {
   const main = h("div.btn.st-main", { "data-focus": true, "data-focus-default": true }, mainLabel);
   const second = h("div.btn.is-secondary.st-second", { "data-focus": true, hidden: true }, h("span.btn-label"));
   const web = h("div.btn.is-secondary.is-round.st-web", { "data-focus": true }, icon("globe"));
-  const buttons = h("div.st-buttons", { "data-focus-group": true }, main, second, web);
+  // „Beschreibung“ steht oben bei Kaufen (Wunsch 2026-10-27: „nicht mehr unter den Bildern, sondern oben beim Kaufen“)
+  const more = h("div.btn.is-secondary.st-more", { "data-focus": true, hidden: true }, icon("info"), h("span.btn-label", { text: S.stMore }));
+  const buttons = h("div.st-buttons", { "data-focus-group": true }, main, second, more, web);
   const note = h("div.st-note");
   const facts = h("div.st-facts");
   const shots = h("div.st-shots", { "data-focus-group": true });
-  const more = h("div.btn.is-secondary.st-more", { "data-focus": true, hidden: true }, icon("info"), h("span.btn-label", { text: S.stMore }));
   const shotsSub = h("div.st-sub", { text: S.stShots });
-  const lower = h("div.st-lower", shotsSub, shots, more);
+  const lower = h("div.st-lower", shotsSub, shots);
   const page = h("div.st-page", cover, title, short, priceBox, buttons, note, facts, lower);
   const el = h("div.store-item" + (itch ? ".is-fit" : ""), hero, shade, page);
   let d = null;
   let serial = 0;
   let loading = false;
+  // E132: Trailer im Kopfbild (stumm) und als Kacheln; die App-ID kennt die Seite erst mit der Antwort von store.item
+  ensureTrailerStyle();
+  let trailers = [];
+  let trailerFor = "";
+  const steamId = () => (storeId === "steam" && /^\d+$/.test(id) ? id
+    : d && /^\d+$/.test(String(d.steam_appid || "")) ? String(d.steam_appid) : "");
+  const bg = createTrailer(el, { music: false, attach: (t) => { hero.after(t); }, source: (e) => storeTrailer(e.appid) });
 
   function price() {
     priceBox.replaceChildren();
@@ -197,15 +218,67 @@ function create(params = {}) {
     }
     price();
     facts.replaceChildren(...factRows(d, storeId).map(([k, v]) => h("div.st-fact", h("span", { text: k }), h("b.ell", { text: v }))));
-    shots.replaceChildren(...(d.screenshots || []).map((src, i) => {
-      const t = h("div.st-shot", { "data-focus": true, dataset: { i } }, h("img", { alt: "", src, decoding: "async", loading: "lazy" }));
-      return t;
-    }));
+    paintShots();
     more.hidden = !d.about;
-    // itch.io (E100) liefert keine Bilder: dann auch keine Überschrift „Bilder“ über der Beschreibung
-    shotsSub.hidden = !(d.screenshots || []).length;
-    lower.hidden = !(d.screenshots || []).length && !d.about;
     paintButtons();
+    loadTrailers();
+  }
+
+  // Bilder: vorn je Trailer eine Kachel (E132), dann die Screenshots. Der Fokus bleibt auf derselben Kachel.
+  function paintShots() {
+    const focused = shots.querySelector(".is-focus");
+    const keep = focused ? (focused.dataset.movie ? "m" + focused.dataset.movie : "i" + focused.dataset.i) : "";
+    const tiles = trailers.map((t, n) => h("div.st-shot.st-trailer", { "data-focus": true, dataset: { movie: t.movie, n } },
+      // Ohne Vorschaubild von Steam das Kopfbild der Seite; das Abspiel-Zeichen unterscheidet die Kachel
+      t.poster || (d && d.hero) ? h("img", { alt: "", src: t.poster || d.hero, decoding: "async", loading: "lazy" }) : null,
+      h("div.st-trailer-mark", icon("play"), h("span.ell", { text: t.name || S.stTrailer }))));
+    const pics = ((d && d.screenshots) || []).map((src, i) => h("div.st-shot", { "data-focus": true, dataset: { i } },
+      h("img", { alt: "", src, decoding: "async", loading: "lazy" })));
+    shots.replaceChildren(...tiles, ...pics);
+    // itch.io (E100) liefert keine Bilder: dann fällt der ganze untere Teil weg
+    const any = tiles.length + pics.length > 0;
+    shotsSub.hidden = !any;
+    lower.hidden = !any;
+    if (keep) {
+      const again = [...shots.children].find((c) => (c.dataset.movie ? "m" + c.dataset.movie : "i" + c.dataset.i) === keep);
+      if (again) nav.focus(again);
+    }
+    nav.ensure();
+  }
+
+  // Trailer dieses Spiels (nur mit Steam-App-ID): Kacheln und der stumme im Kopfbild. Steam-Seiten fragen gleich mit
+  // store.item (early), damit die Kacheln mit den Bildern erscheinen und der Fokus nicht umspringt; andere Shops erst,
+  // wenn store.item eine steam_appid nennt.
+  function applyTrailers(appid, r) {
+    trailerFor = appid;
+    trailers = r && r.ok && Array.isArray(r.trailers) ? r.trailers : [];
+    bg.setEntry(trailers.length ? { id: "store:" + appid, kind: "game", appid } : null);
+  }
+
+  async function loadTrailers() {
+    const appid = steamId();
+    if (!appid || appid === trailerFor) return;
+    trailerFor = appid;
+    const r = await storeTrailers(appid);
+    if (trailerFor !== appid) return;
+    applyTrailers(appid, r);
+    if (trailers.length) paintShots();
+  }
+
+  function viewMedia(start) {
+    const appid = steamId();
+    const items = [...trailers.map((t) => ({ kind: "video", name: t.name,
+      load: async () => { const r = await storeTrailer(appid, t.movie, true); const x = r && r.ok && r.trailer;
+        return x ? (x.av || x.video) : null; } })),
+    ...((d && d.screenshots) || []).map((src) => ({ kind: "image", src }))];
+    // Der stumme Trailer im Kopfbild hört solange auf und kommt danach nach der Ruhezeit wieder
+    const entry = trailers.length ? { id: "store:" + appid, kind: "game", appid } : null;
+    bg.setEntry(null);
+    const layer = mediaViewer({ items, start });
+    if (!layer) { bg.setEntry(entry); return; }
+    const close = layer.close;
+    layer.close = (reason) => { close(reason); if (!layer.reopened) { layer.reopened = true; bg.setEntry(entry); } };
+    window.__storeMedia = layer;
   }
 
   // Ohne Seite (erstes Laden gescheitert, web-ui-4) heißt der Hauptknopf „Erneut versuchen“ und
@@ -219,6 +292,7 @@ function create(params = {}) {
       main.dataset.action = "";
       main.classList.add("is-off");
     }
+    const early = storeId === "steam" && /^\d+$/.test(id) && trailerFor !== id ? storeTrailers(id) : null;
     let r;
     try { r = await call("store.item", { store: storeId, id, card: params.card || null }); } catch (e) { r = { ok: false, message: e && e.message }; }
     if (mine !== serial) return;
@@ -234,6 +308,11 @@ function create(params = {}) {
       return;
     }
     d = r.item;
+    if (early) {
+      const t = await early;
+      if (mine !== serial) return;
+      applyTrailers(id, t);
+    }
     paint();
   }
 
@@ -278,9 +357,11 @@ function create(params = {}) {
     scrollTextDialog({ title: d.title, box: h("div.st-about-box", text), body: text });
   }
 
+  // Ohne Trailer wie bisher der Bildbetrachter; mit Trailern die gemeinsame Ansicht (E132)
   function viewShot(start) {
+    if (trailers.length) { viewMedia(trailers.length + start); return; }
     const list = d.screenshots || [];
-    imageViewer({ count: list.length, start, src: (i) => list[i], caption: (i) => fmt(S.stImageOf, { n: i + 1, total: list.length }) });
+    imageViewer({ count: list.length, start, src: (i) => list[i], caption: (i) => fmt(S.stImageOf, { n: i + 1, total: list.length }), fill: true });
   }
 
   // Unten (Bilder, Beschreibung) rückt die Seite nach oben, mindestens um --st-lower-shift und so
@@ -304,7 +385,11 @@ function create(params = {}) {
   web.addEventListener("press", () => (itch ? openStoreUrl("store.web", { store: storeId, what: "page", id })
     : openStoreUrl("store.buy", { store: storeId, id, slug: (d && d.slug) || "" })));
   more.addEventListener("press", about);
-  shots.addEventListener("press", (e) => { const t = e.target.closest(".st-shot"); if (t) viewShot(Number(t.dataset.i) || 0); });
+  shots.addEventListener("press", (e) => {
+    const t = e.target.closest(".st-shot");
+    if (!t) return;
+    if (t.dataset.movie) viewMedia(Number(t.dataset.n) || 0); else viewShot(Number(t.dataset.i) || 0);
+  });
 
   load();
   return {
@@ -322,6 +407,8 @@ function create(params = {}) {
       else if (event === "store.owned" && payload && (payload.store || storeId) === storeId && (payload.id === id || !payload.id)) load();
     },
     onShow(info) { nav.ensure(); if (info && info.back) load(); },
+    destroy() { bg.destroy(); },
+    get trailer() { return bg.stats; },
   };
 }
 

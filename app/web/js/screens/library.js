@@ -3,6 +3,10 @@
 // Sortieren/Filtern, Suche und „Spiel installieren“. Gerollt wird per translate3d am Raster.
 // Bilder laden träge: dekodiert wird nur, was im Sichtbereich liegt; die Zeilen knapp davor und
 // dahinter werden schon geladen (ohne Dekodieren), alles Weitere erst beim Rollen.
+// E120 : vor den Spielen die Kachel „Mediengalerie“ (.lib-gallery, kein .cover und kein
+// Eintrag): nur unter „Installiert“ und „Alle“, nicht beim Suchen oder Filtern nach Herkunft und nicht ohne Spiele.
+// Zähler, Sortierung, Filter und der erste Fokus (das erste Spiel) bleiben, wie sie waren; Links vom ersten Spiel
+// führt zur Kachel, von ihr weiter zu den Rundknöpfen.
 import { h, icon, gridTop } from "../core/dom.js";
 import { call, notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
@@ -16,6 +20,7 @@ import { openMenu } from "../components/menu.js";
 import { askText } from "../components/osk-input.js";
 
 const COLS = 6;
+const GALLERY_TABS = new Set(["installed", "all"]);      // E120: Reiter mit der Kachel „Mediengalerie“
 const ROWS_SHOWN = 3;             // zwei volle Zeilen und der Ansatz der dritten
 const ROWS_AHEAD = 2;             // so viele Zeilen dahinter schon laden (nicht dekodieren)
 // Favoriten (E99) links von „Installiert“: L1 aus dem Reiter, mit dem die Bibliothek aufgeht
@@ -84,6 +89,10 @@ function create(params = {}) {
     h("div.lib-head", count, sort),
     sideBox, view, empty);
   const nodes = new Map();        // Kennung -> Kachel
+  // E120: Kachel „Mediengalerie“, öffnet den Bildschirm gallery (screens/gallery.js)
+  const galleryTile = h("div.lib-gallery", { "data-focus": true, dataset: { id: "sys:gallery" } },
+    icon("image", "lib-gallery-ic"), h("div.lib-gallery-name.clamp2", { text: S.galTitle }));
+  galleryTile.addEventListener("press", () => { if (router.known("gallery")) router.go("gallery"); else sound.play("edge"); });
   let loadSerial = 0;
   let pendingFocus = null;        // Kennung, auf die der Fokus soll, sobald sie in der Liste steht
 
@@ -137,9 +146,11 @@ function create(params = {}) {
       return node;
     });
     for (const [id, node] of [...nodes]) if (!covers.includes(node)) nodes.delete(id);
-    const same = covers.length === grid.children.length && covers.every((c, i) => grid.children[i] === c);
-    if (!same) grid.replaceChildren(...covers);
-    covers.forEach((c, i) => {
+    const gallery = covers.length > 0 && GALLERY_TABS.has(state.tab) && !state.query && !prefs.source && router.known("gallery");
+    const cells = gallery ? [galleryTile, ...covers] : covers;
+    const same = cells.length === grid.children.length && cells.every((c, i) => grid.children[i] === c);
+    if (!same) grid.replaceChildren(...cells);
+    cells.forEach((c, i) => {
       // Aus der obersten Zeile führt Hoch immer zum aktiven Reiter, aus der linken Spalte Links zu den Rundknöpfen
       if (i < COLS) c.setAttribute("data-nav-up", ".lib-tab.is-active"); else c.removeAttribute("data-nav-up");
       if (i % COLS === 0) c.setAttribute("data-nav-left", ".lib-side-btn[data-focus-default]"); else c.removeAttribute("data-nav-left");
@@ -189,6 +200,8 @@ function create(params = {}) {
     const at = marked ? [...grid.children].indexOf(marked) : -1;
     state.all = entries;
     let keep = render(wanted);
+    // Fokus auf der Kachel „Mediengalerie“ (E120): bleibt dort, wenn die Liste neu kommt
+    if (!fresh && marked === galleryTile && grid.contains(galleryTile)) keep = galleryTile;
     if (keep && pendingFocus && keep.dataset.id === pendingFocus) pendingFocus = null;
     // Der Eintrag ist weg (gelöscht, ausgeblendet): der Nachbar an derselben Stelle bekommt den Fokus
     if (keep && wanted && keep.dataset.id !== wanted && at > 0) {
@@ -223,6 +236,7 @@ function create(params = {}) {
     const last = Math.min(covers.length, (state.top + ROWS_SHOWN + ROWS_AHEAD) * COLS);
     for (let i = first; i < last; i += 1) {
       const row = Math.floor(i / COLS);
+      // die Kachel „Mediengalerie“ hat kein Bild (loadArt übergeht null)
       loadArt(covers[i].querySelector(".art"), { decode: row >= state.top && row < state.top + ROWS_SHOWN });
     }
   }
@@ -327,6 +341,7 @@ function create(params = {}) {
   // Nach Namen sortiert springen L2/R2 zum vorigen/nächsten Anfangsbuchstaben (E99), sonst zwei Zeilen.
   // L2 mitten in einer Gruppe führt erst an ihren Anfang.
   function letterJump(covers, at, forward) {
+    if (at < 0) return forward ? covers[0] || null : null;
     const letters = covers.map((c) => letterOf(entryOf(c)));
     const here = letters[at];
     if (forward) {
@@ -352,7 +367,8 @@ function create(params = {}) {
       case "r1": if (index < TABS.length - 1) setTab(TABS[index + 1].id, true); else sound.play("edge"); return true;
       case "l2": case "r2": {
         if (!inGrid) return true;
-        const covers = [...grid.children];
+        // nur die Spiele: auf der Kachel „Mediengalerie“ (at = -1) beginnt der Sprung vor dem ersten Spiel
+        const covers = [...grid.querySelectorAll(":scope > .cover")];
         const at = covers.indexOf(nav.current);
         const target = prefs.sort === "title" ? letterJump(covers, at, button === "r2")
           : covers[Math.max(0, Math.min(covers.length - 1, at + (button === "r2" ? 2 : -2) * COLS))];

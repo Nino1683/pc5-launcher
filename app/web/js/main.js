@@ -103,7 +103,8 @@ async function startHome() {
     report("Bildschirme des Installers: " + (e && e.stack || e));
   }
   // E103: neue Bildschirme, je Teil eine Datei (export const screens = [...])
-  for (const path of ["./screens/setup.js", "./screens/stats.js", "./screens/backup.js", "./screens/cleanup.js"]) {
+  // E120: Mediengalerie (gallery, gallery-view)
+  for (const path of ["./screens/setup.js", "./screens/stats.js", "./screens/backup.js", "./screens/cleanup.js", "./screens/gallery.js"]) {
     try { const m = await import(path); router.register(...(m.screens || [])); }
     catch (e) { report("Bildschirme " + path + ": " + (e && e.stack || e)); }
   }

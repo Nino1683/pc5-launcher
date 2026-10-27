@@ -6,10 +6,18 @@
 // er auf demselben Eintrag. Solange niemand die Reihe bewegt hat, steht er auf dem Eintrag, den
 // der Aufrufer als ersten nennt (das zuletzt gespielte Spiel), auch wenn die Liste vorher leer war.
 // Kacheln bleiben über Neuaufbauten hinweg dieselben Elemente: Ein geladenes Bild flackert nicht.
+//
+// E128: Kommt der Fokus von oben (Kopfzeile) oder unten (Hub) zurück auf die Fokuskachel, zieht sich ihr Ring von
+// außen auf die Kachel zusammen (base.css .is-ring-return). E129: Die Reihe nennt dem Hintergrund die Bilder ihrer
+// Nachbarn (±2), damit er sie vorab dekodiert (backdrop.js preloadBackdrops); nur die Reihe, die gerade zu sehen ist.
 import { h } from "../core/dom.js";
 import { nav } from "../core/nav.js";
 import { sound } from "../core/sound.js";
 import { artBox, updateArt } from "./art.js";
+import { preloadBackdrops } from "./backdrop.js";
+
+const NEAR = [1, -1, 2, -2];      // E129: Nachbarn in dieser Reihenfolge (die nächsten zuerst)
+const RETURN_PAD = 1;             // E128: Pixel Spielraum beim Vergleich „ganz darüber / ganz darunter“
 
 // handlers: onChange(entry, index, {repeat}), onPress(entry)
 export function createTileRow(handlers = {}) {
@@ -19,6 +27,36 @@ export function createTileRow(handlers = {}) {
   let index = 0;
   let touched = false;            // hat der Nutzer die Reihe schon bewegt?
   const nodes = new Map();        // Kennung -> Kachel
+  let preloadQueued = false;
+
+  // E129: Bilder der Nachbarn vorab laden lassen. Erst nach dem laufenden Aufbau (das Home schaltet die andere
+  // Reihe danach auf is-off), und nur, wenn diese Reihe die sichtbare ist
+  function queuePreload() {
+    if (preloadQueued) return;
+    preloadQueued = true;
+    setTimeout(() => {
+      preloadQueued = false;
+      if (el.classList.contains("is-off") || el.inert || !el.isConnected) return;
+      const hero = (e) => (e && e.art && typeof e.art.hero === "string" ? e.art.hero : "");
+      preloadBackdrops(NEAR.map((d) => hero(entries[index + d])).filter(Boolean), hero(entries[index]));
+    }, 0);
+  }
+
+  // E128: Fokus kommt nach Lage von ganz oben oder ganz unten im selben Bereich (nicht aus Menü oder Dialog zurück).
+  // Die Klasse gilt bis zum Verlassen der Kachel (base.css: sonst begänne das gewöhnliche Einblenden von vorn)
+  el.addEventListener("nav-focus", (e) => {
+    const tile = e.target;
+    if (!tile.classList || !tile.classList.contains("tile")) return;
+    queuePreload();
+    tile.classList.remove("is-ring-return");
+    const from = e.detail && e.detail.from;
+    const scope = nav.scope;
+    if (!from || !from.isConnected || el.contains(from) || !scope || !scope.el.contains(from)) return;
+    const a = tile.getBoundingClientRect();
+    const b = from.getBoundingClientRect();
+    if (b.bottom <= a.top + RETURN_PAD || b.top >= a.bottom - RETURN_PAD) tile.classList.add("is-ring-return");
+  });
+  el.addEventListener("nav-blur", (e) => { if (e.target.classList) e.target.classList.remove("is-ring-return"); });
 
   // Spielkacheln ohne Text und ohne Zeichen darüber (07 2.2): Die Marke der Quelle steht neben dem
   // Titel der Fokuskachel, „nicht verfügbar“ zeigt die gedimmte Kachel (art.js setzt is-dim)
@@ -79,6 +117,7 @@ export function createTileRow(handlers = {}) {
       layout();
     }
     if (hadFocus) focusCurrent();
+    queuePreload();
     return same;
   }
 
@@ -113,6 +152,7 @@ export function createTileRow(handlers = {}) {
     if (hadFocus) nav.focus(tiles[index], { repeat });
     sound.play("focus", { repeat });
     if (handlers.onChange) handlers.onChange(entries[index], index, { repeat });
+    queuePreload();
     return true;
   }
 
@@ -143,6 +183,7 @@ export function createTileRow(handlers = {}) {
     index = found;
     touched = true;
     layout();
+    queuePreload();
     return true;
   }
 

@@ -60,6 +60,7 @@ ART_TYPES = {
     ".avif": "image/avif", ".tga": "image/x-tga",
     ".wav": "audio/wav", ".ogg": "audio/ogg", ".opus": "audio/ogg", ".mp3": "audio/mpeg",
     ".flac": "audio/flac",
+    ".webm": "video/webm",          # Start- und Ruhemodus-Videos (E130), nur aus angemeldeten Ordnern
     ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".otf": "font/otf",
 }
 APP_TYPES = {
@@ -88,6 +89,10 @@ class UiHost:
         # fn(rolle): Der Web-Prozess dieser Seite stirbt immer wieder, ohne dass sie dazwischen
         # schlägt (CrashWatch). main beendet das Home dann als Absturz (Rückfallebene).
         self.on_crash_loop: Callable[[str], None] | None = None
+        # fn(rolle, grund) je Eintrag: Die Seite wird neu geladen, weil sie nicht mehr schlug ("no-beat") oder ihr
+        # Web-Prozess endete (value_nick von WebKit: "crashed", "exceeded-memory-limit" …). E132: Lief dabei ein
+        # Trailer, verwirft ihn wiring_gameinfo, statt die Seite wieder hängen zu lassen.
+        self.on_page_reset: list[Callable[[str, str], None]] = []
         # E92: Startanimation? Gefragt nur beim ersten Laden des Home in diesem Prozess
         self.want_intro: Callable[[], bool] | None = None
         self.lang: Callable[[], str] | None = None             # Sprache der Seite (?lang=, i18n)
@@ -449,8 +454,16 @@ class UiHost:
                 continue
             _log.warning("%s: kein Herzschlag seit %.0f s, Web-Prozess wird beendet und die "
                          "Seite neu geladen", role, now - self._alive[role])
+            self._page_reset(role, "no-beat")
             self._restart_page(role)
         return True
+
+    def _page_reset(self, role: str, reason: str) -> None:
+        for fn in list(self.on_page_reset):
+            try:
+                fn(role, reason)
+            except Exception:
+                _log.exception("on_page_reset(%s, %s)", role, reason)
 
     def _restart_page(self, role: str) -> None:
         """Eine Seite ohne Herzschlag hängt meist in ihrem Web-Prozess (Endlosschleife); der
@@ -480,6 +493,8 @@ class UiHost:
         self._crashes[role] = recent
         delay = min(300 * 2 ** (len(recent) - 1), 5000)
         _log.error("%s: Web-Prozess beendet (%s), lade in %d ms neu", role, reason.value_nick, delay)
+        if reason.value_nick != "terminated-by-api":   # das eigene Beenden meldet _watch_beats schon
+            self._page_reset(role, reason.value_nick)
         self._alive[role] = now
         self._drop_answers(role)
         if self.crash_watch.crashed(role) and self.on_crash_loop:

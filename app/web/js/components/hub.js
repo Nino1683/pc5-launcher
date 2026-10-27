@@ -1,12 +1,24 @@
 // Hub eines Eintrags (07 Abschnitt 2.4): Logo oder Titel, Unterzeile, Hinweis, Hauptknopf, „…“,
 // Info-Marken rechts, Karten. Im Home ist er Vorschau unter der Reihe und rückt nach oben,
 // sobald der Fokus in ihn wandert; die Bibliothek zeigt ihn als eigenen Bildschirm.
+// E123: darunter Abschnitte („Über das Spiel“, „Neuigkeiten“; hub-sections.js, weitere über
+// hub.sections.add) und dahinter der Steam-Trailer samt Spielmusik (trailer.js). Beide kennen nur den Eintrag
+// des Hub. Unter Logo bzw. Titel steht die Kurzbeschreibung von Steam in einer Zeile; die Karten
+// füllen lib.get und weitere Quellen (addCardSource).
+// E125: Die Karten sind nützliche (hub-cards.js: Trophäen, Bildschirmfotos, Neuigkeiten, Über das Spiel), bis zu vier,
+// anwählbar, mit Bild bzw. Fortschrittslinie; ganz ohne sie bleiben die technischen aus lib.get („…“ › Informationen
+// zeigt sie immer).
+// E127: Lage und Größe des Logos je Spiel (Option logo), angepasst über entry-actions.adjustLogo mit Live-Vorschau.
 import { h, icon, clear, decoded } from "../core/dom.js";
 import { nav } from "../core/nav.js";
 import { S, fmt, playtimeText, whenText } from "../core/strings.js";
 import { store } from "../core/store.js";
 import { artBox, updateArt, badge, marks, stateOf } from "./art.js";
 import { mainLabel, canStart, isRunning } from "./entry-actions.js";
+import { createHubSections } from "./hub-sections.js";
+import { gameInfo, wantsInfo } from "./gameinfo.js";
+import { createTrailer } from "./trailer.js";
+import { CARD_SOURCES } from "./hub-cards.js";
 
 function subLine(entry) {
   if (entry.system || entry.kind === "app") return entry.note || "";
@@ -52,9 +64,16 @@ function secondOf(entry) {
 
 // handlers: onMain(entry), onMore(entry), onSecond(entry, kind) mit kind "close" | "desktop-mode"
 const STORE_ID = "sys:store";
+// Kurzbeschreibung und weitere Karten erst, wenn die Auswahl so lange ruht (Home: schnelles Blättern fragt nichts)
+const REST_MS = 800;
+const MAX_CARDS = 3;
+const MAX_USEFUL = 4;             // E125: vier nützliche Karten passen schmaler in dieselbe Breite (--card-w-4)
+const CARD_WAIT_MS = 3000;        // so lange warten die technischen Karten auf die nützlichen (Netz, Kern)
 
 export function createHub(handlers = {}) {
   const logo = h("div.hub-logo");
+  // E123: eine Zeile Kurzbeschreibung (Steam short_description), nur mit Steam-Angaben
+  const tagline = h("div.hub-tagline.ell", { hidden: true });
   const sub = h("div.hub-sub.ell");
   const note = h("div.hub-note.ell", { hidden: true });
   const mainLabelEl = h("span.btn-label");
@@ -70,7 +89,12 @@ export function createHub(handlers = {}) {
   // (Gratis bei Epic, Angebote) statt der Infokarten; Kreuz öffnet die Seite des Spiels
   const storeBox = h("div.hub-cards.hub-store", { hidden: true });
   let storeCards = [];
-  const el = h("div.hub", { "data-focus-group": true }, logo, sub, note, actions, chipBox, cards, storeBox);
+  const el = h("div.hub", { "data-focus-group": true }, logo, tagline, sub, note, actions, chipBox, cards, storeBox);
+  // E123: Abschnitte unter den Karten (geladen, sobald der Hub offen ist) und der Trailer dahinter
+  const sections = createHubSections(el);
+  el.append(sections.el);
+  const trailer = createTrailer(el);
+  el.addEventListener("nav-focus", () => sections.open());
   // Kopf des Eintrags, wenn der Hub offen ist: Mini-Bild, Marke, Titel (07 Zustand B)
   const miniArt = h("div.mini-art");
   const miniTitle = h("div.mini-title");
@@ -78,6 +102,17 @@ export function createHub(handlers = {}) {
   let entry = null;
   let detail = null;
   let logoSrc = null;
+  let restTimer = null;
+  let rested = "";                // Eintrag, für den Kurzbeschreibung und Karten-Quellen schon gefragt sind
+  // Karten aus weiteren Quellen (für den Umbau der Hub-Karten nach E123): fn(entry) -> Promise<[{label, value,
+  // order?}]> oder Liste. Sortiert wird nach order (die Karten aus lib.get haben 50, 51, 52; ohne order 100), es
+  // bleiben MAX_CARDS. Gefragt wird einmal je Eintrag nach der Ruhezeit (Spielseite: sofort, open()).
+  const cardSources = [...CARD_SOURCES];
+  let extraCards = [];
+  let cardsPending = 0;           // E125: Quellen des Eintrags, die noch nicht geantwortet haben
+  let cardsWaited = false;        // CARD_WAIT_MS sind um: dann gilt, was da ist
+  let cardsTimer = null;
+  let cardSerial = 0;             // je Wechsel des Eintrags neu: späte Antworten eines früheren Besuchs zählen nicht
 
   main.addEventListener("press", () => { if (entry && handlers.onMain) handlers.onMain(entry); });
   more.addEventListener("press", () => { if (entry && handlers.onMore) handlers.onMore(entry); });
@@ -119,8 +154,30 @@ export function createHub(handlers = {}) {
     }
   }
 
+  // E127: Lage und Größe des Logos je Spiel (Option logo {x, y, s}, entry-actions.adjustLogo). Der Kasten bleibt,
+  // home.css verschiebt und skaliert nur das Bild darin. Beim Anpassen gilt die Vorschau (Ereignis
+  // couch-logo-preview), nach dem Speichern der neue Wert, bis der Eintrag ihn selbst mitbringt.
+  let logoPreview = null;
+  function placeLogo() {
+    const saved = entry && entry.options && entry.options.logo;
+    const v = logoPreview || (saved && typeof saved === "object" ? saved : {});
+    const n = (x, d) => (typeof x === "number" && Number.isFinite(x) ? x : d);
+    logo.style.setProperty("--logo-x", String(n(v.x, 0)));
+    logo.style.setProperty("--logo-y", String(n(v.y, 0)));
+    logo.style.setProperty("--logo-s", String(n(v.s, 1)));
+  }
+  const onLogoPreview = (e) => {
+    const d = (e && e.detail) || {};
+    if (!entry || d.id !== entry.id) return;
+    if (d.saved) entry = { ...entry, options: { ...(entry.options || {}), logo: d.value || {} } };
+    logoPreview = d.saved ? null : d.value || null;
+    placeLogo();
+  };
+  document.addEventListener("couch-logo-preview", onLogoPreview);
+
   // Logo oder Titel als Schrift. Das Logo ersetzt den Titel erst, wenn es dekodiert ist.
   async function renderLogo() {
+    placeLogo();
     const art = entry.art || {};
     const src = art.logo || "";
     // Trägt der Hintergrund den Schriftzug schon im Bild (Feld des Kerns), steht hier nichts doppelt
@@ -165,6 +222,7 @@ export function createHub(handlers = {}) {
     note.textContent = plain ? "" : stateOf(entry) === "unavailable" ? S.unavailableNote : text;
     note.hidden = !note.textContent;
     el.classList.toggle("has-note", !note.hidden);
+    showTagline();
     chipBox.replaceChildren(...chips(entry, detail && detail.globals, detail && detail.week));
     requestAnimationFrame(fitChips);
     miniTitle.replaceChildren(...[badge(entry.badge), h("span.ell", { text: entry.title }), ...marks(entry)].filter(Boolean));
@@ -198,15 +256,105 @@ export function createHub(handlers = {}) {
     else if (mainUp) main.setAttribute("data-nav-up", mainUp); else main.removeAttribute("data-nav-up");
   }
 
+  // Kurzbeschreibung: nur ohne Hinweis des Kerns (der ist wichtiger; drei Zeilen passen nicht über die Knöpfe)
+  function showTagline() {
+    tagline.hidden = !tagline.textContent || !note.hidden;
+    el.classList.toggle("has-tagline", !tagline.hidden);
+  }
+
+  // E125: Nützliche Karten (order < 50) ersetzen die technischen aus lib.get; fehlen sie ganz, bleiben die technischen.
+  // Solange die Quellen eines Spiels noch fragen (höchstens CARD_WAIT_MS nach der Ruhezeit), steht nichts: Sonst
+  // stünden erst die technischen da und sprängen dann um.
+  function waitingCards() {
+    return !!entry && wantsInfo(entry) && !cardsWaited && (rested !== entry.id || cardsPending > 0);
+  }
+
+  function cardNode(c) {
+    const node = h("div.hub-card" + (c.image ? ".has-img" : ""), { "data-focus": typeof c.press === "function",
+      dataset: { kind: c.kind || "" } },
+    c.image ? h("img.hub-card-img", { alt: "", decoding: "async", src: c.image }) : null,
+    h("div.hub-card-label.ell", { text: c.label }),
+    h("div.hub-card-value" + (c.clamp ? ".clamp2" : ".ell"), { text: c.value || "" }),
+    c.sub ? h("div.hub-card-sub.ell", { text: c.sub }) : null,
+    c.extra || null,
+    typeof c.progress === "number" ? h("div.hub-card-line", h("i", { style: { "--p": String(Math.max(0, Math.min(1, c.progress))) } })) : null);
+    if (typeof c.press === "function") node.addEventListener("press", () => c.press());
+    return node;
+  }
+
+  function renderCards() {
+    const byOrder = (a, b) => (a.order ?? 100) - (b.order ?? 100);
+    let all = [];
+    if (extraCards.some((c) => (c.order ?? 100) < 50)) all = [...extraCards].sort(byOrder).slice(0, MAX_USEFUL);
+    else if (!waitingCards()) {
+      const base = ((detail && detail.info) || []).slice(0, 3).map((it, i) => ({ ...it, order: 50 + i }));
+      all = [...base, ...extraCards].sort(byOrder).slice(0, MAX_CARDS);
+    }
+    // Lag der Fokus auf einer Karte, bleibt er auf derselben Art (sonst auf dem Hauptknopf)
+    const held = nav.current && cards.contains(nav.current) ? nav.current.dataset.kind : null;
+    cards.classList.toggle("is-four", all.length > MAX_CARDS);
+    cards.replaceChildren(...all.map(cardNode));
+    if (held !== null) {
+      const again = [...cards.children].find((n) => n.dataset.kind === held && n.hasAttribute("data-focus"));
+      if (!(again && nav.focus(again))) nav.focus(main);
+    }
+  }
+
+  // Nach der Ruhezeit: Kurzbeschreibung (game.info, im Kern einen Tag zwischengespeichert) und Karten-Quellen
+  function rest() {
+    if (!entry || rested === entry.id) return;
+    const want = entry;
+    rested = want.id;
+    if (wantsInfo(want)) {
+      gameInfo(want.id).then((r) => {
+        if (!entry || entry.id !== want.id) return;
+        tagline.textContent = (r && r.ok && r.steam && r.steam.short) || "";
+        showTagline();
+      });
+    }
+    cardsPending = cardSources.length;
+    clearTimeout(cardsTimer);
+    cardsTimer = setTimeout(() => { if (entry && entry.id === want.id) { cardsWaited = true; renderCards(); } }, CARD_WAIT_MS);
+    for (const source of cardSources) ask(source, want);
+    if (!cardSources.length) renderCards();
+  }
+
+  function ask(source, want) {
+    const mine = cardSerial;
+    const current = () => mine === cardSerial && entry && entry.id === want.id;
+    Promise.resolve().then(() => source(want)).then((list) => {
+      if (!current() || !Array.isArray(list)) return;
+      extraCards = [...extraCards, ...list.filter((c) => c && c.label)];
+    }).catch((e) => console.error("Karten-Quelle im Hub: " + (e && e.stack || e))).then(() => {
+      if (!current()) return;
+      cardsPending = Math.max(0, cardsPending - 1);
+      renderCards();
+    });
+  }
+
   function setEntry(next) {
     const changed = !entry || !next || entry.id !== next.id;
     entry = next;
     if (!entry) return;
-    if (changed) { detail = null; cards.replaceChildren(); miniArt.replaceChildren(artBox(entry, { withTitle: false })); }
-    else updateArt(miniArt.firstChild, entry);
+    if (changed) {
+      logoPreview = null;           // E127: eine Vorschau gilt nur für ihren Eintrag
+      detail = null;
+      extraCards = [];
+      cardsPending = 0;
+      cardsWaited = false;
+      cardSerial += 1;
+      clearTimeout(cardsTimer);
+      cards.replaceChildren();
+      miniArt.replaceChildren(artBox(entry, { withTitle: false }));
+      tagline.textContent = "";
+      clearTimeout(restTimer);
+      restTimer = setTimeout(rest, REST_MS);
+    } else updateArt(miniArt.firstChild, entry);
     renderLogo();
     renderState();
     showStore();
+    sections.setEntry(entry);
+    trailer.setEntry(entry);
   }
 
   // Aus lib.get: Karten (die ersten drei Angaben), Hinweiszeile, globale Schalter. Marken und Karten
@@ -215,12 +363,16 @@ export function createHub(handlers = {}) {
     if (!next || !entry || !next.entry || next.entry.id !== entry.id) return;
     detail = next;
     entry = { ...entry, ...next.entry, mainLabel: entry.mainLabel, running: entry.running || next.entry.running };
-    cards.replaceChildren(...(next.info || []).slice(0, 3).map((it) =>
-      h("div.hub-card", h("div.hub-card-label.ell", { text: it.label }), h("div.hub-card-value.ell", { text: it.value }))));
+    placeLogo();                    // E127: frische Option logo aus lib.get
+    renderCards();
     renderState();
   }
 
   return { el, mini, main, second, more, setEntry, setDetail, setStoreCards, refresh: renderState, get entry() { return entry; },
     // erste Karte der Store-Kachel, wenn sie zu sehen ist (runter aus der Kachelreihe landet dort)
-    get firstStoreCard() { return storeBox.hidden ? null : storeBox.firstElementChild; } };
+    get firstStoreCard() { return storeBox.hidden ? null : storeBox.firstElementChild; },
+    // E123: Abschnitte laden (Spielseite gleich, Home sobald der Fokus im Hub liegt), weitere anhängen, Trailer
+    open: () => { clearTimeout(restTimer); rest(); sections.open(); }, sections, trailer,
+    addCardSource(fn) { cardSources.push(fn); if (entry && rested === entry.id) ask(fn, entry); },
+    destroy() { clearTimeout(restTimer); clearTimeout(cardsTimer); trailer.destroy(); document.removeEventListener("couch-logo-preview", onLogoPreview); } };
 }

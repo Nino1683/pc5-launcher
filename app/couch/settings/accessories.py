@@ -186,7 +186,7 @@ class AccessoriesArea:
         rows.append(R.select("accessories.capture", "Bildschirmfoto mit",
                              capture if capture in [v for v, _ in CAPTURE_CHOICES] else CAPTURE_DEFAULT,
                              [R.option(v, label) for v, label in CAPTURE_CHOICES], default=CAPTURE_DEFAULT,
-                             hint="Fotos liegen unter Dateien › Bildschirmfotos. Mit Create allein sieht ein "
+                             hint="Fotos zeigt die Mediengalerie (Medien), die Dateien liegen unter Dateien › Bildschirmfotos. Mit Create allein sieht ein "
                                   "Spiel den Druck auch (oft Karte oder Menü)."))
         lb = lightbar_value(cfg.get("input.lightbar", None))
         rows.append(R.select("accessories.lightbar-color", "Farbe der Leuchtleiste", lb["color"],

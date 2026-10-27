@@ -91,6 +91,17 @@ html.reduce-motion .dialog-timer { display: none; }
 .dialog-buttons.is-stack { flex-direction: column; align-items: stretch; }
 .dialog-buttons.is-stack .btn { flex: none; width: auto; max-width: none; }
 
+/* ------------------------------------------------------------------ „Was ist neu“ (E133, components/update-notes.js)
+   Tafel zum Blättern wie die Beschreibung im Store: der Kasten schneidet ab, der Inhalt rollt über --scroll */
+.un-box { height: var(--dialog-log-h); overflow: hidden; position: relative; }
+.un-body { display: flex; flex-direction: column; gap: var(--dialog-gap);
+  --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }
+.un-head { font-size: var(--fs-value); line-height: var(--lh-value); font-weight: var(--w-strong); color: var(--c-text); }
+.un-note { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-3); }
+.un-text { margin-top: var(--row-hint-gap); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2);
+  white-space: pre-line; overflow-wrap: anywhere; }
+html.reduce-motion .un-body { transition: none; }
+
 /* ------------------------------------------------------------------ Anzeigebereich prüfen */
 .area { background: var(--c-bg); }
 .area-frame { position: absolute; inset: 0; border: var(--area-line) solid var(--c-area-line); }

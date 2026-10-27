@@ -26,7 +26,7 @@ from typing import Any, Callable
 
 from .. import jsontext, log, paths, system
 from . import describe
-from .model import OPTION_DEFAULTS, Entry, pad_spots_value, source_title
+from .model import OPTION_DEFAULTS, Entry, logo_value, pad_spots_value, source_title
 
 _log = log.get("library")
 
@@ -1287,6 +1287,8 @@ def check_option(key: str, value: Any) -> Any:
         return float(value)
     if key == "pad_spots":
         return pad_spots_value(value)       # {} = zurücksetzen (Spieleinstellungen › Controller, E99)
+    if key == "logo":
+        return logo_value(value)            # E127: Lage und Größe des Logos im Hub, {} = wie geliefert
     if key == "saves":
         if not isinstance(value, str) or (value and (not os.path.isabs(value) or len(value) > 4096)):
             raise ValueError("Das ist kein Ordner.")

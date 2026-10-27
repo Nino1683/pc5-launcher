@@ -29,7 +29,9 @@ Prüfmodus: Ohne eingesteckte Netzfunktion gibt es kein Netz; der Installer läu
 (proc.manager.test_mode_allows) und mit HOME und den XDG-Orten im Käfig.
 
 Zustand <state>/selfupdate.json: checked_at, etag, release {version, size, digest, name}, announced (schon
-gemeldete Fassung), installed (abgelegt, wartet auf den Neustart), error, error_at.
+gemeldete Fassung), installed (abgelegt, wartet auf den Neustart), installed_from, error, error_at; seit E133 notes
+(Texte der Releases für „Was ist neu“, changelog.release_notes), started (zuletzt gestartete Fassung) und whatsnew
+({version, since}: nach einem Update einmal im Home zeigen, bis die Seite update.seen schickt).
 """
 from __future__ import annotations
 
@@ -54,7 +56,7 @@ import urllib.request
 import zlib
 from typing import Any, Callable
 
-from . import jsontext, log, paths
+from . import changelog, jsontext, log, paths
 
 _log = log.get("selfupdate")
 
@@ -538,8 +540,10 @@ class SelfUpdate:
         headers = {"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json",
                    "X-GitHub-Api-Version": "2022-11-28"}
         etag = str(st.get("etag") or "")
-        if etag and "release" in st:
-            headers["If-None-Match"] = etag             # 304 zählt nicht gegen die Grenze von 60 je Stunde
+        # 304 zählt nicht gegen die Grenze von 60 je Stunde. Ohne gemerkte Texte (Zustand von vor E133) einmal ganz
+        # fragen, sonst blieben sie bis zum nächsten Release leer
+        if etag and "release" in st and isinstance(st.get("notes"), dict):
+            headers["If-None-Match"] = etag
         try:
             resp = self.open_url(API_URL, headers)
             with resp:
@@ -566,6 +570,7 @@ class SelfUpdate:
             raise UpdateError(MSG_BAD, "bad-reply")
         rel = pick_release(data)
         st["release"] = rel
+        st["notes"] = changelog.release_notes(data)     # E133: „Was ist neu“, auch vor dem Aktualisieren
         st["etag"] = new_tag[:200]
         _log.info("Selbst-Update: neueste Fassung bei GitHub %s, laufend %s", rel["version"] if rel else "keine", self.own)
 
@@ -577,7 +582,7 @@ class SelfUpdate:
         if quiet or self.notify is None:
             return
         kind, _why = self.kind()
-        body = ("Aktualisieren unter Einstellungen › System › Systemsoftware › Updates." if kind == "package" else
+        body = ("Aktualisieren unter Einstellungen › Updates." if kind == "package" else
                 "Diese Installation stammt nicht aus dem Paket und wird nicht selbst aktualisiert.")
         try:
             self.notify("PC5 Launcher %s ist da" % avail, body)
@@ -784,6 +789,7 @@ class SelfUpdate:
             with self.lock:
                 st = self._load()
                 st["installed"] = version
+                st["installed_from"] = self.own         # E133: „Was ist neu“ nach dem Neustart ab dieser Fassung
                 self._save(st)
             _log.info("Selbst-Update: %s abgelegt, gilt nach dem Neustart", version)
             return "PC5 Launcher %s ist installiert. Er gilt nach einem Neustart des PC5 Launchers." % version
@@ -837,7 +843,7 @@ class SelfUpdate:
             self.job = {"phase": "idle", "percent": 100, "error": "", "version": version}
             if self.notify is not None:
                 self.notify("PC5 Launcher %s installiert" % version,
-                            "Gilt nach dem Neustart: Einstellungen › System › Systemsoftware › Updates › PC5 Launcher.")
+                            "Gilt nach dem Neustart: Einstellungen › Updates › PC5 Launcher.")
             _log.info("%s", text)
         except Exception as e:  # noqa: BLE001
             err = e if isinstance(e, UpdateError) else UpdateError("Das Update hat nicht geklappt.", "error")
@@ -851,6 +857,64 @@ class SelfUpdate:
                 self.notify("PC5 Launcher: Das Update hat nicht geklappt", err.message)
         finally:
             self.changed()
+
+    # ------------------------------------------------------------ Was ist neu (E133)
+    def notes(self, lang: str = "de", which: str = "all", since: str = "") -> dict:
+        """Inhalt für „Was ist neu“ (changelog.payload): CHANGELOG.md der laufenden Fassung und die gemerkten Texte der
+        GitHub-Releases. Liest nur; darf aus jedem Arbeits-Thread kommen."""
+        st = self._load()
+        kind, _why = self.kind()
+        return changelog.payload(own=self.own, kind=kind, lang=lang, changelog_text=changelog.read_text(self.release_dir),
+                                 notes=st.get("notes") if isinstance(st.get("notes"), dict) else {},
+                                 available=self.available(st), pending=self.pending(st), which=which, since=since)
+
+    def first_start(self) -> str:
+        """Einmal nach dem Bereit-Signal (Arbeits-Thread): Ist dies der erste Start einer höheren Fassung als der
+        zuletzt gestarteten, merkt es whatsnew {version, since} für das Home und gibt die Fassung zurück (die
+        Verdrahtung meldet sie), sonst "". Ohne gemerkten Start (Zustand von vor E133) zählt nur ein Update über diesen
+        Weg (installed); eine niedrigere Fassung (Rückfall auf previous) meldet nichts."""
+        own = parse_version(self.own)
+        if own is None:
+            return ""
+        with self.lock:
+            st = self._load()
+            last = str(st.get("started") or "")
+            since = None
+            if last:
+                before = parse_version(last)
+                if before is not None and own > before:
+                    since = last
+            elif parse_version(st.get("installed")) == own:
+                since = str(st.get("installed_from") or "")
+            changed = last != self.own
+            st["started"] = self.own
+            if since is not None:
+                st["whatsnew"] = {"version": self.own, "since": since}
+                changed = True
+            if changed:
+                self._save(st)
+        if since is not None:
+            _log.info("Selbst-Update: erster Start von %s (vorher %s)", self.own, since or "unbekannt")
+            return self.own
+        return ""
+
+    def whats_new(self) -> dict | None:
+        """{version, since}, solange das Home „PC5 Launcher X ist installiert“ noch zeigen soll; sonst None."""
+        item = self._load().get("whatsnew")
+        if isinstance(item, dict) and item.get("version") == self.own:
+            return {"version": self.own, "since": str(item.get("since") or "")}
+        return None
+
+    def seen_notes(self, version: str) -> bool:
+        """Die Seite hat den Hinweis gezeigt (gleich, welcher Knopf): nicht noch einmal."""
+        with self.lock:
+            st = self._load()
+            item = st.get("whatsnew")
+            if not isinstance(item, dict) or (version and item.get("version") != version):
+                return False
+            st.pop("whatsnew", None)
+            self._save(st)
+        return True
 
     # ------------------------------------------------------------ Aufräumen
     def cleanup(self, version: str, min_age: float = 0.0) -> list[str]:

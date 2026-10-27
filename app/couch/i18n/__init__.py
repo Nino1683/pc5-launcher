@@ -40,7 +40,8 @@ _CLOCK = re.compile(r"\b(\d{1,2}:\d{2}) Uhr\b")
 # Deutsche Zahlen („87,4“, „1.234,6“) auf Englisch mit Dezimalpunkt; Versionen und Uhrzeiten haben kein Komma
 _DECIMAL = re.compile(r"(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d+),(\d+)(?![\d,])")
 _SENTENCE = re.compile(r"(?<=[.!?…“])\s+(?=[A-ZÄÖÜ„])")
-SKIP_KEYS = frozenset({"id", "ids", "path", "paths", "url", "uri", "href", "src", "appId", "app_id", "entryId",
+SKIP_KEYS = frozenset({"steam",       # Texte von Steam (E123) kommen schon in der Sprache der Oberfläche
+                       "id", "ids", "path", "paths", "url", "uri", "href", "src", "appId", "app_id", "entryId",
                        "entry_id", "exe", "dir", "file", "files", "icon", "art", "cover", "tile", "hero", "logo",
                        "key", "kind", "type", "page", "rows_page", "role", "state", "source", "store", "sid",
                        "slug", "code", "reason", "phase", "action", "event", "method", "name_id", "uuid", "mac",

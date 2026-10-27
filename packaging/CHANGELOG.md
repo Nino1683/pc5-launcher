@@ -1,5 +1,37 @@
 # Änderungen
 
+## Nächste Fassung
+
+- **Mediengalerie:** Alle Bildschirmfotos nach Spiel sortiert, Vollbild mit L1/R1, Löschen in den Papierkorb, „Als
+  Hintergrund verwenden“. Unter Medien und als erste Kachel der Spielebibliothek.
+- **Eigener Hintergrund:** Einstellungen › Home-Bildschirm › Hintergrund: Spielbilder, ein eigenes Bild oder eine Diashow
+  aus Bildschirmfotos und dem Ordner „Hintergründe“.
+- **Spielinfos, Neuigkeiten und Trailer:** In der Spielansicht stehen Kurzbeschreibung, Genre, Entwickler,
+  Erscheinungsdatum, Metacritic, Steam-Bilder und die neuesten Meldungen. Ruht die Auswahl, läuft stumm der Trailer im
+  Hintergrund; auf Wunsch leise Spielmusik (Einstellungen › Spiele).
+- **Steam-Trophäen:** Errungenschaften aus Steam als Trophäen mit Bronze, Silber, Gold und Platin nach Seltenheit, je
+  Spiel und als Übersicht, mit Mitteilung beim Freischalten. Ohne Anmeldung, aus Steams Dateien auf dem Rechner.
+- **Nützliche Karten unter dem Spiel:** Trophäen, deine Bildschirmfotos, Neuigkeiten und „Über das Spiel“ statt Quelle
+  und Ordner (die stehen jetzt unter „…“ › Informationen).
+- **Widget-Leiste im Home:** Speicherplatz, Trophäen, Angebote der Wunschliste und zuletzt gespielt, einzeln
+  abschaltbar.
+- **Angebote der Wunschliste:** Mitteilung, wenn ein Spiel deiner Steam-Wunschliste reduziert ist.
+- **Logo anpassen:** Größe und Lage des Spiellogos je Spiel, mit dem Controller.
+- **Startvideos:** Statt der eigenen Startanimation ein Video aus der Community-Sammlung steamdeckrepo.com, auch vor dem
+  Ruhemodus.
+- **Trailer in voller Länge,** ohne die Oberfläche anzuhalten. Bei Spielen, die der PC5 Launcher selbst installiert
+  hat, liegt der Trailer im Spielordner (und geht beim Deinstallieren mit), alle anderen werden nur gestreamt.
+- **Trailer im Store** (Steam): stumm im Kopfbild, und vorne in „Bilder“ eine Kachel, die ihn groß mit Ton abspielt.
+- **Eigener Bereich „Updates“** unter „Spiele“ in den Einstellungen: Systemsoftware, PC5 Launcher, Apps, Proton und Spiele
+  auf einer Seite, mit dem Knopf direkt in der Zeile, „Alles aktualisieren“ und „Jetzt nach Updates suchen“.
+- **Was ist neu:** Die Änderungen jeder Fassung (Einstellungen › Updates › Was ist neu). Bei einem verfügbaren Update
+  siehst du dessen Neuerungen vor dem Aktualisieren, nach einem Update fragt das Home einmal nach.
+- **Store:** „Beschreibung“ steht neben „Kaufen“, und ein geöffnetes Bild füllt den Bildschirm.
+- **Kleinigkeiten:** Der Fokusring dehnt sich beim Spielstart aus; Hintergründe der Nachbarkacheln werden vorgeladen.
+- **GOG-Installer, die unter Proton abbrechen** (z. B. Pizza Connection), packt der Launcher jetzt mit innoextract aus
+  (kommt mit Lutris). Die Startdatei findet er auch, wenn GOG sie anders schreibt als die Datei heißt
+  („dosbox.exe“ statt „DOSBox.exe“).
+
 ## 0.3.3 (2026-10-25)
 
 - **OptiScaler-Menü mit dem Controller:** Läuft ein Spiel mit OptiScaler, steht im Control Center unter Leistung

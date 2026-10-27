@@ -1103,7 +1103,7 @@ def epic_update(wiring: Any, app_name: str) -> str:
     return "„%s“ wird aktualisiert. Den Fortschritt siehst du unter Downloads." % title
 
 
-UPDATE_PAGES = ("system.apps", "system.software", "system")
+UPDATE_PAGES = ("system.apps", "system.software", "system", "updates")      # E133: die Übersicht „Updates“
 
 
 def show_updates(wiring: Any) -> None:
@@ -1456,7 +1456,7 @@ def update_check(wiring: Any) -> dict | None:
     if result and result.get("phase") == "available":
         _log.info("System-Update verfügbar")
         wiring.app.notify.push("Systemsoftware-Update verfügbar",
-                               "Installieren unter Einstellungen › System › Systemsoftware.", icon="update")
+                               "Installieren unter Einstellungen › Updates.", icon="update")
     return result
 
 

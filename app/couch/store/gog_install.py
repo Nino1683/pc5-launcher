@@ -153,8 +153,24 @@ def md5_of(path: str) -> str:
     return h.hexdigest()
 
 
+def on_disk(root: str, rel: str) -> str:
+    """rel (mit /) in der Schreibweise, die auf der Platte steht. GOG schreibt Pfade wie Windows ohne Rücksicht auf
+    Groß- und Kleinschreibung (Pizza Connection: „DOSBOX\\dosbox.exe“, die Datei heißt DOSBox.exe); unter Linux
+    fände der Launcher sie sonst nicht. Teile, die es nicht gibt, bleiben, wie sie sind."""
+    cur, out = root, []
+    for part in [p for p in rel.split("/") if p]:
+        if part not in (".", "..") and not os.path.lexists(os.path.join(cur, part)):
+            try:
+                part = next((n for n in sorted(os.listdir(cur)) if n.lower() == part.lower()), part)
+            except OSError:
+                pass
+        out.append(part)
+        cur = os.path.join(cur, part)
+    return "/".join(out)
+
+
 def play_task(target: str, product_id: int) -> dict | None:
-    """Startdatei aus goggame-<id>.info: {exe (relativ zu target), args, working_dir}."""
+    """Startdatei aus goggame-<id>.info: {exe (relativ zu target, Schreibweise wie auf der Platte), args, working_dir}."""
     candidates = [os.path.join(target, "goggame-%d.info" % product_id)]
     try:
         candidates += [os.path.join(target, n) for n in sorted(os.listdir(target)) if re.fullmatch(r"goggame-\d+\.info", n)]
@@ -169,8 +185,9 @@ def play_task(target: str, product_id: int) -> dict | None:
         tasks = [t for t in info.get("playTasks") or [] if isinstance(t, dict) and t.get("type") == "FileTask" and t.get("path")]
         task = next((t for t in tasks if t.get("isPrimary")), tasks[0] if tasks else None)
         if task:
-            rel = str(task["path"]).replace("\\", "/")
-            return {"exe": rel, "args": str(task.get("arguments") or ""), "working_dir": str(task.get("workingDir") or "").replace("\\", "/")}
+            rel = on_disk(target, str(task["path"]).replace("\\", "/"))
+            work = on_disk(target, str(task.get("workingDir") or "").replace("\\", "/"))
+            return {"exe": rel, "args": str(task.get("arguments") or ""), "working_dir": work}
     return None
 
 

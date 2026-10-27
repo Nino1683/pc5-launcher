@@ -29,9 +29,16 @@ Entfernen in den Papierkorb). Alles kommt aus deps.extra["proton"]() (wiring_pro
 fehlt sie, entfallen Zeile und Seite. Der Standard bleibt der eine Schlüssel games.proton (E22).
 
 PC5 Launcher (E116): Unter Updates öffnet die Zeile „PC5 Launcher“ die Seite system.launcher (Version,
-Zustand, Aktualisieren mit Rückfrage, danach Neu starten wie im Ein/Aus-Menü, Jetzt suchen, Schalter
+Zustand, Aktualisieren mit Rückfrage, danach Neu starten wie im Ein/Aus-Menü, Was ist neu, Jetzt suchen, Schalter
 update.check). Der Dienst ist selfupdate.SelfUpdate, spät gebunden über deps.extra["late"]("self_update")
 (wiring_selfupdate); fehlt er, entfallen Zeile und Seite.
+
+Updates (E133, Wunsch 2026-10-27: „ein eigener Update-Bereich, nicht mehr unter System“): Die Übersicht ist der
+Bereich updates (settings/updates.py); er zeichnet mit den Bausteinen update_*_row(s) unten. Zustand, Abläufe,
+Rückfragen, Sperren und Zeilen-IDs der Aktionen bleiben hier (system.os.install, system.launcher.update,
+system.apps.update, system.updates.proton.install, system.updates.game:<app>): Der Baum leitet sie nach ihrem
+Vorsatz hierher, auch wenn sie auf der Übersicht stehen. Unter System bleibt nur die Systemsoftware (Versionen,
+eigene Suche); system.apps ist die Liste „Apps und Laufzeiten“.
 """
 from __future__ import annotations
 
@@ -135,6 +142,12 @@ PROTON_BACKUP_TEXT = "Der bisherige Ordner kommt nach ~/Games/backups/proton und
 # PC5 Launcher aktualisieren (E116, selfupdate.py)
 LAUNCHER_PAGE = "system.launcher"
 UPDATE_CHECK_KEY = "update.check"           # automatisch nach einer neuen Fassung suchen (config.DEFAULTS)
+# Updates (E133): die Übersicht ist der Bereich updates (settings/updates.py); er zeichnet mit den Bausteinen unten
+UPDATES_PAGE = "updates"
+NOTES_HINT = "Änderungen der installierten Fassung und der früheren."
+NOTES_HINT_NEW = "Zuerst, was das Update bringt, dann die Änderungen der installierten Fassung und der früheren."
+ASK_HINT = ("Startet Apps und Spiele. Systemsoftware, PC5 Launcher und Proton fragen vorher nach: dafür der Knopf in "
+            "ihrer Zeile.")
 
 
 def german_datetime(dt: datetime.datetime) -> str:
@@ -181,7 +194,7 @@ class SystemArea:
             fixup=x.get("os_update_fixup", None if helper else osupdate.FIXUP),
             bazzite=x.get("os_update_bazzite"),   # E104: Vorgabe osupdate.on_bazzite (sysdetect)
             online=self._online, game_running=self._game_running,
-            on_change=lambda: deps.changed("system.software"),
+            on_change=lambda: self._changed("system.software"),
             state_file=os.path.join(deps.paths.state_dir, "os-update.json"),
             # Im Prüfmodus nie den echten Helfer (pkexec); ein eingestecktes Attrappen-Skript schon.
             enabled=bool(helper) or not test_mode())
@@ -192,6 +205,12 @@ class SystemArea:
         self.admin_root = x.get("admin_root", "/")
 
     # --- Hilfen --------------------------------------------------------------------------
+
+    def _changed(self, *pages: str) -> None:
+        """Seiten mit Update-Stand neu zeichnen lassen, dazu immer die Übersicht des Bereichs Updates (E133): Die
+        Seite lädt nur bei ihrer eigenen Kennung neu."""
+        for page in pages + (UPDATES_PAGE,):
+            self.deps.changed(page)
 
     def _game_running(self) -> bool:
         fn = self.deps.extra.get("game_running")
@@ -283,7 +302,7 @@ class SystemArea:
             return Page(LAUNCHER_PAGE, "PC5 Launcher", self._launcher_rows())
         builders = {"system": ("System", self._main_rows),
                     "system.software": ("Systemsoftware", self._software_rows),
-                    "system.apps": ("Updates", self._apps_rows),
+                    "system.apps": ("Apps und Laufzeiten", self._apps_rows),
                     "system.info": ("Konsoleninformationen", self._info_rows),
                     "system.datetime": ("Datum und Uhrzeit", self._datetime_rows),
                     "system.power": ("Energie", self._power_rows),
@@ -367,23 +386,14 @@ class SystemArea:
             R.info("system.os.status", "Systemsoftware-Update", status, hint=hint),
         ]
         if reboot:
-            rows.append(R.confirm_action(
-                "system.os.reboot", "Jetzt neu starten", title="Konsole neu starten?",
-                text="Das Update wird beim Neustart aktiv." + self._game_warning(), ok="Neu starten",
-                enabled=callable(self.deps.extra.get("power"))))
+            rows.append(self._os_reboot_row("Jetzt neu starten"))
         else:
             rows.append(R.action("system.os.check", "Nach Updates suchen", enabled=supported and not st["busy"]))
             why = self.updater.can_install()
-            rows.append(R.confirm_action(
-                "system.os.install", "Update installieren", title="Systemsoftware aktualisieren?",
-                text="Das Update wird im Hintergrund geladen. Danach ist ein Neustart nötig. "
-                     "Schalte die Konsole währenddessen nicht aus.",
-                ok="Installieren", enabled=not why,
+            rows.append(self._os_install_row(
+                "Update installieren", why,
                 note="Spiel läuft" if why and self._game_running() and st["phase"] == "available" else ""))
-        n = self._update_count()
-        rows.append(R.link("system.apps-page", "Updates", "system.apps",
-                           note=(f"{n} verfügbar" if n else ""),
-                           hint="Apps wie YouTube und Kodi, Proton-Versionen und Epic-Spiele."))
+        # E133: „Updates“ ist ein eigener Bereich der Einstellungen (settings/updates.py); hier nur noch die Software
         rows += [
             R.info("system.kernel", "Kernel", v["kernel"]),
             R.info("system.mesa", "Grafiktreiber (Mesa)", v["mesa"] or "Unbekannt"),
@@ -391,6 +401,21 @@ class SystemArea:
             R.info("system.couch", "PC5 Launcher", VERSION),
         ]
         return rows
+
+    def _os_reboot_row(self, label: str, **kw) -> R.Row:
+        """„Neu starten“ nach einem installierten System-Update; dieselbe Rückfrage auf der Seite und unter Updates."""
+        return R.confirm_action(
+            "system.os.reboot", label, title="Konsole neu starten?",
+            text="Das Update wird beim Neustart aktiv." + self._game_warning(), ok="Neu starten",
+            enabled=callable(self.deps.extra.get("power")), **kw)
+
+    def _os_install_row(self, label: str, why: str, **kw) -> R.Row:
+        """„Update installieren“ (why: Grund, warum es gerade nicht geht, sonst "")."""
+        return R.confirm_action(
+            "system.os.install", label, title="Systemsoftware aktualisieren?",
+            text="Das Update wird im Hintergrund geladen. Danach ist ein Neustart nötig. "
+                 "Schalte die Konsole währenddessen nicht aus.",
+            ok="Installieren", enabled=not why, **kw)
 
     def _running_kinds(self) -> list[str]:
         """Arten der laufenden Apps (game, emulator, media …). Ohne Rückruf zählt game_running."""
@@ -429,38 +454,43 @@ class SystemArea:
                 text += " " + " ".join(lines)
         return text
 
-    def _apps_rows(self) -> list:
+    def _flatpak_fresh(self) -> dict:
+        """Stand der Flatpak-Updates; älter als FLATPAK_TTL: im Hintergrund neu lesen (die Seite zeigt „Suche läuft …“)."""
         fp = self._flatpak
         now = time.monotonic()
         if fp["phase"] not in ("loading", "updating") and (fp["at"] is None or now - fp["at"] > FLATPAK_TTL):
             self._flatpak_load()
-        fp = self._flatpak
+        return self._flatpak
+
+    @staticmethod
+    def _apps_status(fp: dict) -> str:
         n = len(fp["updates"])
         if fp["phase"] == "loading":
-            status = "Suche läuft …"
-        elif fp["phase"] == "updating":
-            status = "Wird aktualisiert …"
-        elif fp["error"]:
-            status = "Suche fehlgeschlagen"
-        else:
-            status = "Alles aktuell" if n == 0 else (f"{n} Updates verfügbar" if n != 1 else "1 Update verfügbar")
+            return "Suche läuft …"
+        if fp["phase"] == "updating":
+            return "Wird aktualisiert …"
+        if fp["error"]:
+            return "Suche fehlgeschlagen"
+        return "Alles aktuell" if n == 0 else (f"{n} Updates verfügbar" if n != 1 else "1 Update verfügbar")
+
+    def _apps_rows(self) -> list:
+        """Seite „Apps und Laufzeiten“ (bis E132 die Seite „Updates“; Systemsoftware, PC5 Launcher, Proton und Spiele
+        stehen seit E133 in der Übersicht des Bereichs Updates)."""
+        fp = self._flatpak_fresh()
+        n = len(fp["updates"])
         busy = fp["phase"] in ("loading", "updating")
-        reboot, _ = self._reboot_needed()
-        os_status = "Neustart erforderlich" if reboot else self.updater.status()["text"]
         rows = [
-            R.link("system.updates.os", "Systemsoftware", "system.software", note=os_status),
-            *self._launcher_link(),
-            R.action("system.apps.check", "Nach Updates suchen", enabled=not busy,
-                     hint="Sucht nach Updates für Apps, Proton und Spiele. Das geschieht auch von selbst alle 12 Stunden."),
-            R.info("system.apps.status", "Apps und Laufzeiten", status, hint=fp["error"]),
+            R.info("system.apps.status", "Apps und Laufzeiten", self._apps_status(fp), hint=fp["error"]),
             R.action("system.apps.update", "Apps aktualisieren", enabled=n > 0 and not busy,
                      hint="Aktualisiert alle Flatpak-Apps. Schließe vorher laufende Apps."),
+            R.action("system.apps.check", "Nach Updates suchen", enabled=not busy,
+                     hint="Sucht nach Updates für Apps, Proton und Spiele. Das geschieht auch von selbst alle 12 Stunden."),
         ]
         titles = _app_titles()
         for u in fp["updates"][:40]:
             rows.append(R.info(f"system.apps.item:{u['id']}/{u['branch']}", titles.get(u["id"], u["name"]),
                                u["version"] or u["branch"], note="Laufzeit" if u["runtime"] else ""))
-        return rows + self._proton_rows() + self._game_update_rows()
+        return rows
 
     def _watch(self):
         fn = self.deps.extra.get("updates")
@@ -468,14 +498,6 @@ class SystemArea:
             return fn() if callable(fn) else None
         except Exception:  # noqa: BLE001
             return None
-
-    def _update_count(self) -> int:
-        """Für die Zeile „Updates“: Apps (ohne Laufzeiten), Proton, Spiele."""
-        found = getattr(self._watch(), "found", None) or {}
-        apps = [u for u in (found.get("apps") if found else self._flatpak["updates"]) or [] if not u.get("runtime")]
-        s = self._launcher_status()
-        launcher = 1 if s and s["available"] and s["phase"] != "installed" else 0
-        return len(apps) + (1 if found.get("proton") else 0) + len(found.get("games") or []) + launcher
 
     # --- PC5 Launcher aktualisieren (E116) ---------------------------------------------------
 
@@ -519,12 +541,23 @@ class SystemArea:
         text = "Unbekannt" if s["error"] else "Noch nicht geprüft"
         return text, text
 
-    def _launcher_link(self) -> list:
-        s = self._launcher_status()
-        if s is None:
-            return []
-        return [R.link("system.updates.launcher", "PC5 Launcher", LAUNCHER_PAGE, note=self._launcher_text(s)[1],
-                       hint="Neue Fassungen des PC5 Launchers von GitHub.")]
+    def _launcher_update_row(self, s: dict, label: str, **kw) -> R.Row:
+        """„Aktualisieren“ mit Rückfrage; dieselbe auf der Seite PC5 Launcher und unter Updates."""
+        version = s["available"]
+        return R.confirm_action(
+            "system.launcher.update", label, title="PC5 Launcher %s installieren?" % version,
+            text="Lädt die Fassung %s (%s) von GitHub, prüft die Prüfsumme und legt sie neben die laufende. Was "
+                 "gerade läuft, wird nicht ersetzt: Die neue Fassung gilt nach einem Neustart des PC5 Launchers."
+                 % (version, fmt_bytes(s["size"])),
+            ok="Aktualisieren", enabled=s["phase"] in ("available", "failed"), **kw)
+
+    def _launcher_restart_row(self, s: dict, label: str, **kw) -> R.Row:
+        """„Neu starten“ nach dem Installieren, wie im Ein/Aus-Menü."""
+        return R.confirm_action(
+            "system.launcher.restart", label, title="PC5 Launcher neu starten?",
+            text=("Die Oberfläche wird beendet und startet mit der Fassung %s neu, der Rechner bleibt an."
+                  % s["pending"]) + self._game_warning(),
+            ok="Neu starten", enabled=callable(self.deps.extra.get("power")), **kw)
 
     def _launcher_rows(self) -> list:
         s = self._launcher_status()
@@ -552,21 +585,15 @@ class SystemArea:
                                  hint="Das geladene Stück wird verworfen; ein neuer Versuch lädt das Paket neu."))
         elif phase == "installed":
             power = callable(self.deps.extra.get("power"))
-            rows.append(R.confirm_action(
-                "system.launcher.restart", "Neu starten", title="PC5 Launcher neu starten?",
-                text=("Die Oberfläche wird beendet und startet mit der Fassung %s neu, der Rechner bleibt an."
-                      % s["pending"]) + self._game_warning(),
-                ok="Neu starten", enabled=power, note="" if power else "Nicht verfügbar"))
+            rows.append(self._launcher_restart_row(s, "Neu starten", note="" if power else "Nicht verfügbar"))
         elif version and package and phase != "installing":
-            rows.append(R.confirm_action(
-                "system.launcher.update", "Aktualisieren", title="PC5 Launcher %s installieren?" % version,
-                text="Lädt die Fassung %s (%s) von GitHub, prüft die Prüfsumme und legt sie neben die laufende. Was "
-                     "gerade läuft, wird nicht ersetzt: Die neue Fassung gilt nach einem Neustart des PC5 Launchers."
-                     % (version, fmt_bytes(s["size"])),
-                ok="Aktualisieren", enabled=phase in ("available", "failed"),
-                hint="Die bisherige Fassung bleibt als Rückfall erhalten."))
+            rows.append(self._launcher_update_row(s, "Aktualisieren",
+                                                  hint="Die bisherige Fassung bleibt als Rückfall erhalten."))
         elif version and not package:
             rows.append(R.info("system.launcher.dev", "Aktualisieren", "Nicht möglich", hint=s["why"]))
+        # E133: Changelog; mit einem gefundenen Update zuerst dessen Änderungen
+        rows.append(R.action("system.launcher.notes", "Was ist neu", value=version or s["own"],
+                             hint=NOTES_HINT_NEW if version else NOTES_HINT))
         busy = phase in ("downloading", "installing")
         rows.append(R.action("system.launcher.check", "Jetzt nach Updates suchen", enabled=not busy and not s["checking"],
                              note="Suche läuft …" if s["checking"] else "",
@@ -583,6 +610,8 @@ class SystemArea:
             raise SettingsError("Das ist gerade nicht verfügbar.")
         if row_id == "system.launcher.restart":
             return self._launcher_restart()
+        if row_id == "system.launcher.notes":
+            return self.launcher_notes()
         from ..selfupdate import UpdateError
         try:
             if row_id == "system.launcher.check":
@@ -601,7 +630,7 @@ class SystemArea:
                 raise SettingsError("Diese Aktion gibt es nicht.")
         except UpdateError as e:
             raise SettingsError(e.message) from None
-        self.deps.changed("system.apps")
+        self._changed("system.apps")
         return {"message": message, "refresh": True}
 
     def _launcher_restart(self):
@@ -620,9 +649,6 @@ class SystemArea:
                 raise SettingsError(message) from e
             raise
         return None
-
-    def _proton_rows(self) -> list:
-        return self._proton_update_rows() + self._proton_link()
 
     def _proton_update_rows(self) -> list:
         watch = self._watch()
@@ -919,6 +945,172 @@ class SystemArea:
                                  hint="Installiert: %s · Neu: %s" % (g["installed"][:24], g["latest"][:24])))
         return rows
 
+    # --- Bausteine für den Bereich Updates (E133, settings/updates.py) -------------------------
+    # Je Bereich eine Zeile: Steht etwas an, ist sie der Knopf (dieselbe ID, Rückfrage und Sperre wie bisher auf
+    # der Unterseite), sonst zeigt sie den Zustand und führt zu den Einzelheiten.
+
+    def update_os_row(self) -> R.Row:
+        st = self.updater.status()
+        reboot, reboot_text = self._reboot_needed()
+        os_label = self._os()["label"]
+        if reboot:
+            return self._os_reboot_row("Systemsoftware", value="Neu starten", note=reboot_text,
+                                       hint="Startet die Konsole neu; danach gilt das Update.")
+        supported = self.updater.supported()
+        if supported and st["phase"] == "available":
+            why = self.updater.can_install()
+            return self._os_install_row("Systemsoftware", why, value="Installieren",
+                                        note="Update verfügbar · %s" % os_label,
+                                        hint=why or "Lädt das Update im Hintergrund; danach ist ein Neustart nötig.")
+        status = st["text"] if supported else "Nicht unterstützt"
+        hint = st["message"] if supported else ""
+        if not hint and st["checked_at"] and st["phase"] == "current":
+            hint = "Zuletzt geprüft: " + german_datetime(datetime.datetime.fromtimestamp(st["checked_at"]))
+        return R.link("system.updates.os", "Systemsoftware", "system.software", value=status, note=os_label, hint=hint)
+
+    def launcher_status(self) -> dict | None:
+        """Zustand des Selbst-Updates (selfupdate.SelfUpdate.status) oder None, wenn der Dienst fehlt."""
+        return self._launcher_status()
+
+    def update_launcher_row(self) -> R.Row | None:
+        s = self._launcher_status()
+        if s is None:
+            return None
+        phase, package = s["phase"], s["kind"] == "package"
+        if phase == "installed":
+            power = callable(self.deps.extra.get("power"))
+            return self._launcher_restart_row(
+                s, "PC5 Launcher", value="Neu starten", note="%s installiert" % s["pending"],
+                hint="Startet die Oberfläche mit der neuen Fassung, der Rechner bleibt an." if power else "Nicht verfügbar")
+        if s["available"] and package and phase in ("available", "failed"):
+            failed = phase == "failed"
+            return self._launcher_update_row(
+                s, "PC5 Launcher", value="Aktualisieren",
+                note="Update fehlgeschlagen" if failed else "%s verfügbar · installiert: %s" % (s["available"], s["own"]),
+                hint=s["job_error"] if failed and s["job_error"] else "Die bisherige Fassung bleibt als Rückfall erhalten.")
+        _state, short = self._launcher_text(s)
+        if s["available"] and not package:
+            hint = s["why"]
+        elif s["error"] and phase in ("unknown", "current"):
+            hint = s["error"]
+        else:
+            hint = "Neue Fassungen des PC5 Launchers von GitHub."
+        return R.link("system.updates.launcher", "PC5 Launcher", LAUNCHER_PAGE, value=short,
+                      note="Installiert: %s" % s["own"], hint=hint)
+
+    def launcher_notes(self) -> dict:
+        """„Was ist neu“: Ergebnis {"notes": changelog.payload} für die Seite (settings.js zeigt es zum Blättern)."""
+        svc = self._launcher()
+        if svc is None or not callable(getattr(svc, "notes", None)):
+            raise SettingsError("Das ist gerade nicht verfügbar.")
+        return {"notes": svc.notes(lang=i18n.language(self.deps.config), which="all")}
+
+    def update_apps_row(self) -> R.Row:
+        fp = self._flatpak_fresh()
+        status = self._apps_status(fp)
+        if fp["updates"] and fp["phase"] not in ("loading", "updating"):
+            titles = _app_titles()
+            names = [titles.get(u["id"], u["name"]) for u in fp["updates"]]
+            shown = ", ".join(names[:12]) + (" …" if len(names) > 12 else "")
+            return R.action("system.apps.update", "Apps und Laufzeiten", value="Aktualisieren", note=status,
+                            hint="Neu: %s. Schließe vorher laufende Apps." % shown)
+        return R.link("system.updates.apps", "Apps und Laufzeiten", "system.apps", value=status,
+                      hint=fp["error"] or "YouTube, Kodi, Emulatoren und ihre Laufzeiten (Flatpak).")
+
+    def update_proton_rows(self) -> list:
+        """Proton-CachyOS in einer Zeile (mit neuer Fassung: „Aktualisieren“), darunter „Proton-Versionen“."""
+        rows = self._proton_update_rows()
+        if len(rows) == 2:
+            info, ask = rows
+            ask.label, ask.value, ask.note, ask.hint = "Proton-CachyOS", "Aktualisieren", str(info.value), info.hint
+            rows = [ask]
+        return rows + self._proton_link()
+
+    def update_game_rows(self) -> list:
+        return self._game_update_rows()
+
+    def _pending_games(self) -> list:
+        watch = self._watch()
+        games = ((watch.found or {}).get("games") or []) if watch is not None else []
+        busy = {j.get("app") for j in (self._call_extra("epic_jobs") or []) if j.get("kind") == "update"}
+        return [g for g in games if g.get("app") not in busy]
+
+    def update_summary(self) -> dict:
+        """Für die Kopfzeilen der Übersicht: was „Alles aktualisieren“ starten würde (auto), was nur mit Rückfrage geht
+        (ask), ob gerade gesucht wird."""
+        fp = self._flatpak
+        apps = len(fp["updates"]) if fp["phase"] not in ("loading", "updating") else 0
+        games = self._pending_games()
+        st = self.updater.status()
+        reboot, _ = self._reboot_needed()
+        s = self._launcher_status() or {}
+        watch = self._watch()
+        ask = []
+        if reboot or (st["phase"] == "available" and self.updater.supported()):
+            ask.append("os")
+        if s.get("phase") == "installed" or (s.get("available") and s.get("kind") == "package"
+                                             and s.get("phase") in ("available", "failed")):
+            ask.append("launcher")
+        if watch is not None and (watch.found or {}).get("proton"):
+            ask.append("proton")
+        checking = st["phase"] == "checking" or fp["phase"] == "loading" or bool(s.get("checking")) \
+            or bool(getattr(watch, "checking", False))
+        return {"auto": apps + len(games), "apps": apps, "games": len(games), "ask": ask, "checking": checking}
+
+    def update_all(self) -> dict:
+        """„Alles aktualisieren“: startet, was heute ohne Rückfrage geht (Apps, Epic-Spiele), über dieselben Wege und
+        Sperren wie ihre Zeilen (laufendes Spiel, offene Apps, Spiel offen). Was eine Rückfrage braucht
+        (Systemsoftware, PC5 Launcher, Proton-CachyOS), bleibt beim Knopf in seiner Zeile."""
+        started, refused = [], []
+        fp = self._flatpak
+        if fp["updates"] and fp["phase"] not in ("loading", "updating"):
+            try:
+                self._flatpak_update()
+                started.append("Apps")
+            except SettingsError as e:
+                refused.append(e.message)
+        fn = self.deps.extra.get("epic_update")
+        for g in self._pending_games() if callable(fn) else []:
+            try:
+                fn(g["app"])
+                started.append(str(g.get("title") or g["app"]))
+            except SettingsError as e:
+                refused.append(e.message)
+            except Exception:  # noqa: BLE001
+                log.exception("Epic-Update %s", g.get("app"))
+                refused.append("„%s“ ließ sich nicht aktualisieren." % (g.get("title") or g["app"]))
+        refused = list(dict.fromkeys(refused))
+        if not started:
+            if refused:
+                raise SettingsError(" ".join(refused))
+            raise SettingsError("Ohne Rückfrage gibt es gerade nichts zu aktualisieren."
+                                if self.update_summary()["ask"] else "Es gibt nichts zu aktualisieren.")
+        self._changed("system.apps")
+        # Die Sätze einzeln übersetzbar (i18n: Satz für Satz), der mit den Namen zuletzt
+        return {"message": " ".join(refused + ["Wird aktualisiert: %s." % ", ".join(started)]), "refresh": True}
+
+    def check_all(self) -> dict:
+        """„Jetzt nach Updates suchen“: alle Quellen auf einmal, je im Hintergrund wie ihre eigenen Knöpfe
+        (Systemsoftware über ihren Helfer, Apps, Proton und Spiele über die Update-Suche, der PC5 Launcher bei GitHub)."""
+        st = self.updater.status()
+        if self.updater.supported() and not st["busy"]:
+            self.deps.scheduler.background(self.updater.check)
+        if self._flatpak["phase"] not in ("loading", "updating"):
+            self._flatpak_load()
+        watch = self._watch()
+        if watch is not None:
+            self.deps.scheduler.background(watch.check)
+        svc = self._launcher()
+        if svc is not None and callable(getattr(svc, "check", None)):
+            def launcher() -> None:
+                try:
+                    svc.check(force=True, quiet=True)    # die Übersicht zeigt es selbst, keine Mitteilung dazu
+                except Exception:  # noqa: BLE001
+                    log.exception("Selbst-Update: Suche")
+            self.deps.scheduler.background(launcher)
+        self._changed()
+        return {"message": "Es wird nach Updates gesucht.", "refresh": True}
+
     def _call_extra(self, name: str):
         fn = self.deps.extra.get(name)
         try:
@@ -933,7 +1125,7 @@ class SystemArea:
         def job():
             updates, error = flatpak.read_updates(self.deps.run_read)
             self._flatpak = {"at": time.monotonic(), "updates": updates, "error": error, "phase": "ready"}
-            self.deps.changed("system.apps")
+            self._changed("system.apps")
         self.deps.scheduler.background(job)
 
     def _info_rows(self) -> list:
@@ -1109,8 +1301,7 @@ class SystemArea:
                 self.deps.notify("Update fehlgeschlagen", st["message"], "warn")
         except Exception:  # noqa: BLE001
             log.exception("notify")
-        self.deps.changed("system.software")
-        self.deps.changed("system")
+        self._changed("system.software", "system")
 
     def _flatpak_update(self):
         fp = self._flatpak
@@ -1143,7 +1334,7 @@ class SystemArea:
                                  "update" if rc == 0 else "warn")
             except Exception:  # noqa: BLE001
                 log.exception("notify")
-            self.deps.changed("system.apps")
+            self._changed("system.apps")
             watch = self._watch()
             if watch is not None:
                 watch.check()                    # gefundene App-Updates und Punkt am Zahnrad neu

@@ -28,15 +28,21 @@
 // game-keys (hier angemeldet): je Pad-Taste ein Ziel (Option pad_keys über lib.setOption), Vorlagen,
 // Zurücksetzen. Gespeichert wird nur, was von E64 abweicht ({} = Standard), wie library/model.pad_keys_value.
 // Wirkt ab dem nächsten Start (launch.spec.apply_pad_keys). Steam-Spiele: nicht hier (Steam Input, E64).
+//
+// Logo (E127): Spiele mit Logo haben die Zeile „Logo anpassen“. Sie schließt die Spieleinstellungen und passt das
+// Logo im Hub darunter an (entry-actions.adjustLogo, Option logo); aus der Bibliothek öffnet sich dafür die Spielseite.
 import { call, on } from "../core/bridge.js";
+import { after } from "../core/dom.js";
 import { router } from "../core/router.js";
 import { S, fmt } from "../core/strings.js";
+import { adjustLogo, hasLogo, logoValue } from "../components/entry-actions.js";
 import { createPageScreen } from "./settings.js";
 
 const SPOTS_RESET = "pad_spots_reset";     // Zeile „Sprungstellen zurücksetzen“ (keine Option, eine Aktion)
 const KEYS_ROW = "pad_keys_page";          // Zeile „Tastenbelegung“: öffnet game-keys (keine Option)
 const KEYS_PRESET = "pad_keys_preset";     // game-keys: Auswahl der Vorlage
 const KEYS_RESET = "pad_keys_reset";       // game-keys: Zurücksetzen (Rückfrage)
+const LOGO_ROW = "logo_adjust";            // E127: „Logo anpassen“ (keine Option, eine Aktion)
 // Spiegel von library/model.py (PAD_KEY_BUTTONS, PAD_KEY_TARGETS, PAD_KEYS_DEFAULT, PAD_KEY_PRESETS) als JSON
 // zwischen den Marken: tests/unit/input/test_padmouse_keys.py vergleicht beide Seiten
 const PAD_KEYS = /* E109-pad-keys */ {
@@ -271,6 +277,12 @@ function buildRows(entry, detail, extra) {
     rows.push({ id: "_steam", type: "info", label: S.gsSteamManaged, value: S.gsSteamManagedValue,
       hint: S.gsSteamManagedHint, section: S.gsSectionAdvanced });
   }
+  // E127: Logo im Hub (nur mit Logo-Bild)
+  if (hasLogo(entry)) {
+    const own = Object.keys(logoValue(o.logo)).length > 0;
+    rows.push({ id: LOGO_ROW, type: "action", label: S.gsLogo, value: own ? S.gsLogoOwn : S.gsLogoDefault, hint: S.gsLogoHint,
+      section: S.gsSectionLook });
+  }
   return rows;
 }
 
@@ -279,12 +291,14 @@ function create(params) {
   let unsub = null;
   let spotsShown = false;           // Zeile „Sprungstellen zurücksetzen“ war schon zu sehen
   let entryTitle = params.title || "";
+  let shown = null;                 // Eintrag aus dem letzten lib.get (E127: „Logo anpassen“ braucht Bild und Option)
   return createPageScreen({
     id, title: params.title || S.gsTitle,
     async fetch() {
       const detail = await call("lib.get", { id });
       const entry = detail.entry || {};
       entryTitle = entry.title || entryTitle;
+      shown = entry;
       const extra = { exe: [], fpsLimits: [] };
       if (exeWorks(entry, startWay(entry, detail.choices || {}))) {
         try { extra.exe = (await call("lib.exeCandidates", { id })).candidates || []; } catch (e) { /* ohne Auswahl */ }
@@ -306,6 +320,13 @@ function create(params) {
     async action(row) {
       // E109: settings.js öffnet angemeldete Bildschirme aus {ui, params}
       if (row && row.id === KEYS_ROW) return { ui: "game-keys", params: { id, title: entryTitle } };
+      // E127: zurück zum Hub und dort anpassen (der Bildschirm darunter zeigt den Eintrag, sonst die Spielseite)
+      if (row && row.id === LOGO_ROW && shown) {
+        const entry = shown;
+        router.back();
+        after("--t-screen", () => adjustLogo(entry));
+        return null;
+      }
       if (!row || row.id !== SPOTS_RESET) return null;
       await call("lib.setOption", { id, key: "pad_spots", value: {} });
       return { refresh: true, message: S.gsPadSpotsResetDone };

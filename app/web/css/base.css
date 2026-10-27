@@ -46,6 +46,18 @@ img { display: block; }
 .is-held::after { animation: none; }
 @keyframes ring-in { from { --fx-o: 0; --fx-s: var(--ring-scale-from); } to { --fx-o: 1; --fx-s: 1; } }
 @keyframes ring-turn { to { --ring-angle: var(--ring-full); } }
+/* E128: Start aus dem Home (components/entry-actions.js launchRing): Der Ring dehnt sich nach außen und verblasst,
+   einmal. Die Endwerte sind zugleich der Grundwert: Danach bleibt er aus, auch unter dem Ladebild (is-held), bis
+   die Klasse geht und ring-in ihn wieder einblendet. Der Schimmer läuft weiter (gleicher Name, kein Neustart). */
+.is-launch-ring::after, .is-launch-ring.is-held::after { --fx-o: 0; --fx-s: var(--ring-launch-scale);
+  animation: ring-launch var(--t-ring-launch) var(--ease-out), ring-turn var(--t-ring) linear infinite; }
+@keyframes ring-launch { from { --fx-o: 1; --fx-s: 1; } to { --fx-o: 0; --fx-s: var(--ring-launch-scale); } }
+/* E128: Rückkehr in die Reihe von oben oder unten (components/tile-row.js): Der Ring zieht sich von außen auf die
+   Kachel zusammen und blendet dabei ein. Eigene Keyframes statt ring-in mit anderem --ring-scale-from: WebKitGTK 2.54
+   löst var() in Keyframes gegen die Wurzel auf, ein Wert am Element wirkte dort nicht (gemessen 2026-10-27). Die Klasse
+   bleibt bis zum Verlassen der Kachel; ginge sie früher, begänne ring-in von vorn. */
+.tile.is-ring-return.is-focus::after { animation: ring-return var(--t-ring-return) var(--ease-out), ring-turn var(--t-ring) linear infinite; }
+@keyframes ring-return { from { --fx-o: 0; --fx-s: var(--ring-return-from); } to { --fx-o: 1; --fx-s: 1; } }
 /* Kein Dauerlauf in Ruhe: nach einigen Sekunden ohne Eingabe bleibt der Schimmer stehen */
 html.is-idle .is-focus::after, html.is-idle .caret { animation-play-state: paused; }
 /* (web-settings) Nur der Schimmer steht: Ein Element, das in Ruhe den Fokus bekommt (Ansicht vom Kern
@@ -154,6 +166,18 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .layer.is-enter .layer-panel { --fx-o: 0; --fx-s: var(--scale-menu-in); }
 .layer.is-leave .layer-panel { --fx-o: 0; transition-duration: var(--t-menu-out); transition-timing-function: var(--ease-in); }
 .layer.is-leave .layer-dim { transition-duration: var(--t-menu-out); }
+
+/* E127: Logo anpassen (components/entry-actions.js adjustLogo): Leiste unten, ohne Abdunklung; der Hub darüber zeigt
+   die Vorschau */
+.logo-adjust { position: absolute; left: var(--m-content); right: var(--m-content); bottom: var(--logo-adjust-bottom);
+  min-height: var(--logo-adjust-h); padding: 0 var(--logo-adjust-pad); border-radius: var(--menu-r); background: var(--c-menu);
+  box-shadow: var(--shadow-panel); display: flex; align-items: center; gap: var(--logo-adjust-gap); transform-origin: bottom center; }
+.logo-adjust-head { flex: 0 1 auto; min-width: 0; display: flex; align-items: baseline; gap: var(--logo-adjust-gap); }
+.logo-adjust-title { font-size: var(--fs-body); white-space: nowrap; }
+.logo-adjust-size { font-size: var(--fs-value); color: var(--c-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.logo-adjust .logo-adjust-hints { position: static; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+/* schmaler als ein gewöhnlicher Knopf: Titel, Größe, Hinweise und Knopf passen in eine Zeile */
+.logo-adjust-save { flex: none; min-width: 0; }
 
 /* Menü: Optionen eines Eintrags, Ein/Aus */
 .menu { position: absolute; width: var(--menu-w); padding: var(--menu-inset); border-radius: var(--menu-r); background: var(--c-menu);

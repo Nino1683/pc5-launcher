@@ -30,7 +30,19 @@ DEFAULTS: dict[str, Any] = {
     "ui.live_background": True,        # bewegter Hintergrund des Home (E33)
     "ui.language": "",                 # "de" | "en"; leer = nach der Systemsprache (i18n.language, 2026-10-25)
     "ui.intro": True,                  # Startanimation mit Ton beim Start des Home (E92)
+    "ui.intro_style": "own",           # E130: "own" eigene Animation | "video" Video von steamdeckrepo.com (wiring_videos)
+    "ui.suspend_video": "off",         # E130: "off" | "video": kurzes Video, bevor man den Ruhemodus wählt
     "ui.theme": "",                    # Design (E113): "" Standard | eingebaute Kennung | "file:<name>" (themes.py)
+    # Hintergrund des Home (E121, gallery.py): "game" Spielbilder | "image" eigenes Bild | "slideshow" Diashow
+    "ui.background": "game",
+    "ui.background_image": "",         # Pfad des eigenen Bildes (Bildschirmfotos oder Bilder › Hintergründe)
+    "ui.background_slides": "all",     # Diashow aus "all" | "wallpapers" | "screenshots"
+    "ui.background_interval": 60,      # Sekunden je Bild der Diashow: 30 | 60 | 300 | 900
+    # Widget-Leiste im Home (E126, wiring_widgets.py; Einstellungen › Home-Bildschirm › Widgets), je Widget ein Schalter
+    "ui.widget_storage": True,         # Speicherplatz der Spiele-Platte
+    "ui.widget_trophies": True,        # Trophäen gesamt (E124)
+    "ui.widget_deals": True,           # Angebote der Wunschliste (E122)
+    "ui.widget_recent": True,          # Zuletzt gespielt
     # --- Ton
     "audio.ui_sounds": True,
     "audio.ui_volume": 0.6,            # Anteil 0..1
@@ -46,6 +58,7 @@ DEFAULTS: dict[str, Any] = {
     "notify.battery": True,            # Akkuwarnung des Controllers
     "notify.seconds": 5,
     "notify.weekly": True,             # E108: Wochenrückblick „Deine Woche …“ montags
+    "notify.wishlist": True,           # E122: einmal am Tag neue Angebote der Steam-Wunschliste melden (wiring_wishlist)
     # --- Selbst-Update (E116, selfupdate.py)
     "update.check": True,              # einmal am Tag bei GitHub nach einer neuen Fassung fragen und sie melden
     # --- Shell
@@ -56,6 +69,8 @@ DEFAULTS: dict[str, Any] = {
     "games.fsr4": True,                # FSR 4 für Proton-Starts; je Spiel abschaltbar
     "games.hdr": True,                 # DXVK_HDR, solange die Sitzung HDR ausgibt
     "games.pad_auto": True,            # Controller je Spiel als Xbox-Pad oder direkt (E74, launch/proton.controller)
+    "games.trailers": True,            # E123: Steam-Trailer stumm hinter dem Hub, wenn die Auswahl ruht (sys.state.trailers)
+    "games.music": False,              # E123: Spielmusik im Home, leise der Ton desselben Trailers (sys.state.game_music)
     "games.proton": "",                # "" = automatisch (wiring_settings.resolve_proton)
     "games.prefix_root": "",           # "" = ~/Games/prefixes/couch
     "games.locale": "",                # "" = nichts setzen

@@ -1,0 +1,92 @@
+/* Trophäen (E124), nützliche Karten unter dem Hub (E125) und Widget-Leiste im Home (E126).
+   js/components/trophies.js, hub-cards.js, widgets.js und screens/trophies.js; die Datei laden die Bausteine selbst
+   nach (index.html gehört nicht zu diesem Teil). Maße und Farben nur aus tokens.css (Block E124-trophies). Nichts
+   bewegt sich von selbst: Fortschritt steht über die Laufzeit-Variable --p, ohne Übergang. */
+
+/* ---------------------------------------------------------------- Bausteine */
+.tr-tier.is-none { color: var(--c-text-3); }
+.tr-counts { display: flex; align-items: center; gap: var(--tr-count-gap); font-size: var(--fs-caption); line-height: var(--lh-caption);
+  color: var(--c-text-2); white-space: nowrap; }
+.tr-count { display: flex; align-items: center; gap: var(--tr-count-in); }
+.tr-count > .ic { font-size: var(--tr-count-ic); }
+.tr-count > b { color: var(--c-text); font-weight: var(--w-strong); font-variant-numeric: tabular-nums; }
+.tr-bar { height: var(--tr-bar-h); border-radius: var(--tr-bar-r); background: var(--c-tr-bar); overflow: hidden; }
+.tr-bar > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: var(--c-tr-fill); }
+.tr-art { position: relative; flex: none; width: var(--tr-ic); height: var(--tr-ic); border-radius: var(--tr-ic-r); overflow: hidden;
+  background: var(--c-tile-sys); color: var(--c-text-3); font-size: var(--tr-ic-sym); display: flex; align-items: center; justify-content: center; }
+.tr-art > img { width: 100%; height: 100%; object-fit: cover; }
+.tr-foot { display: flex; align-items: center; gap: var(--tr-count-in); min-width: 0; font-size: var(--fs-small); line-height: var(--lh-small);
+  color: var(--c-text-2); }
+.tr-foot > .ic { flex: none; font-size: var(--tr-foot-ic); }
+
+/* ---------------------------------------------------------------- Karten unter dem Hub (E125)
+   Wie die Karten aus lib.get (home.css .hub-card); mit Aktion anwählbar, vier passen schmaler in dieselbe Breite.
+   Das Foto füllt die Karte, die Schrift steht links auf einem Verlauf; die Linie am unteren Rand zeigt Fortschritt. */
+.hub-card[data-focus] { --r: var(--card-r); }
+.hub-cards.is-four .hub-card { width: var(--card-w-4); }
+.hub-card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.hub-card.has-img::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--g-card-shot); }
+.hub-card.has-img > .hub-card-label, .hub-card.has-img > .hub-card-value, .hub-card.has-img > .hub-card-sub { position: relative;
+  text-shadow: var(--shadow-text); }
+.hub-card-value.clamp2 { white-space: normal; }
+.hub-card-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); }
+.hub-card-tiers { position: absolute; right: var(--card-pad-x); top: var(--card-pad-y); }
+.hub-card-line { position: absolute; left: 0; right: 0; bottom: 0; height: var(--card-line); border-radius: 0 0 var(--card-r) var(--card-r);
+  background: var(--c-tr-bar); overflow: hidden; }
+.hub-card-line > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--c-tr-fill); }
+
+/* ---------------------------------------------------------------- Abschnitt „Trophäen“ im Hub */
+.tr-head { display: flex; align-items: center; gap: var(--tr-head-gap); margin-bottom: var(--tr-head-mb); }
+.tr-pct { flex: none; font-size: var(--fs-tr-pct); line-height: var(--lh-tr-pct); font-weight: var(--w-strong); text-shadow: var(--shadow-text);
+  font-variant-numeric: tabular-nums; }
+.tr-head-main { flex: none; width: var(--tr-head-w); display: flex; flex-direction: column; gap: var(--tr-head-in); }
+.tr-head-count { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); text-shadow: var(--shadow-text); }
+.tr-head-tiers .tr-counts { gap: var(--tr-head-gap); font-size: var(--fs-value); line-height: var(--lh-value); text-shadow: var(--shadow-text); }
+.tr-head-tiers .tr-count > .ic { font-size: var(--tr-head-ic); }
+.tr-grid { display: grid; grid-template-columns: repeat(3, var(--card-w)); gap: var(--tr-row-gap) var(--card-gap); }
+.tr-card { height: var(--tr-card-h); padding: 0 var(--tr-card-pad); border-radius: var(--card-r); --r: var(--card-r); background: var(--c-card);
+  display: flex; align-items: center; gap: var(--tr-card-gap); }
+.tr-card-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--tr-card-in); }
+.tr-card-name { font-size: var(--fs-value); line-height: var(--lh-value); font-weight: var(--w-strong); }
+.tr-card-desc { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); }
+.tr-card.is-locked .tr-card-name { color: var(--c-text-2); }
+.tr-more { margin-top: var(--tr-more-gap); }
+
+/* ---------------------------------------------------------------- Bildschirme „Trophäen“
+   Gerüst der Abläufe (installer.css .flow, .flow-title, .flow-sub; base.css .hints): links die Summen, rechts die
+   Liste (components/rows.js). Der Pokal der Stufe steht ganz rechts in der Zeile. */
+.tr-panel { position: absolute; left: var(--m-content); top: var(--flow-top); width: var(--tr-panel-w); }
+.tr-total { font-size: var(--fs-tr-total); line-height: var(--lh-tr-total); font-weight: var(--w-strong); font-variant-numeric: tabular-nums; }
+.tr-total-label { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.tr-panel-bar { margin-top: var(--tr-line-gap); }
+.tr-tier-rows { margin-top: var(--tr-tiers-gap); display: flex; flex-direction: column; }
+.tr-tier-row { height: var(--tr-tier-row); display: flex; align-items: center; gap: var(--tr-tier-gap); border-bottom: var(--line) solid var(--c-line);
+  font-size: var(--fs-body); line-height: var(--lh-body); }
+.tr-tier-row > .ic { font-size: var(--tr-tier-ic); }
+.tr-tier-row > span { flex: 1 1 0; }
+.tr-tier-row > b { font-weight: var(--w-strong); font-variant-numeric: tabular-nums; }
+.tr-tier-row.is-unknown { color: var(--c-text-2); }
+.tr-games { margin-top: var(--tr-line-gap); font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); }
+.tr-list { position: absolute; left: var(--tr-list-x); top: var(--flow-top); width: var(--tr-list-w); }
+.tr-list .rows { height: var(--flow-view); }
+.tr-scroll { left: var(--scroll-x); top: var(--flow-top); }
+.tr-list .row > .row-icon { order: 5; font-size: var(--tr-row-ic); }
+.tr-list .row-art { width: var(--tr-row-art); height: var(--tr-row-art); }
+.tr-list .row-art .art.is-sys > .ic { font-size: var(--tr-row-sym); color: var(--c-text-3); }
+
+/* ---------------------------------------------------------------- Widget-Leiste (E126) */
+.wg-bar { display: flex; gap: var(--wg-gap); }
+.wg { position: relative; flex: none; width: var(--wg-w); height: var(--wg-h); padding: var(--wg-pad); border-radius: var(--card-r);
+  --r: var(--card-r); background: var(--c-card); display: flex; flex-direction: column; gap: var(--wg-in); }
+.wg[hidden] { display: none; }
+.wg-head { display: flex; align-items: center; gap: var(--wg-head-gap); font-size: var(--fs-caption); line-height: var(--lh-caption);
+  color: var(--c-text-2); }
+.wg-head > .ic { flex: none; font-size: var(--wg-head-ic); }
+.wg-value { font-size: var(--fs-wg-value); line-height: var(--lh-wg-value); font-weight: var(--w-strong); }
+.wg-sub { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--c-text-2); }
+.wg-tiers { margin-top: auto; }
+.wg-line { position: absolute; left: var(--wg-pad); right: var(--wg-pad); bottom: var(--wg-pad); height: var(--tr-bar-h);
+  border-radius: var(--tr-bar-r); background: var(--c-tr-bar); overflow: hidden; }
+.wg-line > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: var(--c-tr-fill); }
+.wg-covers { display: flex; gap: var(--wg-cover-gap); margin-top: auto; }
+.wg-cover { flex: none; width: var(--wg-cover); height: var(--wg-cover); border-radius: var(--wg-cover-r); --r: var(--wg-cover-r); }

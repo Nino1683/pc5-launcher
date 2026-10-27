@@ -66,7 +66,8 @@ TERMINAL_FONT = (14, 40)                                        # wie terminal/w
 BLOCKED_KEYS = frozenset((
     "library.sgdb_key", "input.bt_adapter", "audio.sink", "display.hdr", "display.hdr_confirmed",
     "display.sdr_brightness", "display.vrr", "display.area_scale", "library.games_disk", "emu.root",
-    "install.games_root", "games.prefix_root", "library.roms"))
+    "install.games_root", "games.prefix_root", "library.roms",
+    "ui.background_image"))                     # Pfad dieses Rechners (E121); fehlt die Datei, gelten die Spielbilder
 BLOCKED_PREFIXES = ("hints.",)
 # Erlaubte Werte über den Typ hinaus. Was hier fehlt, prüfen die Dienste beim Lesen selbst (perf,
 # accessories): Zahlen von, bis …

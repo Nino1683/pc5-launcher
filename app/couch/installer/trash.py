@@ -580,6 +580,75 @@ def _delete_install(entry, games_root, mounts, now) -> dict:
             "message": "„%s“ wurde in den Papierkorb verschoben." % info["title"]}
 
 
+# ====================================================================== Eigener Spielordner offen halten (E132)
+
+def open_own_dir(entry: dict, games_root: str, *, mounts: Mounts | None = None) -> tuple:
+    """Öffnet den Spielordner eines eigenen Eintrags NUR LESEND geprüft, damit ein anderer Teil darin eine eigene
+    Datei ablegen kann (E132: Trailer in <Spielordner>/.pc5-trailer, geht beim Deinstallieren mit in den Papierkorb).
+
+    Dieselben Prüfungen wie delete_install Schritt 1 bis 9: Eintrag local:<uuid> mit Zufallswert, Ordner direkt im
+    Spiele-Ordner (oder in seiner Store-Ebene), echter eigener Ordner, kein Verweis, gleiches Gerät und gleiche
+    Einhängung, Marker mit dem Zufallswert des Eintrags (in einer Store-Ebene auch mit seiner entry_id), gleiches
+    Dateisystem wie beim Anlegen, keine Einhängung darin. Verändert nichts.
+    → (Deskriptor des Ordners, aufgelöster Pfad); der Aufrufer schließt den Deskriptor. Wirft Refuse."""
+    if not isinstance(entry, dict):
+        raise Refuse("bad-entry", "Der Bibliothekseintrag ist ungültig.")
+    if ENTRY_ID_RE.match(entry.get("id") if isinstance(entry.get("id"), str) else "") is None:
+        raise Refuse("not-local", "Nur Spiele, die die Konsole selbst installiert hat.")
+    token = entry.get("marker")
+    if not _is_token(token):
+        raise Refuse("no-token", "Zu diesem Spiel ist kein Marker gespeichert.")
+    parent, name = _split_path(entry.get("install_dir"))
+    if name.startswith("."):
+        raise Refuse("hidden", "Versteckte Ordner werden nicht angefasst.")
+    real_root, root_fd, root_st = _open_root(games_root)
+    level_fd = None
+    item_fd = None
+    try:
+        if os.path.realpath(parent + "/" + name) == real_root:
+            raise Refuse("is-games-root", "Der Spiele-Ordner selbst gehört keinem Spiel.")
+        level = _store_level(entry, parent, real_root)
+        parent_fd, parent_st = root_fd, root_st
+        if level is not None:
+            level_fd, level_st = _open_child_dir(root_fd, level, root_st)
+            parent_fd, parent_st = level_fd, level_st
+        rel = (level + "/" + name) if level is not None else name
+        item_fd, item_st = _open_child_dir(parent_fd, name, parent_st)
+        real_item = os.path.realpath(real_root + "/" + rel)
+        if real_item != real_root + "/" + rel:
+            raise Refuse("escapes-root", "Der Ordner führt aus dem Spiele-Ordner hinaus.")
+        marker = _read_marker_fd(item_fd)
+        if marker["token"] != token:
+            raise Refuse("marker-mismatch", "Die Markerdatei im Ordner gehört nicht zu diesem Bibliothekseintrag.")
+        if level is not None and marker.get("entry_id") != entry.get("id"):
+            raise Refuse("marker-mismatch", "Die Markerdatei im Ordner nennt ein anderes Spiel.")
+        _refuse_other_filesystem(marker, item_fd, item_st)
+        _refuse_mounts_below(real_item, mounts)
+        fd, item_fd = item_fd, None
+        return fd, real_item
+    finally:
+        if item_fd is not None:
+            os.close(item_fd)
+        if level_fd is not None:
+            os.close(level_fd)
+        os.close(root_fd)
+
+
+def open_own_subdir(dir_fd: int, name: str, create: bool = True) -> int:
+    """Unterordner name (eigener, versteckter Name) im geprüften Ordner hinter dir_fd: bei Bedarf anlegen, dann wie
+    jeder Spielordner öffnen (kein Verweis, eigener Ordner, gleiches Gerät, gleiche Einhängung). → Deskriptor."""
+    if not name.startswith(".") or "/" in name or name in (".", ".."):
+        raise Refuse("bad-name", "Nur eigene versteckte Unterordner.")
+    st = os.fstat(dir_fd)
+    if create and not _exists(dir_fd, name):
+        try:
+            os.mkdir(name, 0o755, dir_fd=dir_fd)
+        except FileExistsError:
+            pass
+    fd, _st = _open_child_dir(dir_fd, name, st)
+    return fd
+
+
 # ====================================================================== Von Hand hinzugefügte Spiele (E91)
 # Spiele aus dem Datei-Explorer haben keinen Marker: Die Konsole hat ihren Ordner nicht angelegt.
 # Gelöscht wird ein solcher Ordner nur, nachdem der Nutzer ihn am Bildschirm mit vollem Pfad bestätigt

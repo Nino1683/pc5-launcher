@@ -25,6 +25,10 @@ Build, den "Automatisch" meint.
 Spielstände (E99): „Spielstände automatisch sichern“ (saves.auto) und wie viele automatische
 Sicherungen je Spiel bleiben (saves.keep); was sie bewirken, steht in wiring_saves.py.
 
+Trailer (E123): „Trailer im Hintergrund“ (games.trailers) und „Spielmusik im Home“ (games.music, Vorgabe aus) stehen
+bei den Schaltern; die Verdrahtung schickt sie als sys.state.trailers und sys.state.game_music an die Seite
+(wiring_gameinfo.py), dort entscheidet components/trailer.js.
+
 itch.io (E100): Unterseite mit dem Konto („Angemeldet als …“ / „Nicht angemeldet“ / „Nicht
 eingerichtet“), „Bei itch.io abmelden“ (Rückfrage, nur angemeldet) und der App-Kennung (Textfeld,
 nicht geheim). Einziger Schlüssel ist store.itch_client_id (E22); geschrieben wird er nur über
@@ -55,6 +59,8 @@ DEFAULTS = {
     "games.hdr": True,
     "games.freeze": True,
     "games.pad_auto": True,
+    "games.trailers": True,        # E123: geht als sys.state.trailers an die Seite (wiring_gameinfo.py)
+    "games.music": False,          # E123: Spielmusik im Home, als sys.state.game_music
 }
 
 # Spielstände (E99): eigene Tabelle, weil die Schlüssel nicht mit "games." beginnen
@@ -84,6 +90,16 @@ _TOGGLES = {
         "Spiele, die nur Xbox-Controller kennen, sehen deinen Controller als Xbox-Controller (mit "
         "Xbox-Symbolen); Spiele mit eigener Unterstützung bekommen ihn direkt. Je Spiel einstellbar "
         "unter Spieleinstellungen › Controller."),
+    # E123: ruht die Auswahl einige Sekunden auf einem Steam-Spiel, läuft hinter dem Hub stumm sein Trailer
+    "games.trailers": (
+        "games.trailers", "Trailer im Hintergrund",
+        "Ruht die Auswahl einige Sekunden auf einem Spiel, läuft hinter dem Hub stumm sein Steam-Trailer statt "
+        "des Bildes. Nur mit „Bewegter Hintergrund“ und ohne „Bewegung reduzieren“; lädt je Trailer einige MB."),
+    # E123 (Wunsch: „Spielmusik im Home“): derselbe Trailer, leise sein Ton; ohne Trailer-Schalter nur der Ton
+    "games.music": (
+        "games.music", "Spielmusik im Home",
+        "Ruht die Auswahl eine Weile auf einem Spiel, spielt leise der Ton seines Steam-Trailers, so laut wie die "
+        "Bedientöne. Nie, solange ein Spiel oder eine App läuft. Ist „Trailer im Hintergrund“ aus, nur der Ton."),
 }
 # „Bilder automatisch laden“ (library.fetch_art) steht unter Home-Bildschirm: jede Zeile genau einmal (E22)
 

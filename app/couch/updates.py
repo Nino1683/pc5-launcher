@@ -385,4 +385,4 @@ class UpdateWatch:
         save_seen(set(keys) | keep)
         if new:
             _log.info("Updates verfügbar: %s", ", ".join(new))
-            self.notify("Updates verfügbar", summary(new) + " · Einstellungen › System › Updates")
+            self.notify("Updates verfügbar", summary(new) + " · Einstellungen › Updates")

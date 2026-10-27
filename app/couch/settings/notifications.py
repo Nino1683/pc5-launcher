@@ -4,6 +4,7 @@ Reine Einstellungen; der Mitteilungsdienst des Kerns (couch/notify.py) liest sie
 Einblendung: notify.popups (aus = nur noch die Liste), notify.in_game (aus = nichts über einem
 Spiel oder einer App, außer der Akkuwarnung), notify.battery (aus = keine Akkuwarnung).
 E108: notify.weekly (Wochenrückblick „Deine Woche …“, wiring_stats.py) liest die Verdrahtung selbst.
+E122: notify.wishlist (Angebote der Steam-Wunschliste, wiring_wishlist.py) ebenso.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ DEFAULTS = {
     "notify.in_game": True,
     "notify.battery": True,
     "notify.weekly": True,                  # E108
+    "notify.wishlist": True,                # E122
 }
 
 # Zeile -> (Schlüssel, Beschriftung, Erklärung)
@@ -29,8 +31,12 @@ _TOGGLES = {
     # E108: steht auch ohne Einblendungen in der Liste, darum nie gesperrt
     "notifications.weekly": ("notify.weekly", "Wochenrückblick",
                              "Zu Beginn jeder Woche eine Mitteilung mit deiner Spielzeit der Vorwoche."),
+    # E122: wie der Wochenrückblick auch ohne Einblendungen in der Liste, darum nie gesperrt
+    "notifications.wishlist": ("notify.wishlist", "Angebote auf der Wunschliste",
+                               "Einmal am Tag prüft der PC5 Launcher die Preise deiner Steam-Wunschliste und meldet "
+                               "jedes neue Angebot einmal. Nur mit Anmeldung bei Steam im Store."),
 }
-_ALWAYS = ("notifications.popups", "notifications.weekly")
+_ALWAYS = ("notifications.popups", "notifications.weekly", "notifications.wishlist")
 
 
 class NotificationsArea:

@@ -28,7 +28,31 @@ OPTION_DEFAULTS = {
     "pad_look": 1.0,         # Spiel-Modus: Tempo des Umschauens (Faktor, PAD_LOOKS)
     "pad_spots": {},         # Zeiger-Modus: eigene Sprungstellen {taste: {x, y, w, h}} (E99, pad_spots_value)
     "pad_keys": {},          # Spiel-Modus: eigene Tastenbelegung {taste: ziel} (E109, pad_keys_value); {} = E64
+    "logo": {},              # Lage und Größe des Logos im Hub {x, y, s} (E127, logo_value); {} = wie geliefert
 }
+
+# E127: Logo je Spiel anpassen. x und y in Höhen des Logo-Kastens (--hub-logo-h, so gilt derselbe Wert in 1080p
+# und 4K), positiv = nach rechts bzw. unten; s = Faktor auf die gelieferte Größe. Grenzen so, dass das Logo im Hub
+# bleibt: nach unten nur bis kurz vor die Unterzeile, nach oben bis unter die Kachelreihe, nach links kaum über den
+# Rand des Inhalts. Die Seite (components/hub.js) hat dieselben Grenzen.
+LOGO_LIMITS = {"x": (-0.5, 4.0), "y": (-1.2, 0.1), "s": (0.5, 1.6)}
+LOGO_DEFAULT = {"x": 0.0, "y": 0.0, "s": 1.0}
+
+
+def logo_value(value) -> dict:
+    """Option logo prüfen und in ihre gespeicherte Form bringen (E127): x, y, s als Zahlen in LOGO_LIMITS, auf drei
+    Nachkommastellen. Fehlende Teile gelten als Vorgabe; entspricht alles der Vorgabe, bleibt {} (so ergibt
+    „Zurücksetzen“ dasselbe wie nie angepasst). ValueError, wenn es keine Zuordnung ist oder eine Zahl fehlt bzw.
+    außerhalb der Grenzen liegt."""
+    if not isinstance(value, dict) or any(k not in LOGO_LIMITS for k in value):
+        raise ValueError("Die Lage des Logos besteht aus x, y und Größe.")
+    out = {}
+    for key, (lo, hi) in LOGO_LIMITS.items():
+        raw = value.get(key, LOGO_DEFAULT[key])
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw != raw or not lo <= raw <= hi:
+            raise ValueError("So weit lässt sich das Logo nicht verschieben oder vergrößern.")
+        out[key] = round(float(raw), 3)
+    return {} if out == LOGO_DEFAULT else out
 
 # E109: Tastenbelegung je Spiel für „Als Tastatur und Maus“ (Profil game). Tasten des Pads nach Lage wie beim
 # DualSense (padmouse.PAD_KEY_CODES), Ziele nach Lage der Taste auf der Tastatur (padmouse.TARGET_CODES, E64:

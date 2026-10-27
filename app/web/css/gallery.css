@@ -1,0 +1,57 @@
+/* Mediengalerie (E120), Bildschirme gallery und gallery-view. Zahlenwerte nur in tokens.css (Block E120-gallery).
+   Kopf und Tastenhinweise wie die Abläufe (installer.css .flow-title, .flow-sub; base.css .hints). Raster wie die
+   Bibliothek: gerollt in ganzen Reihen über --top, nur transform. Den Fokusring trägt das Bild (.gal-shot), die
+   Unterschrift steht darunter. */
+.gal-filter { position: absolute; right: var(--m-content); top: var(--set-title-top); min-width: var(--gal-filter-w); }
+
+/* Sichtfenster etwas größer als das Raster, damit der Ring der Randbilder nicht abgeschnitten wird */
+.gal-view { position: absolute; left: calc(var(--m-content) - var(--lib-clip-margin)); right: calc(var(--m-content) - var(--lib-clip-margin));
+  top: calc(var(--flow-top) - var(--lib-clip-margin)); bottom: var(--gal-view-bottom); overflow: hidden; }
+.gal-grid { position: absolute; left: var(--lib-clip-margin); top: var(--lib-clip-margin); display: grid;
+  grid-template-columns: repeat(5, var(--gal-w)); column-gap: var(--gal-gap); row-gap: var(--gal-row-gap);
+  --fx-y: calc(var(--top, 0) * -1 * var(--gal-pitch)); transform: translate3d(0, var(--fx-y), 0);
+  transition: --fx-y var(--t-row) var(--ease-out); will-change: transform; }
+.gal-cell { width: var(--gal-w); }
+.gal-shot { width: var(--gal-w); height: var(--gal-h); border-radius: var(--gal-r); --r: var(--gal-r); }
+.gal-pic { position: absolute; inset: 0; border-radius: var(--gal-r); overflow: hidden; background: var(--c-gal-pic);
+  display: flex; align-items: center; justify-content: center; }
+.gal-pic > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gal-pic:not(.has-img) > img { visibility: hidden; }
+.gal-ph { font-size: var(--gal-ph); color: var(--c-gal-ph); }
+.gal-pic.has-img > .gal-ph { display: none; }
+/* Das gewählte Bild in der Bildwahl (E121) */
+.gal-mark { position: absolute; left: var(--gal-mark-inset); top: var(--gal-mark-inset); height: var(--tile-badge-h); padding: 0 var(--tile-badge-pad);
+  border-radius: var(--badge-r); background: var(--c-badge); color: var(--c-badge-text); font-size: var(--tile-badge-fs);
+  font-weight: var(--w-strong); letter-spacing: var(--ls-badge); line-height: var(--tile-badge-h); white-space: nowrap; z-index: var(--z-content); }
+.gal-cap { margin-top: var(--gal-cap-gap); }
+.gal-cap-title { font-size: var(--fs-small); font-weight: var(--w-strong); line-height: var(--lh-small); }
+.gal-cap-date { font-size: var(--fs-tiny); line-height: var(--lh-small); color: var(--c-text-3); }
+.gal-empty { position: absolute; left: var(--m-content); top: var(--flow-top); max-width: var(--flow-sub-w); font-size: var(--fs-body);
+  line-height: var(--lh-body); color: var(--c-text-3); }
+
+/* ---------------------------------------------------------------- Vollbild */
+.gal-viewer { background: var(--c-black); }
+.gal-full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* Fokus ohne Ring: Es gibt nur das Bild */
+.gal-stage { position: absolute; inset: 0; }
+.gal-viewer .gal-stage.is-focus::after { content: none; }
+.gal-bar { position: absolute; left: 0; right: 0; bottom: 0; height: var(--gal-bar-h); background: var(--g-gal-bar);
+  display: flex; flex-direction: column; justify-content: flex-end; gap: var(--gal-bar-gap);
+  padding: 0 var(--m-head) var(--gal-bar-bottom); }
+.gal-bar-title, .gal-bar-meta { max-width: var(--gal-bar-w); }
+.gal-bar-title { font-size: var(--fs-value); font-weight: var(--w-strong); line-height: var(--lh-value); }
+.gal-bar-meta { font-size: var(--fs-hint); line-height: var(--lh-small); color: var(--c-text-2); }
+/* Dreieck: nur das Bild (ohne Übergang, nichts läuft in Ruhe) */
+.gal-viewer.is-bare .gal-bar, .gal-viewer.is-bare .hints { visibility: hidden; }
+
+/* ---------------------------------------------------------------- Hintergrund des Home (E121, components/backdrop.js)
+   Die Diashow blendet langsamer über als der Wechsel zwischen Spielen (home.css .bd-layer); ein Schnitt bleibt ein Schnitt */
+.bd-layer.is-slow:not(.is-cut) { transition-duration: var(--t-bd-slide); }
+
+/* ---------------------------------------------------------------- Kachel „Mediengalerie“ in der Bibliothek (E120)
+   Groß wie ein Cover (library.css .cover), Grund wie die Systemkacheln des Home, Symbol und Name in der Mitte */
+.lib-gallery { width: var(--cover); height: var(--cover-h); border-radius: var(--cover-r); --r: var(--cover-r);
+  background: var(--c-tile-sys-solid); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--gal-lib-gap); padding: 0 var(--cover-pad); }
+.lib-gallery-ic { font-size: var(--ic-tile); }
+.lib-gallery-name { font-size: var(--fs-caption); font-weight: var(--w-strong); line-height: var(--lh-cover); text-align: center; }

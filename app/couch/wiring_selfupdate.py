@@ -11,20 +11,24 @@
   Punkt am Zahnrad        wiring_settings.push_update_badge zählt eine neue Fassung mit
   busy_checks             solange geladen oder installiert wird, fragen Ausschalten und Neustart nach
   Laden und Installieren  im eigenen Thread (bis zu 15 Minuten): Der gemeinsame Pool bleibt frei
+  Was ist neu (E133)      nach dem Bereit-Signal: erster Start einer höheren Fassung -> Mitteilung „PC5 Launcher X ist
+                          installiert“ und sys.state.whatsnew {version, since} (das Home bietet den Changelog einmal
+                          an); RPC update.notes {which?, since?} -> changelog.payload in der Sprache der Oberfläche,
+                          update.seen {version} -> whatsnew gelöscht (docs/RPC.md)
 """
 from __future__ import annotations
 
 import threading
 from typing import Any, Callable
 
-from . import log, paths, selfupdate
+from . import i18n, log, paths, selfupdate
 
 _log = log.get("wiring.selfupdate")
 
 FIRST_S = 300.0          # erste Suche fünf Minuten nach dem Start: dann ist das Netz da und der Start vorbei
 TICK_S = 3600.0          # danach stündlich nachsehen, ob ein Tag um ist
 LAUNCH_WAIT_S = 600.0    # startet gerade ein Spiel: so viel später noch einmal
-PAGES = ("system.launcher", "system.apps", "system.software")
+PAGES = ("system.launcher", "system.apps", "system.software", "updates")    # E133: die Übersicht „Updates“
 
 
 def _thread(fn: Callable, *args: Any) -> threading.Thread:
@@ -68,7 +72,44 @@ def extend(wiring: Any) -> None:
         changed=lambda: wiring.main.post(show), **(getattr(wiring, "selfupdate_options", None) or {}))
     wiring.self_update = svc
     wiring.busy_checks.append(svc.busy_text)
-    wiring.after_ready.append(lambda: wiring._bg(svc.cleanup_leftovers))
+
+    def publish_whatsnew() -> None:
+        try:
+            value = svc.whats_new()
+        except Exception:
+            _log.exception("Was ist neu: Zustand")
+            value = None
+        state = getattr(app, "state", None)
+        if state is not None:
+            wiring.main.post(lambda: state.update(whatsnew=value))
+
+    def after_start() -> None:                  # Arbeits-Thread
+        svc.cleanup_leftovers()
+        try:
+            version = svc.first_start()
+        except Exception:
+            _log.exception("Was ist neu: erster Start")
+            version = ""
+        if version:
+            app.notify.push("PC5 Launcher %s ist installiert" % version,
+                            "Was neu ist, steht unter Einstellungen › Updates › Was ist neu.", icon="update")
+        publish_whatsnew()
+
+    wiring.after_ready.append(lambda: wiring._bg(after_start))
+
+    def notes(params: dict) -> dict:
+        which = "new" if params.get("which") == "new" else "all"
+        return svc.notes(lang=i18n.language(wiring.config), which=which, since=str(params.get("since") or ""))
+
+    def seen(params: dict) -> dict:
+        svc.seen_notes(str(params.get("version") or ""))
+        publish_whatsnew()
+        return {}
+
+    rpc = getattr(app, "rpc", None)
+    if rpc is not None:
+        rpc.register("update.notes", lambda params: wiring._bg(notes, dict(params or {})))
+        rpc.register("update.seen", lambda params: wiring._bg(seen, dict(params or {})))
 
     sched = getattr(getattr(app, "shell", None), "sched", None)
     timer: dict = {"handle": None, "closed": False}

@@ -1188,11 +1188,34 @@ class GogDownloads(_FolderQueue):
         return target
 
     def _run_windows_installer(self, job: dict, entry_id: str, installer: str, target: str) -> None:
-        """Installer unsichtbar über Proton, im Prefix, den das Spiel später benutzt."""
+        """Installer unsichtbar über Proton, im Prefix, den das Spiel später benutzt. Scheitert er, packt
+        innoextract ihn aus (E131: manche GOG-Installer lassen unter Wine die Willkommensseite nicht weiter)."""
         rc = self._run_proton(job, entry_id, installer, [installer] + gog_install.installer_args(target))
-        if rc != 0 or gog_install.play_task(target, job["id"]) is None and not any(
+        if rc == 0 and (gog_install.play_task(target, job["id"]) is not None or any(
+                n.lower().endswith(".exe") for n in os.listdir(target))):
+            return
+        from .store import gog_extract
+        tool = gog_extract.find_tool()
+        if tool is None:
+            raise gog_install.InstallError("Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s). Zum Auspacken "
+                                           "ohne Wine fehlt innoextract (kommt mit Lutris)." % rc)
+        _log.info("GOG: Installer endete mit %s, %s wird mit %s ausgepackt", rc, job["title"], tool)
+        import subprocess
+        from . import files
+
+        def track(proc: Any) -> None:
+            self.proc = proc
+        with open(log.capped(paths.app_log(self.LOG_NAME)), "a") as log_fh:
+            try:
+                lang = gog_extract.extract(tool, installer, target, log_fh, job["cancel"], on_proc=track,
+                                           trash=files.gio_trash)
+            except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+                raise gog_install.InstallError(str(e) if isinstance(e, RuntimeError)
+                                               else "Das Auspacken des GOG-Installers ist gescheitert.") from None
+        if gog_install.play_task(target, job["id"]) is None and not any(
                 n.lower().endswith(".exe") for n in os.listdir(target)):
             raise gog_install.InstallError("Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s)." % rc)
+        _log.info("GOG: %s ausgepackt (Sprache %s)", job["title"], lang or "alle")
 
     def _unpack_linux(self, installer: str, target: str) -> None:
         from . import system
@@ -2022,6 +2045,7 @@ def extend(wiring: Any) -> None:
     # jedem Aufruf, Einträge, die später dazukommen, gelten sofort
     wiring.store_routes = {name: fns for name, (fns, _bg) in routes.items()}
     wiring.store_open_url = open_url
+    wiring.store_steam_account = get_account    # E122: Wunschliste (wiring_wishlist.py), im Arbeits-Thread rufen
     wiring.store_watch_purchase = watch_purchase
     wiring.store_extra_owned = extra_owned
 

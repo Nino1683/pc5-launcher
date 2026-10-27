@@ -1,7 +1,9 @@
 // Home (07 Abschnitt 2 und 11.2/11.3): Reiter „Spiele“ und „Medien“, Kachelreihe, bewegter
 // Hintergrund des fokussierten Eintrags (E33), Hub darunter, Statusleiste oben rechts.
 //   Spiele  Steam · die zwölf zuletzt gespielten (liefert der Kern) · Spiel installieren · Spielebibliothek
-//   Medien  die Apps des Kerns in seiner Reihenfolge (YouTube, Kodi, Browser, Desktop, EmuDeck)
+//   Medien  die Apps des Kerns in seiner Reihenfolge (YouTube, Kodi, Browser, Desktop, EmuDeck) · Dateien · Mediengalerie
+// Eigenes Bild bzw. Diashow als Hintergrund (E121) setzt der Hintergrund selbst um (components/backdrop.js, custom).
+// E126: Ganz unten im Hub, für jeden Eintrag, die Widget-Leiste (components/widgets.js; Runter bis unter die Abschnitte).
 // Der Fokus hängt am Eintrag: Listen kommen beim Start mehrmals neu (Quellen, Bilder), er bleibt
 // auf demselben Spiel und steht anfangs auf dem zuletzt gespielten.
 import { h, icon, setIcon, after, cssMs } from "../core/dom.js";
@@ -19,6 +21,8 @@ import { createBackdrop } from "../components/backdrop.js";
 import { endingShown } from "../components/ending.js";
 import { toast } from "../components/toast.js";
 import { activateEntry, openEntryMenu, openPowerMenu, isRunning, closeEntry, desktopMode } from "../components/entry-actions.js";
+import { createWidgetBar } from "../components/widgets.js";
+import { ensureTrophyScreens, forgetTrophies } from "../components/trophies.js";
 
 const JUMP = 5;                   // L2/R2 springen um fünf Einträge
 const AREAS = ["games", "media"];
@@ -34,6 +38,7 @@ const LIBRARY_TILE = { ...SYSTEM, id: "sys:library", title: S.library, icon: "li
 const INSTALL_TILE = { ...SYSTEM, id: "sys:install", title: S.installTile, icon: "archive", note: S.installTileHint, mainLabel: S.installTileMain };
 const FILES_TILE = { ...SYSTEM, id: "sys:files", title: S.exTitle, icon: "folder", note: S.exTileHint, mainLabel: S.open };   // E62
 const STORE_TILE = { ...SYSTEM, id: "sys:store", title: S.stTitle, icon: "store", note: S.stTileHint, mainLabel: S.open };   // E68
+const GALLERY_TILE = { ...SYSTEM, id: "sys:gallery", title: S.galTitle, icon: "image", note: S.galTileHint, mainLabel: S.open };   // E120
 
 // Kachel „Spiel installieren“: Die Unterzeile nennt eine laufende Installation
 function installTile() {
@@ -81,12 +86,20 @@ function create() {
   hub.main.setAttribute("data-nav-up", "#row-current");
   hub.second.setAttribute("data-nav-up", "#row-current");
   hub.more.setAttribute("data-nav-up", "#row-current");
+  // E126: Widget-Leiste als letzter Abschnitt des Hub; „Zuletzt gespielt“ nimmt die Spiele der Reihe (ohne Kern)
+  const widgets = createWidgetBar({
+    recent: () => (rows.games ? rows.games.entries : []).filter((e) => e.kind === "game" && !e.system && e.last_played)
+      .sort((a, b) => (b.last_played || 0) - (a.last_played || 0)),
+  });
+  hub.sections.add(widgets.section);
+  ensureTrophyScreens().catch((e) => console.error("Bildschirme der Trophäen: " + (e && e.stack || e)));   // E124
   const rowsBox = h("div.home-rows");
   // Unaufdringliche Anzeige: unten rechts, solange alle Bilder geladen werden (sys.state.art_job);
   // oben rechts unter der Statusleiste (is-warn), solange die Bibliothek nicht antwortet (E99: die
   // Reihen zeigen dann nur, was zuletzt da war, oder nur die festen Kacheln; vorher sagte das niemand)
   const note = h("div.home-note", { hidden: true }, icon("download"), h("span"));
-  const backdrop = createBackdrop();
+  // custom: Eigenes Bild bzw. Diashow aus Einstellungen › Home-Bildschirm gelten hier (E121), nicht auf der Spielseite
+  const backdrop = createBackdrop({ custom: true });
   const el = h("div.home", backdrop.el, head, status.el, rowsBox, label, hub.mini, hub.el, note);
 
   for (const area of AREAS) {
@@ -109,6 +122,7 @@ function create() {
     else if (entry.id === INSTALL_TILE.id) router.go("installer");
     else if (entry.id === FILES_TILE.id) router.go("explorer");
     else if (entry.id === STORE_TILE.id) router.go("store");
+    else if (entry.id === GALLERY_TILE.id) router.go("gallery");      // E120
     else activateEntry(entry);
   }
 
@@ -179,7 +193,8 @@ function create() {
     let last = -1;
     list.forEach((e, i) => { if (e.kind === "game") last = i; });
     rows.games.setEntries(list, { first: Math.max(0, first), last: last < 0 ? undefined : last });
-    rows.media.setEntries([...apps.filter((a) => !inGames(a)), FILES_TILE]);
+    // E120: Mediengalerie hinter „Dateien“ (wie der Explorer ein eigener Bildschirm der Konsole)
+    rows.media.setEntries([...apps.filter((a) => !inGames(a)), FILES_TILE, GALLERY_TILE]);
     const initial = !state.loaded;
     state.loaded = true;
     // Die Startanimation (components/intro.js) geht erst ins Home, wenn die Reihen stehen
@@ -472,6 +487,8 @@ function create() {
     // Downloads): Der Kern holt das Home zuerst nach vorn, der Rücksprung zur App liefe danach und
     // nähme den Bildschirm wieder weg (Wunsch 2026-10-21: statt der Prüfung stand YouTube da)
     else if (event === "ui.open") clearTimeout(returnTimer);
+    // E124: neue Trophäen gemeldet: Karte, Abschnitt und Widget fragen beim nächsten Mal frisch
+    else if (event === "trophies.changed") { forgetTrophies(payload && payload.id); widgets.invalidate(); }
   }
 
   const unsubJobs = store.subscribe(["jobs"], () => {
@@ -488,6 +505,7 @@ function create() {
     else if (job) note.lastChild.textContent = fmt(S.homeArtJob, { done: job.done || 0, total: job.total || 0 });
   }
   const unsubArt = store.subscribe(["art_job"], paintNote);
+  const unsubWidgets = store.subscribe(["widgets"], () => widgets.apply());       // E126: Einstellungen › Widgets
   paintNote();
 
   load();
@@ -506,7 +524,7 @@ function create() {
       if (info && info.back && state.failed && state.failCode !== "Unavailable") load();
     },
     onHide() { backdrop.setActive(false); },
-    destroy() { status.destroy(); backdrop.destroy(); unsubJobs(); unsubArt(); clearTimeout(retryTimer); clearTimeout(artTimer); clearTimeout(returnTimer); clearTimeout(cardsTimer); },
+    destroy() { status.destroy(); backdrop.destroy(); unsubJobs(); unsubArt(); unsubWidgets(); clearTimeout(retryTimer); clearTimeout(artTimer); clearTimeout(returnTimer); clearTimeout(cardsTimer); },
   };
 }
 

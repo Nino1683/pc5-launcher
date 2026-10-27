@@ -14,6 +14,7 @@ import shutil
 import sqlite3
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 USERDATA = "https://store.steampowered.com/dynamicstore/userdata/"
@@ -88,9 +89,19 @@ def _get(url: str, cookies: dict, timeout: float = 15.0) -> dict:
         return json.loads(resp.read(16 * 1024 * 1024).decode("utf-8"))
 
 
+def country(cookies: dict) -> str:
+    """Land des Steam-Shops aus dem Cookie steamCountry („DE%7C<prüfsumme>“), klein; "" ohne Cookie. Für
+    die Preise der Wunschliste (E122): Steam rechnet in der Währung dieses Landes."""
+    raw = urllib.parse.unquote(str(cookies.get("steamCountry") or "")).split("|")[0].strip().lower()
+    return raw if len(raw) == 2 and raw.isalpha() else ""
+
+
 def userdata(cookies: dict, get=_get, clock=time.time) -> dict:
-    """{"logged_in", "owned": set, "wishlist": set, "ignored": set}. Ohne Anmeldung alles leer."""
-    empty = {"logged_in": False, "owned": set(), "wishlist": set(), "ignored": set()}
+    """{"logged_in", "owned": set, "wishlist": set, "ignored": set, "country"}. Ohne Anmeldung alles leer.
+    rgWishlist kommt in der Reihenfolge der Wunschliste; "wishlist_order" behält sie (E122 prüft bei sehr
+    langen Listen die vorderen zuerst)."""
+    empty = {"logged_in": False, "owned": set(), "wishlist": set(), "ignored": set(), "wishlist_order": [],
+             "country": country(cookies)}
     if not cookies.get("steamLoginSecure"):
         return empty
     try:
@@ -99,6 +110,8 @@ def userdata(cookies: dict, get=_get, clock=time.time) -> dict:
         return dict(empty, error=True)
     owned = {int(x) for x in data.get("rgOwnedApps") or [] if str(x).isdigit()}
     packages = data.get("rgOwnedPackages") or []
+    order = list(dict.fromkeys(int(x) for x in data.get("rgWishlist") or [] if str(x).isdigit()))
     return {"logged_in": bool(owned or packages), "owned": owned,
-            "wishlist": {int(x) for x in data.get("rgWishlist") or [] if str(x).isdigit()},
-            "ignored": {int(x) for x in (data.get("rgIgnoredApps") or {}) if str(x).isdigit()}}
+            "wishlist": set(order), "wishlist_order": order,
+            "ignored": {int(x) for x in (data.get("rgIgnoredApps") or {}) if str(x).isdigit()},
+            "country": country(cookies)}

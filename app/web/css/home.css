@@ -96,7 +96,10 @@ html.is-overlaid .status, html.is-overlaid .home-head { --fx-o: 0; }
   transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-hub) var(--ease-std); will-change: transform; }
 .hub-logo { position: absolute; left: 0; top: 0; width: var(--hub-logo-w); height: var(--hub-logo-h); display: flex; align-items: flex-end; }
 /* Lichtsaum und Schatten: Ein dunkles Logo bleibt auf dunklem Grund lesbar, ein helles auf hellem */
-.hub-logo > img { max-width: var(--hub-logo-img-w); max-height: 100%; object-fit: contain; object-position: left bottom; -webkit-filter: var(--glow-logo); filter: var(--glow-logo); }
+.hub-logo > img { max-width: var(--hub-logo-img-w); max-height: 100%; object-fit: contain; object-position: left bottom; -webkit-filter: var(--glow-logo); filter: var(--glow-logo);
+  /* E127: je Spiel verschoben (in Höhen des Kastens) und skaliert, von der linken unteren Ecke aus (components/hub.js) */
+  transform-origin: left bottom;
+  transform: translate(calc(var(--logo-x) * var(--hub-logo-h)), calc(var(--logo-y) * var(--hub-logo-h))) scale(var(--logo-s)); }
 /* Der Hintergrund trägt den Schriftzug schon im Bild: nichts doppelt zeigen */
 .hub.is-titled .hub-logo { visibility: hidden; }
 /* Innenabstand in Breite des Schattens, per negativem Rand ausgeglichen: Die Kürzung (overflow)

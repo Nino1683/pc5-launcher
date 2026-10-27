@@ -19,6 +19,7 @@
 /* Bildbetrachter des Datei-Explorers (E62) */
 .ex-viewer { position: absolute; inset: var(--ex-view-inset); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ex-view-gap); }
 .ex-image { max-width: 100%; max-height: var(--ex-view-img-h); object-fit: contain; border-radius: var(--card-r); background: var(--c-black); }
+.ex-image.is-fill { width: 100%; height: var(--ex-view-img-h); max-height: none; border-radius: 0; background: none; }
 .ex-caption { max-width: 100%; font-size: var(--fs-value); color: var(--c-text-2); }
 /* Spielstände (E63): der Ordner als ganzer Pfad, umbrochen */
 .saves-side { display: flex; flex-direction: column; gap: var(--saves-gap); }

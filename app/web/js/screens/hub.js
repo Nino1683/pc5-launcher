@@ -1,5 +1,6 @@
 // Spielseite: Hub eines einzelnen Eintrags als eigener Bildschirm (aus der Spielebibliothek heraus).
 // Sieht aus wie das Home mit offenem Hub (07 Abschnitt 2.4, Zustand B), mit bewegtem Hintergrund.
+// E123: Die Abschnitte („Über das Spiel“, „Neuigkeiten“) laden gleich; der Trailer läuft nach der Ruhezeit.
 import { h } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
@@ -62,9 +63,10 @@ function create(params) {
     // Zurück (z. B. aus den Spieleinstellungen): Marken und Karten frisch aus lib.get
     onShow(info) { backdrop.setActive(true); nav.ensure(); if (info && info.back) load(); },
     onHide() { backdrop.setActive(false); },
-    destroy() { status.destroy(); backdrop.destroy(); },
+    destroy() { status.destroy(); backdrop.destroy(); hub.destroy(); },
   };
   paint();
+  hub.open();
   load();
   return api;
 }

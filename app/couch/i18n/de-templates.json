@@ -187,7 +187,7 @@
   ]
  },
  {
-  "text": " · Einstellungen › System › Updates",
+  "text": " · Einstellungen › Updates",
   "files": [
    "app/couch/updates.py"
   ]
@@ -248,9 +248,21 @@
   ]
  },
  {
+  "text": "%d von %d an",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "%d von %d fertig",
   "files": [
    "app/couch/setup/jobs.py"
+  ]
+ },
+ {
+  "text": "%d weitere Trophäen freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -643,6 +655,12 @@
   ]
  },
  {
+  "text": "%s verfügbar · installiert: %s",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "%s wird abgebrochen …",
   "files": [
    "app/couch/wiring_proton.py"
@@ -718,6 +736,18 @@
   "text": "%s · Spiele mit „Standard-Proton: Automatisch“ nutzen sie ab dem nächsten Start.",
   "files": [
    "app/couch/updates.py"
+  ]
+ },
+ {
+  "text": "%s · installiert, gilt nach dem Neustart",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
+  "text": "%s · verfügbar",
+  "files": [
+   "app/couch/changelog.py"
   ]
  },
  {
@@ -802,6 +832,12 @@
   "text": ", eine weitere wartet",
   "files": [
    "app/couch/wiring_install.py"
+  ]
+ },
+ {
+  "text": "1 Bild",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -922,6 +958,7 @@
    "app/couch/setup/jobs.py",
    "app/couch/setup/umu.py",
    "app/couch/store/epic_account.py",
+   "app/couch/store/gog_extract.py",
    "app/couch/store/gog_install.py",
    "app/couch/store/launchers.py",
    "app/couch/wiring_itch.py",
@@ -1031,6 +1068,12 @@
   ]
  },
  {
+  "text": "Adresse nicht erlaubt",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "Akku",
   "files": [
    "app/couch/settings/accessories.py"
@@ -1061,7 +1104,7 @@
   ]
  },
  {
-  "text": "Aktualisieren unter Einstellungen › System › Systemsoftware › Updates.",
+  "text": "Aktualisieren unter Einstellungen › Updates.",
   "files": [
    "app/couch/selfupdate.py"
   ]
@@ -1109,6 +1152,30 @@
   ]
  },
  {
+  "text": "Alle Trophäen in „%s“",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
+  "text": "Alle an",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Alle aus",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Alles aktualisieren",
+  "files": [
+   "app/couch/settings/updates.py"
+  ]
+ },
+ {
   "text": "Alles aktuell",
   "files": [
    "app/couch/settings/system.py"
@@ -1145,6 +1212,24 @@
   ]
  },
  {
+  "text": "Anfangsstück ohne moov",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
+  "text": "Anfangsstück ohne mvhd/trak",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
+  "text": "Anfangsstück ohne trex",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "Angaben für lib.get",
   "files": [
    "app/couch/wiring_library.py"
@@ -1171,6 +1256,18 @@
    "app/couch/store/rockstar.py",
    "app/couch/store/steam.py",
    "app/couch/store/ubisoft.py"
+  ]
+ },
+ {
+  "text": "Angebote auf der Wunschliste",
+  "files": [
+   "app/couch/settings/notifications.py"
+  ]
+ },
+ {
+  "text": "Angebote der Wunschliste",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -1266,6 +1363,12 @@
   ]
  },
  {
+  "text": "Apps",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Apps aktualisieren",
   "files": [
    "app/couch/settings/system.py"
@@ -1280,7 +1383,8 @@
  {
   "text": "Apps und Laufzeiten",
   "files": [
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -1291,12 +1395,6 @@
  },
  {
   "text": "Apps werden gerade aktualisiert.",
-  "files": [
-   "app/couch/settings/system.py"
-  ]
- },
- {
-  "text": "Apps wie YouTube und Kodi, Proton-Versionen und Epic-Spiele.",
   "files": [
    "app/couch/settings/system.py"
   ]
@@ -1557,9 +1655,16 @@
    "app/couch/perf.py",
    "app/couch/power.py",
    "app/couch/settings/accessories.py",
+   "app/couch/settings/home.py",
    "app/couch/settings/performance.py",
    "app/couch/settings/system.py",
    "app/couch/settings/tree.py"
+  ]
+ },
+ {
+  "text": "Aus deinen Bildschirmfotos oder dem Ordner „Hintergründe“ im Bilder-Ordner.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -1942,15 +2047,33 @@
   ]
  },
  {
+  "text": "Bild auswählen",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Bild behalten?",
   "files": [
    "app/couch/settings/display.py"
   ]
  },
  {
+  "text": "Bild fehlt",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Bild geladen",
   "files": [
    "app/couch/wiring_library.py"
+  ]
+ },
+ {
+  "text": "Bild und Ton mit verschiedenem Zeitmaß",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -1974,6 +2097,12 @@
  },
  {
   "text": "Bilder automatisch laden",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Bilder der Diashow",
   "files": [
    "app/couch/settings/home.py"
   ]
@@ -2079,6 +2208,12 @@
   "text": "Bildschirmschoner nach",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Bildwechsel",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -2209,6 +2344,12 @@
   ]
  },
  {
+  "text": "Bronze-Trophäe freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
   "text": "Browser",
   "files": [
    "app/couch/browser/window.py",
@@ -2266,6 +2407,7 @@
  {
   "text": "Cache-Control",
   "files": [
+   "app/couch/trailerfeed.py",
    "app/couch/ui/host.py"
   ]
  },
@@ -2418,14 +2560,22 @@
   ]
  },
  {
+  "text": "Connection",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "Content-Length",
   "files": [
+   "app/couch/bootvideos.py",
    "app/couch/fetcher.py",
    "app/couch/library/artsources/base.py",
    "app/couch/proton_repair.py",
    "app/couch/selfupdate.py",
    "app/couch/store/gog_install.py",
-   "app/couch/store/launchers.py"
+   "app/couch/store/launchers.py",
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -2704,6 +2854,18 @@
   ]
  },
  {
+  "text": "Das Auspacken des GOG-Installers ist gescheitert.",
+  "files": [
+   "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Das Bild ist jetzt der Hintergrund des Home.",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Das Bild ist zu groß (höchstens 40 MB).",
   "files": [
    "app/couch/library/art.py"
@@ -2864,6 +3026,12 @@
   ]
  },
  {
+  "text": "Das Laden brach ab. Versuch es noch einmal.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
   "text": "Das Laden der Bilder ist gerade nicht verfügbar.",
   "files": [
    "app/couch/wiring_settings.py"
@@ -2873,6 +3041,12 @@
   "text": "Das Laden von Bildern aus dem Netz ist ausgeschaltet (Einstellungen › Spiele).",
   "files": [
    "app/couch/wiring_library.py"
+  ]
+ },
+ {
+  "text": "Das Laden wurde abgebrochen.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -2990,6 +3164,13 @@
   ]
  },
  {
+  "text": "Das Ruhemodus-Video wurde entfernt.",
+  "files": [
+   "app/couch/settings/home.py",
+   "app/couch/wiring_videos.py"
+  ]
+ },
+ {
   "text": "Das Speichern hat nicht geklappt. Die Datei bleibt, wie sie war.",
   "files": [
    "app/couch/textedit.py"
@@ -3093,6 +3274,18 @@
   ]
  },
  {
+  "text": "Das Startvideo wurde entfernt.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Das Startvideo wurde entfernt. Es gilt wieder die eigene Startanimation.",
+  "files": [
+   "app/couch/wiring_videos.py"
+  ]
+ },
+ {
   "text": "Das Terminal",
   "files": [
    "app/couch/wiring_backup.py"
@@ -3168,6 +3361,18 @@
   "text": "Das Update wird installiert …",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Das Video ist größer als 60 MB und wird nicht geladen.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
+  "text": "Das Video kam nicht vollständig an. Versuch es noch einmal.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -3280,6 +3485,7 @@
    "app/couch/settings/home.py",
    "app/couch/settings/session.py",
    "app/couch/settings/system.py",
+   "app/couch/settings/updates.py",
    "app/couch/updates.py",
    "app/couch/wiring.py",
    "app/couch/wiring_settings.py"
@@ -3359,6 +3565,24 @@
   ]
  },
  {
+  "text": "Datei endet in einem Wert",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
+  "text": "Datei endet mitten in einem Unterbaum",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
+  "text": "Datei größer als %d Bytes",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
   "text": "Datei nicht lesbar: %s",
   "files": [
    "app/couch/files.py"
@@ -3368,12 +3592,6 @@
   "text": "Dateien nicht erreichbar",
   "files": [
    "app/couch/library/describe.py"
-  ]
- },
- {
-  "text": "Dateien › Bildschirmfotos · ",
-  "files": [
-   "app/couch/capture.py"
   ]
  },
  {
@@ -3453,6 +3671,12 @@
   "text": "Deine Spiele",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Deine Trophäen aus allen Steam-Spielen. Kreuz öffnet die Übersicht.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -3568,6 +3792,12 @@
   "text": "Der Browser der Konsole, bedient mit dem Controller.",
   "files": [
    "app/couch/library/apps.py"
+  ]
+ },
+ {
+  "text": "Der Browser ist gerade nicht verfügbar.",
+  "files": [
+   "app/couch/wiring_gameinfo.py"
   ]
  },
  {
@@ -3711,6 +3941,12 @@
  },
  {
   "text": "Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s).",
+  "files": [
+   "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s). Zum Auspacken ohne Wine fehlt innoextract (kommt mit Lutris).",
   "files": [
    "app/couch/wiring_store.py"
   ]
@@ -3860,6 +4096,12 @@
   ]
  },
  {
+  "text": "Der Ordner führt aus dem Spiele-Ordner hinaus.",
+  "files": [
+   "app/couch/installer/trash.py"
+  ]
+ },
+ {
   "text": "Der Ordner für Bildschirmfotos lässt sich nicht anlegen.",
   "files": [
    "app/couch/capture.py"
@@ -3875,6 +4117,12 @@
   "text": "Der Ordner für Proton-Versionen fehlt.",
   "files": [
    "app/couch/wiring_proton.py"
+  ]
+ },
+ {
+  "text": "Der Ordner für die Videos ist kein echter Ordner.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -3917,6 +4165,12 @@
   "text": "Der Ordner liegt nicht direkt im Spiele-Ordner (%s) und wird nicht angefasst.",
   "files": [
    "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "Der Ordner ließ sich nicht anlegen.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -4097,6 +4351,12 @@
   ]
  },
  {
+  "text": "Der Spiele-Ordner selbst gehört keinem Spiel.",
+  "files": [
+   "app/couch/installer/trash.py"
+  ]
+ },
+ {
   "text": "Der Spiele-Ordner selbst wird nie gelöscht.",
   "files": [
    "app/couch/installer/trash.py"
@@ -4239,6 +4499,12 @@
   "text": "Der Ton-Dienst ließ sich nicht neu starten.",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Der Trailer wurde ausgelassen, weil die Oberfläche beim letzten Mal hängen blieb.",
+  "files": [
+   "app/couch/wiring_gameinfo.py"
   ]
  },
  {
@@ -4459,6 +4725,12 @@
   ]
  },
  {
+  "text": "Diashow",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Die Aktualisierung ist fehlgeschlagen.",
   "files": [
    "app/couch/settings/system.py"
@@ -4486,6 +4758,18 @@
   "text": "Die Anmeldung bei itch.io ließ sich nicht vorbereiten.",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Die Antwort von steamdeckrepo.com ist unerwartet groß.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
+  "text": "Die Antwort von steamdeckrepo.com ist unlesbar.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -4640,6 +4924,12 @@
   "text": "Die Datei lässt sich nicht lesen: Lesefehler auf dem Laufwerk.",
   "files": [
    "app/couch/textedit.py"
+  ]
+ },
+ {
+  "text": "Die Datei wird gelöscht. Du kannst jederzeit ein anderes Video wählen.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -4862,6 +5152,12 @@
   ]
  },
  {
+  "text": "Die Lage des Logos besteht aus x, y und Größe.",
+  "files": [
+   "app/couch/library/model.py"
+  ]
+ },
+ {
   "text": "Die Laufzeit für Proton (%s) fehlt noch; der erste Start lädt sie herunter.",
   "files": [
    "app/couch/launch/proton.py"
@@ -4892,7 +5188,19 @@
   ]
  },
  {
+  "text": "Die Markerdatei im Ordner gehört nicht zu diesem Bibliothekseintrag.",
+  "files": [
+   "app/couch/installer/trash.py"
+  ]
+ },
+ {
   "text": "Die Markerdatei im Ordner gehört nicht zu diesem Bibliothekseintrag. Er wird nicht angefasst.",
+  "files": [
+   "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "Die Markerdatei im Ordner nennt ein anderes Spiel.",
   "files": [
    "app/couch/installer/trash.py"
   ]
@@ -4962,6 +5270,12 @@
   "text": "Die Reihenfolge ließ sich nicht speichern: %s",
   "files": [
    "app/couch/wiring_home.py"
+  ]
+ },
+ {
+  "text": "Die Sammlung nannte eine fremde Adresse; es wird nichts geladen.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -5287,6 +5601,12 @@
   ]
  },
  {
+  "text": "Die geladene Datei ist kein WebM-Video. Sie wurde verworfen.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
   "text": "Die itch.io-App ist eingerichtet.",
   "files": [
    "app/couch/browser/window.py"
@@ -5302,6 +5622,12 @@
   "text": "Die itch.io-App-Kennung ist gespeichert.",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Die letzten Spiele. Kreuz startet das Spiel bzw. holt es nach vorn.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -5350,7 +5676,8 @@
    "app/couch/settings/performance.py",
    "app/couch/settings/session.py",
    "app/couch/settings/storage.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -5371,6 +5698,14 @@
    "app/couch/library/index.py",
    "app/couch/perf.py",
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Diese Auswahl gibt es nicht.",
+  "files": [
+   "app/couch/bootvideos.py",
+   "app/couch/settings/home.py",
+   "app/couch/wiring_videos.py"
   ]
  },
  {
@@ -5463,7 +5798,8 @@
    "app/couch/settings/session.py",
    "app/couch/settings/storage.py",
    "app/couch/settings/system.py",
-   "app/couch/settings/tree.py"
+   "app/couch/settings/tree.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -5511,6 +5847,12 @@
   "text": "Diese Installation stammt nicht aus dem Paket von GitHub. Der PC5 Launcher aktualisiert sie deshalb nicht selbst.",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Meldung gibt es nicht.",
+  "files": [
+   "app/couch/wiring_gameinfo.py"
   ]
  },
  {
@@ -5604,6 +5946,12 @@
   ]
  },
  {
+  "text": "Diese Startanimation gibt es nicht.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Diese Stufe der Leistungsanzeige gibt es nicht.",
   "files": [
    "app/couch/library/index.py",
@@ -5638,6 +5986,12 @@
   "text": "Diese Zeit gibt es beim Ruhemodus-Timer nicht.",
   "files": [
    "app/couch/wiring_sleeptimer.py"
+  ]
+ },
+ {
+  "text": "Diese Zeit gibt es nicht.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -5702,6 +6056,12 @@
   "text": "Diesen Filter gibt es nicht.",
   "files": [
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Diesen Hintergrund gibt es nicht.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -5961,6 +6321,12 @@
   ]
  },
  {
+  "text": "Dieses Bild gibt es nicht mehr.",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Dieses Bild konnte nicht geladen werden.",
   "files": [
    "app/couch/wiring_library.py"
@@ -5970,6 +6336,12 @@
   "text": "Dieses Bild liegt an keinem erlaubten Ort.",
   "files": [
    "app/couch/wiring_library.py"
+  ]
+ },
+ {
+  "text": "Dieses Bild liegt nicht in der Mediengalerie.",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -6128,6 +6500,18 @@
   "text": "Dieses Tempo gibt es nicht.",
   "files": [
    "app/couch/library/index.py"
+  ]
+ },
+ {
+  "text": "Dieses Video gibt es nicht.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
+  "text": "Dieses Video kennt die Liste nicht mehr. Lade die Auswahl neu.",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -6337,9 +6721,27 @@
   ]
  },
  {
+  "text": "Eigene",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Eigene Bilder hierher kopieren, etwa von einem USB-Stick über den Datei-Explorer.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Eigene Töne",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Eigene: das Logo des PC5 Launchers mit Ton. Video: ein Startvideo aus der Sammlung von steamdeckrepo.com. Jede Taste überspringt es.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -6352,6 +6754,12 @@
   "text": "Eigener Prefix; Proton legt ihn beim ersten Start an.",
   "files": [
    "app/couch/launch/prefix.py"
+  ]
+ },
+ {
+  "text": "Eigenes Bild",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -6427,6 +6835,12 @@
   "text": "Ein anderes Spiel",
   "files": [
    "app/couch/wiring_launch.py"
+  ]
+ },
+ {
+  "text": "Ein kurzes Video aus der Sammlung von steamdeckrepo.com, bevor du den Ruhemodus im Ein/Aus-Menü wählst. Beim Ruhemodus nach Zeit nie.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -6556,6 +6970,12 @@
   ]
  },
  {
+  "text": "Einmal am Tag prüft der PC5 Launcher die Preise deiner Steam-Wunschliste und meldet jedes neue Angebot einmal. Nur mit Anmeldung bei Steam im Store.",
+  "files": [
+   "app/couch/settings/notifications.py"
+  ]
+ },
+ {
   "text": "Einrichten",
   "files": [
    "app/couch/settings/system.py"
@@ -6653,7 +7073,7 @@
   ]
  },
  {
-  "text": "Einstellungen › System › Systemsoftware › Updates › Proton-Versionen",
+  "text": "Einstellungen › Updates › Proton-Versionen",
   "files": [
    "app/couch/wiring_proton.py"
   ]
@@ -6840,6 +7260,7 @@
   "files": [
    "app/couch/browser/window.py",
    "app/couch/settings/accessories.py",
+   "app/couch/settings/home.py",
    "app/couch/settings/network.py",
    "app/couch/settings/system.py"
   ]
@@ -6996,6 +7417,13 @@
   ]
  },
  {
+  "text": "Es ist kein Video gespeichert.",
+  "files": [
+   "app/couch/settings/home.py",
+   "app/couch/wiring_videos.py"
+  ]
+ },
+ {
   "text": "Es ist kein gültiger Spiele-Ordner eingestellt.",
   "files": [
    "app/couch/installer/probe.py",
@@ -7042,9 +7470,21 @@
   ]
  },
  {
+  "text": "Es wird nach Updates gesucht.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Es wird nach neuen Versionen gesucht …",
   "files": [
    "app/couch/wiring_proton.py"
+  ]
+ },
+ {
+  "text": "Es wird schon ein Video geladen.",
+  "files": [
+   "app/couch/wiring_videos.py"
   ]
  },
  {
@@ -7137,6 +7577,12 @@
   "text": "Fedora",
   "files": [
    "app/couch/setup/detect.py"
+  ]
+ },
+ {
+  "text": "Feed",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -7283,7 +7729,7 @@
   ]
  },
  {
-  "text": "Fotos liegen unter Dateien › Bildschirmfotos. Mit Create allein sieht ein Spiel den Druck auch (oft Karte oder Menü).",
+  "text": "Fotos zeigt die Mediengalerie (Medien), die Dateien liegen unter Dateien › Bildschirmfotos. Mit Create allein sieht ein Spiel den Druck auch (oft Karte oder Menü).",
   "files": [
    "app/couch/settings/accessories.py"
   ]
@@ -7307,6 +7753,18 @@
   ]
  },
  {
+  "text": "Fragt alles auf einmal: Systemsoftware, PC5 Launcher, Apps, Proton und Spiele. Von selbst geschieht das alle 12 Stunden, für den PC5 Launcher einmal am Tag.",
+  "files": [
+   "app/couch/settings/updates.py"
+  ]
+ },
+ {
+  "text": "Freier Platz auf der Spiele-Platte. Kreuz öffnet „Platz schaffen“.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Freitag",
   "files": [
    "app/couch/settings/system.py"
@@ -7325,7 +7783,7 @@
   ]
  },
  {
-  "text": "Für %s ist gerade keine Fassung zu finden. Später unter Einstellungen › System › Updates › Proton-Versionen.",
+  "text": "Für %s ist gerade keine Fassung zu finden. Später unter Einstellungen › Updates › Proton-Versionen.",
   "files": [
    "app/couch/setup/jobs.py"
   ]
@@ -7773,6 +8231,12 @@
   ]
  },
  {
+  "text": "Gerade gibt es nichts zu aktualisieren.",
+  "files": [
+   "app/couch/settings/updates.py"
+  ]
+ },
+ {
   "text": "Gerade laufen Downloads oder Installationen. Miss danach, sonst stimmt das Ergebnis nicht.",
   "files": [
    "app/couch/settings/network.py"
@@ -7781,7 +8245,8 @@
  {
   "text": "Gerade nicht lesbar",
   "files": [
-   "app/couch/settings/games.py"
+   "app/couch/settings/games.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -7893,7 +8358,7 @@
   ]
  },
  {
-  "text": "Gilt nach dem Neustart: Einstellungen › System › Systemsoftware › Updates › PC5 Launcher.",
+  "text": "Gilt nach dem Neustart: Einstellungen › Updates › PC5 Launcher.",
   "files": [
    "app/couch/selfupdate.py"
   ]
@@ -7966,6 +8431,12 @@
   "text": "Glut",
   "files": [
    "app/couch/themes.py"
+  ]
+ },
+ {
+  "text": "Gold-Trophäe freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -8277,9 +8748,27 @@
   ]
  },
  {
+  "text": "Hintergrund",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Hintergrundarbeit läuft mit normaler Priorität.",
   "files": [
    "app/couch/depcheck.py"
+  ]
+ },
+ {
+  "text": "Hintergründe",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
+  "text": "Hintergründe und Bildschirmfotos",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -8298,6 +8787,12 @@
   "text": "Home dieser Fassung startet nicht, nehme previous",
   "files": [
    "session/supervisor.py"
+  ]
+ },
+ {
+  "text": "Home endet",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -8336,6 +8831,12 @@
    "app/couch/store/epic.py",
    "app/couch/store/itch.py",
    "app/couch/store/steam.py"
+  ]
+ },
+ {
+  "text": "Host",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -8512,7 +9013,9 @@
  {
   "text": "Im Prüfmodus nicht verfügbar.",
   "files": [
-   "app/couch/settings/backends/speedtest.py"
+   "app/couch/bootvideos.py",
+   "app/couch/settings/backends/speedtest.py",
+   "app/couch/wiring_gameinfo.py"
   ]
  },
  {
@@ -8616,7 +9119,8 @@
  {
   "text": "In den Papierkorb gelegt: %s",
   "files": [
-   "app/couch/files.py"
+   "app/couch/files.py",
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -8732,7 +9236,7 @@
   ]
  },
  {
-  "text": "Installieren unter Einstellungen › System › Systemsoftware.",
+  "text": "Installieren unter Einstellungen › Updates.",
   "files": [
    "app/couch/wiring_settings.py"
   ]
@@ -8741,6 +9245,12 @@
   "text": "Installiert",
   "files": [
    "app/couch/settings/storage.py",
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Installiert: %s",
+  "files": [
    "app/couch/settings/system.py"
   ]
  },
@@ -8844,6 +9354,12 @@
   ]
  },
  {
+  "text": "Jede Minute",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Jellyfin",
   "files": [
    "app/couch/launch/apps.py",
@@ -8854,7 +9370,8 @@
  {
   "text": "Jetzt nach Updates suchen",
   "files": [
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -8905,10 +9422,22 @@
   ]
  },
  {
+  "text": "Karten ganz unten im Home, unter dem Hub. Runter führt hinein.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Kartenspiel",
   "files": [
    "app/couch/store/battlenet.py",
    "app/couch/store/itch.py"
+  ]
+ },
+ {
+  "text": "Kasten %r mit falscher Größe",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -8921,6 +9450,12 @@
   "text": "Kein Ausgabegerät vorhanden.",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Kein Bild gewählt",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -8997,6 +9532,12 @@
   ]
  },
  {
+  "text": "Kein Video gewählt",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Kein WLAN-Adapter",
   "files": [
    "app/couch/settings/network.py"
@@ -9026,6 +9567,12 @@
   "text": "Keine Auffälligkeiten: %d Dateien geprüft (nur Zeitstempel).%s",
   "files": [
    "app/couch/proton_repair.py"
+  ]
+ },
+ {
+  "text": "Keine Bilder",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -9579,6 +10126,12 @@
   ]
  },
  {
+  "text": "Lädt das Update im Hintergrund; danach ist ein Neustart nötig.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Lädt das kleine Werkzeug „legendary“ (Open Source), damit Epic-Spiele später sofort gehen.",
   "files": [
    "app/couch/setup/catalog.py"
@@ -9712,6 +10265,12 @@
   "files": [
    "app/couch/library/apps.py",
    "app/couch/setup/catalog.py"
+  ]
+ },
+ {
+  "text": "Medien › Mediengalerie · ",
+  "files": [
+   "app/couch/capture.py"
   ]
  },
  {
@@ -9938,6 +10497,12 @@
   ]
  },
  {
+  "text": "Nach %s · noch nicht veröffentlicht",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
   "text": "Nach Updates suchen",
   "files": [
    "app/couch/settings/system.py"
@@ -10063,6 +10628,12 @@
   ]
  },
  {
+  "text": "Neu im PC5 Launcher %s",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
   "text": "Neu laden",
   "files": [
    "app/couch/browser/window.py",
@@ -10087,6 +10658,12 @@
   "text": "Neu und beliebt",
   "files": [
    "app/couch/store/itch.py"
+  ]
+ },
+ {
+  "text": "Neu: %s. Schließe vorher laufende Apps.",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -10173,7 +10750,8 @@
  {
   "text": "Nicht in den Papierkorb: %s",
   "files": [
-   "app/couch/files.py"
+   "app/couch/files.py",
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -10376,10 +10954,28 @@
   ]
  },
  {
+  "text": "Nur Bildschirmfotos",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Nur Hintergründe",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Nur Spiele, die die Konsole selbst aus einem Archiv installiert hat, lassen sich löschen.",
   "files": [
    "app/couch/installer/trash.py",
    "app/couch/wiring_install.py"
+  ]
+ },
+ {
+  "text": "Nur Spiele, die die Konsole selbst installiert hat.",
+  "files": [
+   "app/couch/installer/trash.py"
   ]
  },
  {
@@ -10392,6 +10988,24 @@
   "text": "Nur Startdateien (.exe, .sh …) lassen sich starten.",
   "files": [
    "app/couch/wiring_files.py"
+  ]
+ },
+ {
+  "text": "Nur auf Deutsch",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
+  "text": "Nur auf Englisch",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
+  "text": "Nur eigene versteckte Unterordner.",
+  "files": [
+   "app/couch/installer/trash.py"
   ]
  },
  {
@@ -10503,6 +11117,18 @@
   ]
  },
  {
+  "text": "Ohne Rückfrage gibt es gerade nichts zu aktualisieren.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Ohne Rückfrage gibt es gerade nichts zu aktualisieren. Systemsoftware, PC5 Launcher und Proton aktualisierst du mit dem Knopf in ihrer Zeile.",
+  "files": [
+   "app/couch/settings/updates.py"
+  ]
+ },
+ {
   "text": "Ohne Zufallswert wird kein Marker geschrieben.",
   "files": [
    "app/couch/installer/trash.py"
@@ -10583,6 +11209,12 @@
   ]
  },
  {
+  "text": "Ordner „%s“ öffnen",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Overlay-Zustand %r gibt es nicht",
   "files": [
    "app/couch/gs/focus.py"
@@ -10641,6 +11273,12 @@
   "text": "PC5 Launcher %s ist da.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "PC5 Launcher %s ist installiert",
+  "files": [
+   "app/couch/wiring_selfupdate.py"
   ]
  },
  {
@@ -10780,6 +11418,7 @@
   "text": "Pictures",
   "files": [
    "app/couch/capture.py",
+   "app/couch/gallery.py",
    "app/couch/paths.py"
   ]
  },
@@ -10793,6 +11432,12 @@
   "text": "Platform",
   "files": [
    "app/couch/store/ubisoft.py"
+  ]
+ },
+ {
+  "text": "Platin-Trophäe freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -11260,6 +11905,7 @@
    "app/couch/setup/umu.py",
    "app/couch/store/gog_install.py",
    "app/couch/store/itch_install.py",
+   "app/couch/trailerfeed.py",
    "app/couch/ui/host.py"
   ]
  },
@@ -11482,6 +12128,36 @@
   ]
  },
  {
+  "text": "Ruhemodus-Video",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Ruhemodus-Video entfernen",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Ruhemodus-Video entfernen?",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Ruht die Auswahl eine Weile auf einem Spiel, spielt leise der Ton seines Steam-Trailers, so laut wie die Bedientöne. Nie, solange ein Spiel oder eine App läuft. Ist „Trailer im Hintergrund“ aus, nur der Ton.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Ruht die Auswahl einige Sekunden auf einem Spiel, läuft hinter dem Hub stumm sein Steam-Trailer statt des Bildes. Nur mit „Bewegter Hintergrund“ und ohne „Bewegung reduzieren“; lädt je Trailer einige MB.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Ryujinx",
   "files": [
    "app/couch/setup/catalog.py"
@@ -11660,7 +12336,8 @@
  {
   "text": "Schreibfehler",
   "files": [
-   "app/couch/textedit.py"
+   "app/couch/textedit.py",
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -11711,6 +12388,12 @@
   "files": [
    "app/couch/perf.py",
    "app/couch/settings/accessibility.py"
+  ]
+ },
+ {
+  "text": "Seltenheit und Symbole der Steam-Trophäen (PC5 Launcher). Inhalt darf gelöscht werden.\n",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -11787,6 +12470,12 @@
   ]
  },
  {
+  "text": "Silber-Trophäe freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
   "text": "Simulation",
   "files": [
    "app/couch/store/epic.py",
@@ -11839,6 +12528,12 @@
   ]
  },
  {
+  "text": "So weit lässt sich das Logo nicht verschieben oder vergrößern.",
+  "files": [
+   "app/couch/library/model.py"
+  ]
+ },
+ {
   "text": "Software",
   "files": [
    "app/couch/library/steam.py"
@@ -11880,6 +12575,12 @@
   "files": [
    "app/couch/library/describe.py",
    "app/couch/wiring_saves.py"
+  ]
+ },
+ {
+  "text": "Speicherplatz",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -11953,11 +12654,24 @@
   ]
  },
  {
+  "text": "Spielbilder",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Spielbilder: das Bild des gewählten Spiels. Ein eigenes Bild und die Diashow gelten immer, auch wenn ein Spiel gewählt ist.",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Spiele",
   "files": [
    "app/couch/paths.py",
    "app/couch/settings/games.py",
    "app/couch/settings/system.py",
+   "app/couch/settings/updates.py",
    "app/couch/store/battlenet.py",
    "app/couch/store/rockstar.py",
    "app/couch/store/ubisoft.py",
@@ -12047,6 +12761,12 @@
   ]
  },
  {
+  "text": "Spielmusik im Home",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Spielstand nicht gesichert",
   "files": [
    "app/couch/wiring_saves.py"
@@ -12127,6 +12847,12 @@
   "text": "Sprungstellen sind Paare aus Taste und Stelle.",
   "files": [
    "app/couch/library/model.py"
+  ]
+ },
+ {
+  "text": "Spur ohne mdhd",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -12230,6 +12956,12 @@
   ]
  },
  {
+  "text": "Startet Apps und Spiele. Systemsoftware, PC5 Launcher und Proton fragen vorher nach: dafür der Knopf in ihrer Zeile.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Startet Windows-Spiele mit Proton, ohne Steam zu öffnen. Wird im Ordner des PC5 Launchers abgelegt, nicht im System.",
   "files": [
    "app/couch/setup/catalog.py"
@@ -12237,6 +12969,18 @@
  },
  {
   "text": "Startet deine Windows-Spiele. Die neue Fassung kommt neben die bisherige; mit „Standard-Proton: Automatisch“ nutzen Spiele ab dem nächsten Start die neue.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Startet die Konsole neu; danach gilt das Update.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Startet die Oberfläche mit der neuen Fassung, der Rechner bleibt an.",
   "files": [
    "app/couch/settings/system.py"
   ]
@@ -12302,6 +13046,24 @@
   ]
  },
  {
+  "text": "Startvideo",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Startvideo entfernen",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Startvideo entfernen?",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Status",
   "files": [
    "app/couch/library/describe.py",
@@ -12363,6 +13125,12 @@
   ]
  },
  {
+  "text": "Steam bremst gerade zu viele Anfragen. Später noch einmal.",
+  "files": [
+   "app/couch/store/steam_info.py"
+  ]
+ },
+ {
   "text": "Steam hat das Update nicht geladen. Das Spiel bleibt installiert; Steam lädt das Update vor dem nächsten Start.",
   "files": [
    "app/couch/wiring_store.py"
@@ -12372,6 +13140,13 @@
   "text": "Steam hat nicht angefangen zu laden. Gehört dir das Spiel im angemeldeten Steam-Konto?",
   "files": [
    "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Steam ist gerade nicht erreichbar.",
+  "files": [
+   "app/couch/store/steam_info.py",
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -12425,7 +13200,10 @@
  {
   "text": "Steam-Spiel %d",
   "files": [
-   "app/couch/wiring_store.py"
+   "app/couch/store/wishlist.py",
+   "app/couch/trophies.py",
+   "app/couch/wiring_store.py",
+   "app/couch/wiring_trophies.py"
   ]
  },
  {
@@ -12500,9 +13278,27 @@
   ]
  },
  {
+  "text": "Strom zu groß",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "Stummschalten",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Stück ohne moof/mdat",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
+  "text": "Stück zu groß",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -12522,7 +13318,8 @@
   "files": [
    "app/couch/settings/accessories.py",
    "app/couch/settings/backends/osupdate.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -12600,7 +13397,8 @@
  {
   "text": "Systemsoftware",
   "files": [
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -12881,6 +13679,12 @@
   ]
  },
  {
+  "text": "Trailer im Hintergrund",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Trash",
   "files": [
    "app/couch/xdgtrash.py"
@@ -12893,6 +13697,24 @@
   ]
  },
  {
+  "text": "Trophäe freigeschaltet",
+  "files": [
+   "app/couch/trophies.py"
+  ]
+ },
+ {
+  "text": "Trophäen",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Trophäen gibt es nur für Steam-Spiele.",
+  "files": [
+   "app/couch/wiring_trophies.py"
+  ]
+ },
+ {
   "text": "Trusted",
   "files": [
    "app/couch/settings/backends/bluez.py"
@@ -12902,6 +13724,12 @@
   "text": "Twitch",
   "files": [
    "app/couch/browser/prefs.py"
+  ]
+ },
+ {
+  "text": "Typ %d bei Byte %d",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -13146,6 +13974,12 @@
   ]
  },
  {
+  "text": "Update verfügbar · %s",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Update · ",
   "files": [
    "app/couch/wiring_store.py"
@@ -13154,7 +13988,7 @@
  {
   "text": "Updates",
   "files": [
-   "app/couch/settings/system.py"
+   "app/couch/settings/updates.py"
   ]
  },
  {
@@ -13365,10 +14199,28 @@
   ]
  },
  {
+  "text": "Video",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Video vor dem Ruhemodus",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Videos",
   "files": [
    "app/couch/files.py",
    "app/couch/paths.py"
+  ]
+ },
+ {
+  "text": "Videos der Community von steamdeckrepo.com; die Rechte liegen bei den Erstellern.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -13451,6 +14303,12 @@
   ]
  },
  {
+  "text": "Vorschaubilder der Mediengalerie (PC5 Launcher). Inhalt darf gelöscht werden.\n",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "WLAN ist aus",
   "files": [
    "app/couch/settings/network.py"
@@ -13490,6 +14348,12 @@
   "text": "WLAN-Netze",
   "files": [
    "app/couch/settings/network.py"
+  ]
+ },
+ {
+  "text": "Wallpapers",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -13588,6 +14452,25 @@
   ]
  },
  {
+  "text": "Was ist neu",
+  "files": [
+   "app/couch/settings/system.py",
+   "app/couch/settings/updates.py"
+  ]
+ },
+ {
+  "text": "Was ist neu im PC5 Launcher",
+  "files": [
+   "app/couch/changelog.py"
+  ]
+ },
+ {
+  "text": "Was neu ist, steht unter Einstellungen › Updates › Was ist neu.",
+  "files": [
+   "app/couch/wiring_selfupdate.py"
+  ]
+ },
+ {
   "text": "Was schon fertig ist, bleibt installiert. Den Rest kannst du später unter Einstellungen › PC5 Launcher › Einrichtung nachholen.",
   "files": [
    "app/couch/setup/jobs.py"
@@ -13615,6 +14498,12 @@
   "text": "Wechseln",
   "files": [
    "app/couch/settings/session.py"
+  ]
+ },
+ {
+  "text": "Weitere %d Spiele deiner Wunschliste sind im Angebot",
+  "files": [
+   "app/couch/store/wishlist.py"
   ]
  },
  {
@@ -13660,6 +14549,12 @@
   ]
  },
  {
+  "text": "Widgets",
+  "files": [
+   "app/couch/settings/home.py"
+  ]
+ },
+ {
   "text": "Width",
   "files": [
    "app/couch/library/artsources/msstore.py"
@@ -13675,6 +14570,12 @@
   "text": "Wie hell Menüs und Spiele ohne HDR auf der HDR-Ausgabe erscheinen.",
   "files": [
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Wie viele Spiele deiner Steam-Wunschliste gerade im Angebot sind. Kreuz öffnet den Store.",
+  "files": [
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -13917,6 +14818,12 @@
   ]
  },
  {
+  "text": "YouTube, Kodi, Emulatoren und ihre Laufzeiten (Flatpak).",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Zahl erwartet",
   "files": [
    "app/couch/backup.py"
@@ -13926,6 +14833,12 @@
   "text": "Zeichen {0} lässt sich nicht tippen",
   "files": [
    "app/couch/input/xtest.py"
+  ]
+ },
+ {
+  "text": "Zeichenkette ohne Ende bei Byte %d",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -13969,6 +14882,12 @@
   "text": "Zeit abgelaufen. Das Netz antwortet nicht.",
   "files": [
    "app/couch/settings/backends/nm.py"
+  ]
+ },
+ {
+  "text": "Zeitgrenze des Stroms",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -14026,6 +14945,12 @@
   ]
  },
  {
+  "text": "Zu diesem Spiel gibt es keine Trophäen.",
+  "files": [
+   "app/couch/wiring_trophies.py"
+  ]
+ },
+ {
   "text": "Zu diesem Spiel gibt es keinen Installer für Windows oder Linux.",
   "files": [
    "app/couch/wiring_store.py"
@@ -14056,6 +14981,12 @@
   ]
  },
  {
+  "text": "Zu diesem Spiel hat Steam keine Angaben.",
+  "files": [
+   "app/couch/store/steam_info.py"
+  ]
+ },
+ {
   "text": "Zu diesem Spiel hat Ubisoft keine Angaben.",
   "files": [
    "app/couch/store/ubisoft.py"
@@ -14080,9 +15011,21 @@
   ]
  },
  {
+  "text": "Zu diesem Spiel ist kein Marker gespeichert.",
+  "files": [
+   "app/couch/installer/trash.py"
+  ]
+ },
+ {
   "text": "Zu diesem Spiel ist kein Marker gespeichert. Es wird nicht angefasst.",
   "files": [
    "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "Zu diesem Spiel kennt der PC5 Launcher keine Steam-Seite.",
+  "files": [
+   "app/couch/wiring_gameinfo.py"
   ]
  },
  {
@@ -14095,6 +15038,12 @@
   "text": "Zu diesem Steam-Spiel fehlt die App-Nummer.",
   "files": [
    "app/couch/launch/__init__.py"
+  ]
+ },
+ {
+  "text": "Zu dieser Fassung sind keine Änderungen verzeichnet.",
+  "files": [
+   "app/couch/changelog.py"
   ]
  },
  {
@@ -14146,6 +15095,12 @@
   ]
  },
  {
+  "text": "Zuerst, was das Update bringt, dann die Änderungen der installierten Fassung und der früheren.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "Zuletzt geprüft: ",
   "files": [
    "app/couch/settings/system.py"
@@ -14154,7 +15109,8 @@
  {
   "text": "Zuletzt gespielt",
   "files": [
-   "app/couch/library/describe.py"
+   "app/couch/library/describe.py",
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -14254,6 +15210,18 @@
   "text": "^(the|a|an)\\s+",
   "files": [
    "app/couch/library/sources.py"
+  ]
+ },
+ {
+  "text": "abgelegte Datei abgeschnitten",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
+  "text": "abgelegte Datei kaputt",
+  "files": [
+   "app/couch/trailerfeed.py"
   ]
  },
  {
@@ -14548,6 +15516,12 @@
   ]
  },
  {
+  "text": "game ist der Titel eines Spiels.",
+  "files": [
+   "app/couch/wiring_gallery.py"
+  ]
+ },
+ {
   "text": "gamescope_control fehlt auf %s (kein Gamescope?)",
   "files": [
    "app/couch/gs/ctl.py"
@@ -14582,6 +15556,18 @@
   "files": [
    "app/couch/library/artsources/gog.py",
    "app/couch/store/gog.py"
+  ]
+ },
+ {
+  "text": "innoextract ist nicht durchgelaufen (Rückgabewert %s).",
+  "files": [
+   "app/couch/store/gog_extract.py"
+  ]
+ },
+ {
+  "text": "innoextract kann diesen Installer nicht lesen.",
+  "files": [
+   "app/couch/store/gog_extract.py"
   ]
  },
  {
@@ -14696,6 +15682,12 @@
   ]
  },
  {
+  "text": "job %s: Installationsprogramm endete mit %s, wird mit innoextract ausgepackt",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "job %s: Installationsprogramm startet nicht: %s",
   "files": [
    "app/couch/installer/jobs.py"
@@ -14752,7 +15744,8 @@
  {
   "text": "kein Netz",
   "files": [
-   "app/couch/library/artfetch.py"
+   "app/couch/library/artfetch.py",
+   "app/couch/trophies.py"
   ]
  },
  {
@@ -14971,6 +15964,12 @@
   "text": "liegt nicht direkt im couch-Prefix-Ordner",
   "files": [
    "app/couch/launch/prefix.py"
+  ]
+ },
+ {
+  "text": "limit ist eine Zahl von 1 bis 500.",
+  "files": [
+   "app/couch/wiring_gallery.py"
   ]
  },
  {
@@ -15270,6 +16269,12 @@
   ]
  },
  {
+  "text": "schreibt schon",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "select name, value, host, expiry from moz_cookies where host in (%s)",
   "files": [
    "app/couch/store/rockstar_account.py"
@@ -15303,6 +16308,12 @@
   "text": "source=%s id=%s",
   "files": [
    "app/couch/launch/__init__.py"
+  ]
+ },
+ {
+  "text": "sources ist eine Liste aus „screenshots“ und „wallpapers“.",
+  "files": [
+   "app/couch/wiring_gallery.py"
   ]
  },
  {
@@ -15363,6 +16374,24 @@
   "text": "steam: shortcuts.vdf nicht lesbar (%s); keine Bilder aus Verknüpfungen",
   "files": [
    "app/couch/library/steam.py"
+  ]
+ },
+ {
+  "text": "steamdeckrepo.com antwortete mit einem Fehler (HTTP %d).",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
+  "text": "steamdeckrepo.com bittet um eine Pause. In ein paar Minuten geht es wieder.",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
+  "text": "steamdeckrepo.com ist gerade nicht erreichbar. Ist das Netz da?",
+  "files": [
+   "app/couch/bootvideos.py"
   ]
  },
  {
@@ -15438,6 +16467,12 @@
   ]
  },
  {
+  "text": "ungültiger key",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "veraltet (für %s), fällt beim nächsten Start",
   "files": [
    "session/supervisor.py"
@@ -15494,6 +16529,12 @@
   ]
  },
  {
+  "text": "zu groß",
+  "files": [
+   "app/couch/trailerfeed.py"
+  ]
+ },
+ {
   "text": "zweiter Durchlauf mit warmem Zwischenspeicher",
   "files": [
    "app/couch/settings/tree.py"
@@ -15536,12 +16577,6 @@
   ]
  },
  {
-  "text": "{0} verfügbar",
-  "files": [
-   "app/couch/settings/system.py"
-  ]
- },
- {
   "text": "{0}: nicht gefunden",
   "files": [
    "app/couch/settings/tree.py"
@@ -15557,6 +16592,12 @@
   "text": "Ändert die Farben der ganzen Oberfläche. Eigene Designs: eine .css-Datei mit Farben aus tokens.css in den Ordner ~/.config/couch/themes legen.",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Änderungen der installierten Fassung und der früheren.",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -15677,6 +16718,12 @@
   ]
  },
  {
+  "text": "„%s“ im Angebot",
+  "files": [
+   "app/couch/store/wishlist.py"
+  ]
+ },
+ {
   "text": "„%s“ ist aktuell",
   "files": [
    "app/couch/wiring_store.py"
@@ -15724,6 +16771,12 @@
   "text": "„%s“ ist installiert, ließ sich aber nicht in die Bibliothek eintragen. Beim nächsten Start der Konsole wird es erneut versucht.",
   "files": [
    "app/couch/wiring_install.py"
+  ]
+ },
+ {
+  "text": "„%s“ ist jetzt deine Startanimation.",
+  "files": [
+   "app/couch/wiring_videos.py"
   ]
  },
  {
@@ -15775,6 +16828,12 @@
   ]
  },
  {
+  "text": "„%s“ ließ sich nicht aktualisieren.",
+  "files": [
+   "app/couch/settings/system.py"
+  ]
+ },
+ {
   "text": "„%s“ ließ sich nicht beenden.",
   "files": [
    "app/couch/shell.py",
@@ -15791,6 +16850,12 @@
   "text": "„%s“ ließ sich nicht starten.",
   "files": [
    "app/couch/proc/manager.py"
+  ]
+ },
+ {
+  "text": "„%s“ läuft jetzt vor dem Ruhemodus.",
+  "files": [
+   "app/couch/wiring_videos.py"
   ]
  },
  {
@@ -16003,6 +17068,12 @@
   "text": "„%s“ wurde wiederhergestellt.",
   "files": [
    "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "„%s“ · %s",
+  "files": [
+   "app/couch/trophies.py"
   ]
  },
  {

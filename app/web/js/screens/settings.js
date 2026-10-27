@@ -13,6 +13,7 @@
 //   error + message    Fehlerdialog          message allein   Hinweis oben rechts
 //   trial              Rückfrage mit Countdown, Antwort über settings.action {id: trial.row, value}
 //   page               diese Seite öffnen    ui (+params)       eigener Bildschirm, wenn angemeldet (E103)
+//   notes              „Was ist neu“ (E133): Changelog zum Blättern (components/update-notes.js)
 //   confirm            (falls der Kern selbst nachfragt) Rückfrage, dann noch einmal mit confirmed
 import { h, icon } from "../core/dom.js";
 import { call, on } from "../core/bridge.js";
@@ -25,9 +26,13 @@ import { createRowList } from "../components/rows.js";
 import { confirm, messageDialog, trialDialog } from "../components/dialog.js";
 import { toast } from "../components/toast.js";
 import { askText } from "../components/osk-input.js";
+import { showUpdateNotes, watchWhatsNew } from "../components/update-notes.js";
 import displayArea from "./display-area.js";
 
 router.register(displayArea);
+// E133: nach einem Update einmal „PC5 Launcher X ist installiert“ im Home (sys.state.whatsnew). Dieses Modul lädt
+// main.js beim Start des Home; der Hinweis gehört zu den Einstellungen (Bereich Updates)
+watchWhatsNew();
 
 const LOAD_HINT_MS = 300;        // erst danach erscheint „Wird geladen …“
 const SLOW_HINT_MS = 8000;       // antwortet eine Seite so lange nicht, sagt der Platzhalter das
@@ -203,6 +208,7 @@ export function createPageScreen(source) {
       return;
     }
     if (result.error) { await showError(row, result.message); return; }
+    if (result.notes && typeof result.notes === "object") { await showUpdateNotes(result.notes); return; }
     if (result.message) toast({ title: pageTitle || title.textContent, body: String(result.message), icon: "info" });
     if (result.trial) { await runTrial(row, result.trial); return; }
     // E103: jeder angemeldete Bildschirm (display-area, setup-welcome, backup, cleanup …) mit params;
@@ -273,11 +279,14 @@ export function createPageScreen(source) {
       node.classList.toggle("is-selected", !!row && row.id === context.selected);
     }
   }
-  // Marke an „System“, solange ein System-Update bereitsteht (wie am Zahnrad)
+  // Marke am Bereich „Updates“ (E133; ohne ihn wie bisher an „System“), solange ein Update bereitsteht (wie am Zahnrad)
   function paintDots() {
     if (!left) return;
-    const node = left.nodeOf("system");
-    if (node) node.classList.toggle("has-dot", !!store.state.update_available);
+    const own = categories.some((c) => c && c.id === "updates") ? "updates" : "system";
+    for (const id of ["updates", "system"]) {
+      const node = left.nodeOf(id);
+      if (node) node.classList.toggle("has-dot", id === own && !!store.state.update_available);
+    }
   }
 
   if (mode === "root") {

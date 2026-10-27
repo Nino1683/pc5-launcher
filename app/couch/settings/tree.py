@@ -51,7 +51,7 @@ NOT_RESETTABLE = "Diese Einstellung lässt sich nicht einzeln zurücksetzen."
 
 
 class SettingsTree:
-    AREA_MODULES = ["audio", "display", "network", "accessories", "games", "performance",
+    AREA_MODULES = ["audio", "display", "network", "accessories", "games", "updates", "performance",
                     "storage", "home", "notifications", "accessibility", "system", "session"]
 
     def __init__(self, deps, modules: list[str] | None = None, package: str = "couch.settings"):
@@ -71,6 +71,15 @@ class SettingsTree:
         for name in (modules if modules is not None else self.AREA_MODULES):
             self._load(package, name)
         self.areas.sort(key=lambda a: (getattr(a, "order", 1000), a.id))
+        # E133: Ein Bereich, der Zeilen eines anderen zeigt (updates zeigt die Update-Zeilen von system), bekommt den
+        # Baum, wenn alle geladen sind. Wahlfrei; ein Fehler kostet nur ihn.
+        for area in list(self.areas):
+            attach = getattr(area, "attach", None)
+            if callable(attach):
+                try:
+                    attach(self)
+                except Exception:  # noqa: BLE001
+                    log.exception("attach() von %s wirft", area.id)
 
     # --- Laden ---------------------------------------------------------------------------
 

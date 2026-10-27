@@ -397,6 +397,12 @@ class Installer:
                 take(cand)
         if current:
             take(current)
+        # GOG nennt die Startdatei in goggame-<id>.info; sie kommt vor die ungeordnete Liste (E131, Pizza Connection:
+        # sonst stand DOS4GW.EXE vorn, ein DOS-Hilfsprogramm, und DOSBOX/DOSBox.exe weit hinten)
+        from ..store import gog_install
+        task = gog_install.play_task(install_dir, 0)
+        if task:
+            take(task.get("exe"), 0, ["GOG"])
         platform = "linux" if entry.get("platform") == "linux" else "windows"
         for cand in extract.scan_start_files(install_dir, platform):
             take(cand["path"])

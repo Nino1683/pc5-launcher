@@ -524,7 +524,7 @@ class SetupJobs:
             return
         if not name:
             self._set(job, item, "failed", message="Für %s ist gerade keine Fassung zu finden. Später unter Einstellungen › "
-                                                   "System › Updates › Proton-Versionen." % item["title"])
+                                                   "Updates › Proton-Versionen." % item["title"])
             return
         compat = pj.compat_dir()
         if compat and os.path.isdir(os.path.join(compat, name)):

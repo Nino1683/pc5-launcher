@@ -1,12 +1,16 @@
 // Was man mit einem Bibliothekseintrag tun kann: starten (mit allen Rückfragen), schließen,
 // Optionsmenü, Informationen, ausblenden, Startdatei wählen, Bilder, löschen. Home, Hub und
 // Bibliothek benutzen dasselbe. Dazu der Fehlerdialog eines Starts und das Ein/Aus-Menü des Home.
+// E127: „Logo anpassen“ (Optionsmenü, Spieleinstellungen) mit Live-Vorschau im Hub; E128: Start-Effekt am Fokusring.
 import { call, on, role } from "../core/bridge.js";
-import { cssMs, cssPx, settledRect } from "../core/dom.js";
+import { h, icon, cssMs, cssPx, settledRect, reducedMotion } from "../core/dom.js";
+import { nav } from "../core/nav.js";
+import { sound } from "../core/sound.js";
 import { S, fmt } from "../core/strings.js";
 import { store } from "../core/store.js";
 import { router } from "../core/router.js";
 import { confirm, dialog, infoDialog, logDialog, CLOSED } from "./dialog.js";
+import { openLayer } from "./layer.js";
 import { openMenu } from "./menu.js";
 import { toast } from "./toast.js";
 import { askText } from "./osk-input.js";
@@ -98,6 +102,7 @@ export async function launchEntry(entry) {
   if (!canStart(entry)) return false;
   try {
     if (isRunning(entry) && !isClosing(entry)) {
+      launchRing();
       await call("app.focus", { id: entry.id });
       return true;
     }
@@ -119,6 +124,7 @@ export async function launchEntry(entry) {
       await showHandover(entry);
     }
     try {
+      if (!handover) launchRing();
       let result = await call("app.launch", { id: entry.id, confirmed });
       if (result && result.needsConfirm === "close-other") {
         const other = result.other || {};
@@ -142,6 +148,23 @@ export async function launchEntry(entry) {
     if (!(e && e.error === "LaunchError")) await showAppError({ id: entry.id, title: entry.title, message: e && e.message, log: "", phase: "start" });
     return false;
   }
+}
+
+// E128: Start-Effekt am Fokusring (Wunsch). Beim Start aus dem Home dehnt sich der Ring des Elements, mit dem
+// gestartet wird (Fokuskachel der Reihe oder Hauptknopf des Hub darunter), nach außen und verblasst (base.css
+// .is-launch-ring: --fx-s/--fx-o, einmal, keine Daueranimation). Nicht bei „Bewegung reduzieren“. Die Klasse geht
+// beim nächsten Fokus des Elements bzw. nach der Zeit weg; dann blendet der Ring wie gewohnt ein (ring-in).
+const LAUNCH_RING_KEEP_MS = 1500;      // so lange bleibt der Ring nach dem Effekt aus, falls der Fokus bleibt
+function launchRing() {
+  if (role !== "home" || reducedMotion()) return;
+  const el = nav.current;
+  if (!el || !el.closest('.screen[data-screen="home"]') || !el.matches(".tile, .hub-main")) return;
+  let timer = null;
+  const off = () => { clearTimeout(timer); el.classList.remove("is-launch-ring"); el.removeEventListener("nav-focus", off); };
+  el.addEventListener("nav-focus", off);
+  el.classList.remove("is-ring-return");      // tile-row.js: dessen Keyframes hätten Vorrang
+  el.classList.add("is-launch-ring");
+  timer = setTimeout(off, cssMs("--t-ring-launch") + LAUNCH_RING_KEEP_MS);
 }
 
 // Übergabe an Steam: Das Ladebild „Steam übernimmt jetzt …“ steht schon, bevor der Kern das Home
@@ -178,7 +201,7 @@ export async function showAppError(p) {
   const head = fmt(crashed ? S.crashTitle : S.launchErrorTitle, { title });
   const exe = p.code === "needs-exe" && p.id;
   // E101: Proton beschädigt, ohne heile Ausweich-Version (wird neu geladen oder fehlt ganz):
-  // ein Weg zu Einstellungen › System › Updates › Proton-Versionen (Fortschritt, Installieren)
+  // ein Weg zu Einstellungen › Updates › Proton-Versionen (Fortschritt, Installieren)
   const proton = p.code === "proton-damaged" && role === "home";
   // Sagt der Satz des Kerns nur, was schon in der Überschrift steht („… wurde unerwartet beendet“),
   // steht er nicht noch einmal darunter; mit Protokoll weist die Zeile darauf hin
@@ -191,7 +214,7 @@ export async function showAppError(p) {
     if (p.log) buttons.push({ id: "log", label: S.showLog });
     const result = await dialog({ title: head, text, buttons, initial: exe ? "exe" : "ok" });
     if (result === "exe") { await chooseExe({ id: p.id, title }); return; }
-    if (result === "proton") { await openSettingsPage("system.proton", S.protonOpen, S.protonCrumb); return; }
+    if (result === "proton") { await openSettingsPage("system.proton", S.protonOpen, S.protonCrumb, "updates"); return; }
     if (result !== "log") return;
     if (await logDialog({ title: fmt(S.logTitle, { title }), text: p.log }) === CLOSED) return;
   }
@@ -200,10 +223,10 @@ export async function showAppError(p) {
 // Eine Einstellungsseite direkt öffnen (E101: „Proton-Versionen“ aus dem Fehlerdialog eines Starts).
 // Wie aus den Einstellungen heraus: links die Bereiche als Wegweiser, der Bereich der Seite markiert;
 // ohne Bereiche (Kern antwortet nicht) eine Spalte. Kreis führt zurück, wo man herkam.
-export async function openSettingsPage(page, title, crumb) {
+// area: der markierte Bereich, wenn er nicht im Namen der Seite steht (system.proton liegt unter Updates, E133).
+export async function openSettingsPage(page, title, crumb, area = String(page).split(".")[0]) {
   let categories = [];
   try { categories = ((await call("settings.categories")) || {}).categories || []; } catch (e) { categories = []; }
-  const area = String(page).split(".")[0];
   const context = categories.some((c) => c && c.id === area) ? { categories, selected: area } : null;
   return router.go("settings-page", { id: page, title: title || "", crumb: crumb || S.settings, context });
 }
@@ -321,6 +344,131 @@ export async function refetchArt(entry) {
   } catch (e) { fail(e, entry.title); return false; }
 }
 
+// ---------------------------------------------------------------- E127: Logo je Spiel anpassen
+// Läuft über dem Hub, der den Eintrag gerade zeigt (Home oder Spielseite; aus der Bibliothek öffnet sich zuerst die
+// Spielseite). Steuerkreuz verschiebt, L1/R1 und L2/R2 ändern die Größe in kleinen bzw. großen Schritten, Dreieck setzt
+// zurück, Kreuz speichert (lib.setOption logo), Kreis bricht ab. Die Vorschau zeichnet der Hub selbst (Ereignis
+// couch-logo-preview, components/hub.js). Grenzen und Vorgabe wie library/model.py LOGO_LIMITS, LOGO_DEFAULT:
+// x, y in Höhen des Logo-Kastens, s Faktor.
+const LOGO_LIMITS = { x: [-0.5, 4.0], y: [-1.2, 0.1], s: [0.5, 1.6] };
+const LOGO_MOVE = 0.04;              // je Druck aufs Steuerkreuz (rund 6 Pixel in 1080p)
+const LOGO_SIZE = 0.05;              // L1/R1
+const LOGO_SIZE_BIG = 0.2;           // L2/R2
+const LOGO_WAIT_MS = 2500;           // so lange darf das Logo auf der frisch geöffneten Spielseite zum Dekodieren brauchen
+const LOGO_MOVES = { left: ["x", -LOGO_MOVE], right: ["x", LOGO_MOVE], up: ["y", -LOGO_MOVE], down: ["y", LOGO_MOVE] };
+const LOGO_SIZES = { l1: -LOGO_SIZE, r1: LOGO_SIZE, l2: -LOGO_SIZE_BIG, r2: LOGO_SIZE_BIG };
+
+// Nur Spiele mit einem eigenen Logo-Bild (trägt der Hintergrund den Schriftzug schon, zeigt der Hub keins)
+export function hasLogo(entry) {
+  const art = (entry && entry.art) || {};
+  return !!(entry && !entry.system && entry.kind === "game" && art.logo && !art.hero_titled);
+}
+
+const round3 = (x) => Math.round(x * 1000) / 1000;
+
+// Gespeicherte Form wie model.logo_value: Zahlen in den Grenzen, {} = Vorgabe
+export function logoValue(v) {
+  const src = v && typeof v === "object" ? v : {};
+  const out = {};
+  for (const [key, [lo, hi]] of Object.entries(LOGO_LIMITS)) {
+    const d = key === "s" ? 1 : 0;
+    const x = typeof src[key] === "number" && Number.isFinite(src[key]) ? src[key] : d;
+    out[key] = round3(Math.min(hi, Math.max(lo, x)));
+  }
+  return out.x === 0 && out.y === 0 && out.s === 1 ? {} : out;
+}
+
+// Das Logo-Bild des Eintrags im obersten Bildschirm (null: kein Hub mit diesem Eintrag zu sehen)
+function shownLogo(id) {
+  const top = router.top;
+  const screen = top && top.inst && top.inst.el;
+  if (!screen) return null;
+  return [...screen.querySelectorAll(".hub-logo")].find((el) => el.dataset.id === id && el.querySelector("img")) || null;
+}
+
+function waitLogo(id, ms) {
+  return new Promise((resolve) => {
+    const until = performance.now() + ms;
+    const look = () => {
+      const el = shownLogo(id);
+      if (el || performance.now() > until) resolve(el);
+      else setTimeout(look, 100);
+    };
+    look();
+  });
+}
+
+const logoPreview = (id, value, saved = false) =>
+  document.dispatchEvent(new CustomEvent("couch-logo-preview", { detail: { id, value, saved } }));
+
+export async function adjustLogo(entry) {
+  if (role !== "home" || !hasLogo(entry)) return false;
+  if (!shownLogo(entry.id) && router.known("hub")) router.go("hub", { entry });
+  if (!await waitLogo(entry.id, LOGO_WAIT_MS)) {
+    toast({ title: entry.title, body: S.logoMissing, icon: "info", sound: false });
+    return false;
+  }
+  const saved = logoValue(entry.options && entry.options.logo);
+  const now = { x: 0, y: 0, s: 1, ...saved };
+  const size = h("span.logo-adjust-size");
+  const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
+  const save = h("div.btn.logo-adjust-save", { "data-focus": true }, h("span.btn-label", { text: S.logoSave }));
+  const panel = h("div.logo-adjust",
+    h("div.logo-adjust-head", h("span.logo-adjust-title", { text: S.logoAdjust }), size),
+    h("div.hints.logo-adjust-hints", hint(S.logoKeysMove, S.logoHintMove), hint(S.logoKeysSize, S.logoHintSize),
+      hint("btn-triangle", S.logoHintReset), hint("btn-circle", S.cancel)),
+    save);
+  let done = false;
+  const paint = () => {
+    size.textContent = fmt(S.logoSizeValue, { n: Math.round(now.s * 100) });
+    logoPreview(entry.id, logoValue(now));
+  };
+  const change = (key, delta, repeat) => {
+    const [lo, hi] = LOGO_LIMITS[key];
+    const next = round3(Math.min(hi, Math.max(lo, now[key] + delta)));
+    if (next === now[key]) { sound.play("edge", { repeat }); return; }
+    now[key] = next;
+    sound.play("focus", { repeat });
+    paint();
+  };
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    layer.close(keep ? "saved" : "cancel");
+  };
+  async function persist() {
+    const value = logoValue(now);
+    finish(true);
+    try {
+      await call("lib.setOption", { id: entry.id, key: "logo", value });
+      logoPreview(entry.id, value, true);
+      sound.play("select");
+      toast({ title: entry.title, body: Object.keys(value).length ? S.logoSaved : S.logoResetDone, icon: "check", sound: false });
+    } catch (e) {
+      logoPreview(entry.id, null);
+      fail(e, entry.title);
+    }
+  }
+  const layer = openLayer({
+    panel, cls: "is-clear is-logo-adjust", name: "logo-adjust", initial: save,
+    onPad(button, ev) {
+      const repeat = !!(ev && ev.repeat);
+      if (LOGO_MOVES[button]) { change(LOGO_MOVES[button][0], LOGO_MOVES[button][1], repeat); return true; }
+      if (button in LOGO_SIZES) { change("s", LOGO_SIZES[button], repeat); return true; }
+      if (repeat) return true;
+      if (button === "triangle") { Object.assign(now, { x: 0, y: 0, s: 1 }); sound.play("select"); paint(); return true; }
+      if (button === "cross") { persist(); return true; }
+      if (button === "circle") { sound.play("back"); finish(false); return true; }
+      return true;                       // alles andere tut hier nichts (auch Options und PS kurz nicht)
+    },
+    onBack: () => finish(false),
+    // Ohne Speichern zu (Abbrechen, Bildschirm darunter wechselt): die Vorschau geht zurück auf den gespeicherten Wert
+    onClose: (reason) => { done = true; if (reason !== "saved") logoPreview(entry.id, null); },
+  });
+  paint();
+  return true;
+}
+
 // Kennungen aus lib.get.actions, die ins Menü gehören (Starten und Fortsetzen macht der Hauptknopf)
 const MENU_ACTIONS = new Set(["close", "settings", "exe", "art", "art-fetch", "rename", "rename-reset", "info", "saves", "forget",
   "favorite", "unfavorite", "hide", "unhide", "delete", "uninstall"]);
@@ -389,6 +537,12 @@ export async function openEntryMenu(entry, { anchor = null, extra = [], onExtra 
     const at = items.findIndex((i) => i.id === "hide" || i.id === "unhide");
     items.splice(at < 0 ? items.length : at, 0, ...extra);
   }
+  // E127: „Logo anpassen“ hinter „Bild ändern“ (sonst vor „Informationen“), nur für Spiele mit Logo
+  if (role === "home" && hasLogo(current)) {
+    const art = items.findIndex((i) => i.id === "art");
+    const info = items.findIndex((i) => i.id === "info");
+    items.splice(art >= 0 ? art + 1 : info >= 0 ? info : items.length, 0, { id: "logo", label: S.menuLogo });
+  }
   const choice = await openMenu(items, {
     cls: "menu-entry", title: current.title,
     onOpen: (layer) => { if (anchor && anchor.isConnected) placeAt(layer.el.querySelector(".menu"), anchor); },
@@ -399,6 +553,7 @@ export async function openEntryMenu(entry, { anchor = null, extra = [], onExtra 
     case "exe": await chooseExe(current); break;
     case "art": router.go("art-picker", { entry: current, fetch: (detail.actions || []).some((a) => a.id === "art-fetch") }); break;
     case "art-fetch": await refetchArt(current); break;
+    case "logo": await adjustLogo(current); break;
     case "rename": await renameEntry(current); break;
     case "rename-reset": await renameEntry(current, ""); break;
     case "info": {

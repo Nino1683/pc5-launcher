@@ -30,6 +30,10 @@ Supervisor selbst: erst ein zweiter Druck binnen 5 s schaltet aus.
 Ruhemodus-Timer (E107): letzter Eintrag "sleep-timer", nur wenn wiring_sleeptimer seinen Dienst
 an sleep_timer gehängt hat. Er führt nichts aus (power.do lehnt ab, die Seite stellt ihn über
 power.timer), beendet keine App und braucht keine Rückfrage; gesperrt, wenn logind kein Suspend kann.
+
+Ruhemodus-Video (E130): Wählt man den Ruhemodus selbst (power.do über eine Seite), spielt vorher die Seite, von
+der der Wunsch kam, das gewählte Video (wiring_videos, suspend_video(role) -> Future | None, höchstens wenige
+Sekunden). Leerlauf und Ruhemodus-Timer rufen do() ohne Seite: Dann ist es eilig bzw. niemand schaut zu, kein Video.
 """
 from __future__ import annotations
 
@@ -130,6 +134,8 @@ class Power:
         # E107: Dienst des Ruhemodus-Timers (wiring_sleeptimer): info() -> {until, minutes} | None,
         # available() -> bool. Ohne ihn fehlt der Eintrag im Menü.
         self.sleep_timer: Any = None
+        # E130: fn(rolle) -> Future | None (wiring_videos): Ruhemodus-Video in dieser Seite, danach erst schlafen
+        self.suspend_video: Callable[[str], Future | None] | None = None
 
     # ------------------------------------------------------------ Menü
     def _probe(self) -> dict[str, bool]:
@@ -319,9 +325,10 @@ class Power:
                         icon="warn", important=True)
 
     # ------------------------------------------------------------ Ausführen
-    def do(self, action: str, confirmed: bool | None = None) -> Future:
+    def do(self, action: str, confirmed: bool | None = None, role: str | None = None) -> Future:
         """Führt action aus; vorher die Rückfrage nach E31 (siehe Kopf der Datei). Lehnt der
-        Nutzer ab, liefert das Future {ok: False, cancelled: True} und nichts ist passiert."""
+        Nutzer ab, liefert das Future {ok: False, cancelled: True} und nichts ist passiert.
+        role: Seite, die gefragt hat (power.do über RPC); nur dann vor dem Ruhemodus das Video (E130)."""
         if action == TIMER_ID:
             raise RpcError(TIMER_NOT_HERE, "BadAction")     # E107: Auswahl über power.timer
         if action not in ACTIONS:
@@ -330,10 +337,10 @@ class Power:
             raise RpcError("Es läuft schon ein Vorgang.", "Busy")
         question = self.question(action)            # befragt die busy_checks in jedem Fall
         if question is None or confirmed is True or (confirmed is None and self._page_asks(action)):
-            return self._run(action)
-        return self._ask(action, question)
+            return self._run(action, role)
+        return self._ask(action, question, role)
 
-    def _ask(self, action: str, question: dict) -> Future:
+    def _ask(self, action: str, question: dict, role: str | None = None) -> Future:
         fut: Future = Future()
         self.busy = action                          # solange die Frage steht, keine zweite Aktion
         _log.info("power.do %s: Rückfrage (%s)", action, question["text"].replace("\n", " | "))
@@ -347,7 +354,7 @@ class Power:
                 if done.result() != "yes":
                     fut.set_result({"ok": False, "cancelled": True})
                     return
-                inner = self._run(action)
+                inner = self._run(action, role)
             except BaseException as e:
                 fut.set_exception(e if isinstance(e, RpcError) else RpcError(
                     FAILED.get(action, "Das hat nicht geklappt."), "PowerFailed"))
@@ -357,7 +364,7 @@ class Power:
         asked.add_done_callback(answered)
         return fut
 
-    def _run(self, action: str) -> Future:
+    def _run(self, action: str, role: str | None = None) -> Future:
         if self.busy:
             raise RpcError("Es läuft schon ein Vorgang.", "Busy")
         self.busy = action
@@ -383,11 +390,28 @@ class Power:
                                done=lambda: fut.set_result({"ok": True}), failed=failed)
             elif action in ENDS_APPS:
                 shell.after_shutdown(guarded)
+            elif action == "suspend" and role:
+                self._video_then(role, guarded)     # E130: erst das Ruhemodus-Video, dann schlafen
             else:
                 guarded()                           # Ruhemodus: nichts schließen
         except Exception as e:
             failed(e)
         return fut
+
+    def _video_then(self, role: str, then: Callable[[], None]) -> None:
+        """Ruhemodus-Video (E130) in der Seite role, danach then() in der Hauptschleife. Ohne Video, oder wenn der Dienst
+        scheitert, sofort: Ein Video darf den Ruhemodus nie verhindern."""
+        work = None
+        hook = self.suspend_video
+        if callable(hook):
+            try:
+                work = hook(role)
+            except Exception:
+                _log.exception("Ruhemodus-Video")
+        if work is None:
+            then()
+            return
+        work.add_done_callback(lambda f: self.app.shell.sched.soon(then))
 
     def _mark_deliberate(self) -> None:
         """Marke für den Supervisor: gewolltes Ende, zählt nicht als Kurzsitzung."""
@@ -456,8 +480,10 @@ class Power:
     def register_rpc(self, rpc: Any) -> None:
         def power_do(params: dict) -> Future:
             confirmed = params.get("confirmed")
+            role = params.get("_role")
             return self.do(str(params.get("id", "")),
-                           confirmed if isinstance(confirmed, bool) else None)
+                           confirmed if isinstance(confirmed, bool) else None,
+                           role if role in ("home", "overlay") else None)
 
         rpc.register("power.menu", lambda p: self.menu())
         rpc.register("power.do", power_do)

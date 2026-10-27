@@ -81,7 +81,20 @@
    ganz abgeschnitten (Wunsch 2026-10-21: keine Markierung in den Screenshots); das Bild rundet selbst ab */
 .st-shot { width: var(--st-shot-w); height: var(--st-shot-h); border-radius: var(--card-r); --r: var(--card-r); background: var(--c-black); }
 .st-shot > img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-.st-more { margin-top: var(--st-gap); gap: var(--st-account-gap); }
+.st-more { gap: var(--st-account-gap); }
 .st-about-box { height: var(--dialog-log-h); overflow: hidden; position: relative; }
 .st-about { font-size: var(--fs-value); line-height: var(--lh-value); color: var(--c-text-2); white-space: pre-line;
   --fx-y: calc(-1 * var(--scroll, 0px)); transform: translate3d(0, var(--fx-y), 0); transition: --fx-y var(--t-focus) var(--ease-out); }
+/* Trailer (E132): stumm im Kopfbild, gleich groß wie das Bild, ohne die Abdunklung des Hub (die Seite hat .st-shade) */
+.store-item > .trailer { bottom: auto; height: var(--st-hero-h); background: none; }
+.store-item > .trailer > .trailer-dim { display: none; }
+/* Kachel „Trailer“ vor den Bildern: Abspiel-Symbol und Name unten */
+.st-trailer { position: relative; }
+.st-trailer-mark { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: var(--st-account-gap);
+  padding: var(--st-pad); border-radius: 0 0 var(--card-r) var(--card-r); background: var(--g-st-trailer);
+  font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.st-trailer-mark > .ic { width: var(--st-trailer-ic); height: var(--st-trailer-ic); }
+/* Ansicht groß (components/media-viewer.js): Video wie ein Bild mit is-fill, Pause-Zeichen in der Mitte */
+.mv-stage { position: relative; width: 100%; display: flex; justify-content: center; }
+.mv-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.mv-state > .ic { width: var(--st-trailer-big-ic); height: var(--st-trailer-big-ic); }

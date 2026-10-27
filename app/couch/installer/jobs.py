@@ -748,13 +748,42 @@ class JobManager:
         reason, rc = self._setup_process(job, argv, env, os.path.dirname(installer), log_path)
         self._log("job %s: Installationsprogramm beendet: %s %s" % (job["id"], reason, rc))
         if reason == "ok":
-            return None if setupexe.succeeded(kind, rc) else ("failed", "setup-failed", MSG_SETUP_RC % rc)
+            if setupexe.succeeded(kind, rc):
+                return None
+            if kind == "inno" and self._setup_unpack(job, installer, log_path, rc):
+                return None
+            if job.get("cancel_requested"):
+                return "cancelled", "", extract.MSG_CANCELLED
+            return "failed", "setup-failed", MSG_SETUP_RC % rc
         return {"cancelled": ("cancelled", "", extract.MSG_CANCELLED),
                 "timeout": ("failed", "setup-timeout", MSG_SETUP_TIMEOUT),
                 "idle": ("failed", "setup-waits", MSG_SETUP_IDLE),
                 "no-space": ("failed", "no-space", MSG_SETUP_SPACE % human_size(cfg_reserve_bytes(self._config))),
                 "disk-gone": ("failed", "no-target", "Die Spiele-Platte ist während der Installation nicht mehr erreichbar."),
                 }.get(reason, ("failed", "no-proton", MSG_SETUP_START))
+
+    def _setup_unpack(self, job: dict, installer: str, log_path: str, rc: Any) -> bool:
+        """Inno-Installer, der unter Proton scheitert (E131, z. B. GOG-Installer, die die Willkommensseite nicht
+        weiterlassen): mit innoextract vom System auspacken. True = der Spielordner ist jetzt gefüllt."""
+        from ..store import gog_extract
+        tool = gog_extract.find_tool()
+        if tool is None:
+            return False
+        self._log("job %s: Installationsprogramm endete mit %s, wird mit innoextract ausgepackt" % (job["id"], rc))
+
+        class _Cancel:
+            @staticmethod
+            def is_set() -> bool:
+                return bool(job.get("cancel_requested"))
+        from ..files import gio_trash
+        try:
+            with open(log_path, "a") as log_fh:
+                gog_extract.extract(tool, installer, job["install_dir"], log_fh, _Cancel(), trash=gio_trash)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+            self._log("job %s: Auspacken gescheitert: %s" % (job["id"], e))
+            return False
+        return any(n.lower().endswith(".exe") or os.path.isdir(os.path.join(job["install_dir"], n))
+                   for n in os.listdir(job["install_dir"]) if not n.startswith("."))
 
     def _setup_process(self, job: dict, argv: list, env: dict, cwd: str, log_path: str) -> tuple:
         """Startet das Installationsprogramm in eigener Sitzung (Gruppe = seine PID) und wacht über Abbruch,

@@ -273,6 +273,8 @@ html { font-size: min(calc(100vh / 108), calc(100vw / 192)); }
   --st-pad: 1.6rem; --st-name-top: 1.2rem; --st-account-top: 5.4rem; --st-account-gap: 1.2rem; --st-account-pad: 2.4rem;
   --st-hero-h: 64rem; --st-page-top: 30rem; --st-text-w: 110rem; --st-gap-s: 1.6rem; --st-facts-w: 157.6rem;
   --st-lower-shift: 48rem; --st-bottom-room: 15rem; --st-shot-w: 37.6rem; --st-shot-h: 21.2rem;
+  --st-trailer-ic: 3.2rem; --st-trailer-big-ic: 12rem;      /* E132: Trailer im Store */
+  --g-st-trailer: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
   --tile-move-w: .6rem; --tile-move-dim: .55;
   /* Sieben Shops (E100): schmalere Pillen, die Zeile beginnt näher an der Überschrift */
   --st-stores-x: 30rem; --st-store-h: 5.2rem; --st-store-pad: 2rem; --st-stores-gap: 1rem; --st-top-gap: 2.4rem;
@@ -490,3 +492,63 @@ html[data-ui-scale="1.2"] {
   --cl-confirm-gap: 0.8rem;          /* Rückfrage: Abstand zwischen Größe und Pfad (cleanup.css) */
 }
 /* Ende Block E110-cleanup */
+/* ================================================================ Block E120-gallery (Mediengalerie, eigener Hintergrund) */
+/* Raster (css/gallery.css): fünf Spalten 16:9 von x=172 bis 1748 wie der Inhalt der anderen Bildschirme
+   ((157,6 − 4 × 2) / 5 = 29,92), darunter zwei Zeilen Unterschrift; drei Reihen ab --flow-top passen über die
+   Tastenhinweise. Vollbild: Bild auf Schwarz, Angaben unten links über einem Verlauf. */
+:root {
+  --gal-w: 29.92rem; --gal-h: 16.83rem; --gal-gap: 2rem; --gal-row-gap: 2.6rem; --gal-cap-gap: .8rem; --gal-r: 1.2rem;
+  --gal-pitch: calc(var(--gal-h) + var(--gal-cap-gap) + 2 * var(--lh-small) + var(--gal-row-gap));
+  --gal-view-bottom: 10.4rem;        /* Unterkante des Sichtfensters: über den Tastenhinweisen */
+  --gal-filter-w: 24rem;             /* Knopf „Filter“ oben rechts, auf Höhe der Überschrift */
+  --gal-ph: 4.8rem; --c-gal-ph: rgba(255,255,255,.22); --c-gal-pic: rgba(255,255,255,.06);
+  --gal-mark-inset: 1rem;
+  --gal-lib-gap: 1.6rem;             /* Kachel „Mediengalerie“ in der Bibliothek: Abstand Symbol – Name */
+  /* Vollbild */
+  --gal-bar-h: 24rem; --gal-bar-bottom: 4rem; --gal-bar-w: 84rem; --gal-bar-gap: .4rem;
+  --g-gal-bar: linear-gradient(to top, rgba(0,0,0,.78) 0, rgba(0,0,0,.42) 55%, rgba(0,0,0,0) 100%);
+  /* Hintergrund des Home (E121): Diashow blendet langsamer über als der Wechsel zwischen Spielen */
+  --t-bd-slide: 1800ms;
+}
+/* Ende Block E120-gallery */
+/* ================================================================ Block E124-trophies (Trophäen, Hub-Karten, Widgets)
+   css/trophies.css. Pokale in eigenen Farben je Stufe (icons.svg trophy-*): Kupfer, helles Grau, warmes Gelb, kühles
+   Blau. Karten unter dem Hub (E125): vier statt drei in derselben Breite ((157,6 − 3 × 3,2) / 4 = 37). Abschnitt
+   „Trophäen“: drei Spalten wie die Karten, zwei Reihen. Widget-Leiste (E126): vier Karten wie die schmalen Hub-Karten. */
+:root {
+  --c-tr-bronze: #c98b5e; --c-tr-silver: #c3ccd6; --c-tr-gold: #e9c25a; --c-tr-platinum: #9ec7ea; --c-tr-star: #16202b;
+  --c-tr-bar: rgba(255,255,255,.16); --c-tr-fill: var(--c-accent);
+  --tr-count-gap: 1.6rem; --tr-count-in: .6rem; --tr-count-ic: 2.4rem; --tr-foot-ic: 2rem;
+  --tr-bar-h: .8rem; --tr-bar-r: .4rem;
+  --tr-ic: 8.4rem; --tr-ic-r: .8rem; --tr-ic-sym: 3.6rem;
+  /* Karten unter dem Hub */
+  --card-w-4: 37rem; --card-line: .4rem;
+  --g-card-shot: linear-gradient(to right, rgba(0,0,0,.74) 0, rgba(0,0,0,.42) 55%, rgba(0,0,0,.08) 100%);
+  /* Abschnitt im Hub */
+  --tr-head-gap: 2.4rem; --tr-head-mb: 2rem; --tr-head-w: 40rem; --tr-head-in: .8rem; --tr-head-ic: 2.8rem;
+  --fs-tr-pct: 4.4rem; --lh-tr-pct: 5.2rem;
+  --tr-card-h: 13.6rem; --tr-card-pad: 1.6rem; --tr-card-gap: 2rem; --tr-card-in: .4rem; --tr-row-gap: 2rem; --tr-more-gap: 2.4rem;
+  /* Bildschirme: links die Summen, rechts die Liste bis an den Rollbalken (--scroll-x) */
+  --tr-panel-w: 44rem; --tr-list-x: 66rem; --tr-list-w: 108.8rem;
+  --fs-tr-total: 7.2rem; --lh-tr-total: 8.6rem; --tr-line-gap: 1.6rem; --tr-tiers-gap: 3.2rem;
+  --tr-tier-row: 6.4rem; --tr-tier-gap: 1.6rem; --tr-tier-ic: 3.6rem;
+  --tr-row-ic: 3.2rem; --tr-row-art: 6.4rem; --tr-row-sym: 3rem;
+  /* Widget-Leiste */
+  --wg-w: 37rem; --wg-h: 18rem; --wg-gap: 3.2rem; --wg-pad: 2.4rem; --wg-in: .4rem; --wg-head-gap: 1rem; --wg-head-ic: 2.4rem;
+  --fs-wg-value: 3rem; --lh-wg-value: 3.8rem; --wg-cover: 9.6rem; --wg-cover-gap: 1.2rem; --wg-cover-r: 1rem;
+}
+/* Ende Block E124-trophies */
+/* ================================================================ Block E127-E130 (Logo je Spiel, Start-Effekt am Fokusring,
+   Hintergründe vorladen, Startvideos) */
+:root {
+  /* E127: Lage und Größe des Logos im Hub; je Spiel setzt components/hub.js die Werte am Kasten (Vorgabe: wie geliefert) */
+  --logo-x: 0; --logo-y: 0; --logo-s: 1;
+  /* E127: Leiste „Logo anpassen“ unten über dem Hub (base.css .logo-adjust) */
+  --logo-adjust-bottom: 4rem; --logo-adjust-h: 8.8rem; --logo-adjust-pad: 3.2rem; --logo-adjust-gap: 3.2rem;
+  /* E128: Start-Effekt am Fokusring (auf rund 115 % und aus) und die Rückkehr in die Reihe (von 115 % auf die Kachel) */
+  --ring-launch-scale: 1.15; --t-ring-launch: 300ms;   /* so lang wie der Wechsel zum Ladebild (--t-screen) */
+  --ring-return-from: 1.15; --t-ring-return: 320ms;
+  /* E130: Auswahl der Videos (intro.css .bv-*) */
+  --bv-bar-inset: 1.2rem; --bv-credit-w: 80rem;
+}
+/* Ende Block E127-E130 */

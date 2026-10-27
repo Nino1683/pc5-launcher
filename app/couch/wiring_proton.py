@@ -53,7 +53,7 @@ CATALOG_REREAD_S = 60.0          # so lange gilt die gelesene Liste, bevor die S
 GENERIC = "Das hat nicht geklappt."
 PAGE = "system.proton"
 BUILD_PAGE = "system.proton.build:"
-PAGES = (PAGE, "system.apps")    # zeigen Aufträge und Stand
+PAGES = (PAGE, "system.apps", "updates")    # zeigen Aufträge und Stand (E133: auch die Übersicht „Updates“)
 PHASES = {"queued": "Wartet", "download": "Lädt", "verify": "Prüft", "extract": "Entpackt", "swap": "Setzt ein",
           "done": "Fertig"}
 DOING = {"repair": "wird neu geladen", "install": "wird installiert"}
@@ -62,7 +62,7 @@ NOTE_REPEAT_S = 30.0             # dieselbe Mitteilung zum Ausweichen nicht zwei
 STEAM_RECHECK_S = 20.0           # nach dem Ende eines Steam-Spiels: so lange enden Steams Reste, dann prüfen
 STATES = {"queued": "queued", "download": "downloading", "verify": "verifying", "extract": "extracting",
           "swap": "installing", "done": "installing"}
-WHERE = "Einstellungen › System › Systemsoftware › Updates › Proton-Versionen"
+WHERE = "Einstellungen › Updates › Proton-Versionen"
 
 
 def _no_net(url: str, start: int = 0):

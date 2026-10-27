@@ -12,6 +12,10 @@ ist, kommt die Mitteilung. Abgelegt im Bilder-Ordner nach XDG (E104, paths.user_
 „Bildschirmfotos“ (bzw. „Screenshots“, wenn der Bilder-Ordner englisch „Pictures“ heißt) als
 „<Titel> <Datum Uhrzeit>.png“; z. B. ~/Bilder/Bildschirmfotos. Der Explorer zeigt den Ordner als
 Ort „Bildschirmfotos“. Im Prüfmodus liegt er im Käfig (<COUCH_TEST_ROOT>/home, E99).
+
+E120: Die Mediengalerie (gallery.py, Kachel unter „Medien“) liest Titel und Zeit aus diesem Dateinamen
+(gallery.parse_name); file_name und parse_name gehören zusammen. Nach jedem gespeicherten Foto ruft
+take on_saved(pfad), wenn gesetzt (wiring_gallery: eine offene Galerie lädt neu).
 """
 from __future__ import annotations
 
@@ -38,11 +42,17 @@ def folder() -> str:
     return os.path.join(pictures, sub)
 
 
+def clean_title(title: str | None) -> str:
+    """Titel, wie er im Dateinamen steht: ohne Zeichen, die Dateinamen stören, höchstens 80 Zeichen. Die
+    Mediengalerie sucht die Fotos eines Spiels mit demselben Weg (gallery.list {game}, E120)."""
+    clean = re.sub(r'[/\\:*?"<>|\x00-\x1f\x7f]', "", str(title or ""))
+    clean = re.sub(r"\s+", " ", clean).strip(" .")
+    return clean[:80].rstrip(" .") or "Home"
+
+
 def file_name(title: str, when: float) -> str:
     """„Alan Wake 2 2026-10-21 13-05-12.png“: ohne Zeichen, die Dateinamen stören."""
-    clean = re.sub(r'[/\\:*?"<>|\x00-\x1f\x7f]', "", str(title or ""))
-    clean = re.sub(r"\s+", " ", clean).strip(" .") or "Home"
-    return "%s %s.png" % (clean[:80].rstrip(" ."), time.strftime("%Y-%m-%d %H-%M-%S", time.localtime(when)))
+    return "%s %s.png" % (clean_title(title), time.strftime("%Y-%m-%d %H-%M-%S", time.localtime(when)))
 
 
 class Capture:
@@ -57,6 +67,7 @@ class Capture:
         self.notify, self.background = notify, background
         self.clock, self.wall, self.sleep = clock, wall, sleep
         self._last = -1e9
+        self.on_saved: Callable[[str], None] | None = None      # E120: setzt wiring_gallery
 
     def on_gesture(self, kind: str) -> bool:
         """Hauptschleife. Liefert True, wenn ein Foto ausgelöst wurde."""
@@ -89,7 +100,12 @@ class Capture:
             try:
                 if os.path.getsize(path) > 0:
                     _log.info("Bildschirmfoto: %s", path)
-                    self.notify("Bildschirmfoto gespeichert", "Dateien › Bildschirmfotos · " + os.path.basename(path), True)
+                    self.notify("Bildschirmfoto gespeichert", "Medien › Mediengalerie · " + os.path.basename(path), True)
+                    if self.on_saved is not None:
+                        try:
+                            self.on_saved(path)
+                        except Exception:  # noqa: BLE001 - die Galerie ist Zugabe, das Foto ist gespeichert
+                            _log.exception("Bildschirmfoto: on_saved")
                     return path
             except OSError:
                 pass

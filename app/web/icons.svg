@@ -59,6 +59,8 @@
 <symbol id="close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19" stroke-width="2.400"/></symbol>
 <symbol id="tv" viewBox="0 0 24 24"><rect x="2.500" y="5.500" width="19" height="12.500" rx="1.800"/><path d="m8.500 2.500 3.500 3 3.500-3M7.500 21h9"/></symbol>
 <symbol id="film" viewBox="0 0 24 24"><rect x="3" y="3.500" width="18" height="17" rx="2"/><path d="M7.500 3.500v17m9-17v17M3 8h4.500M3 12h4.500M3 16h4.500m9-8H21m-4.500 4H21m-4.500 4H21"/></symbol>
+<!-- E120: Mediengalerie (Bild mit Bergen und Sonne) -->
+<symbol id="image" viewBox="0 0 24 24"><rect x="2.500" y="4" width="19" height="16" rx="2"/><circle cx="8.500" cy="9.500" r="1.800"/><path d="m3 17.500 5.500-5 4 3.500 3-2.500 5.500 4.500"/></symbol>
 <symbol id="emulator" viewBox="0 0 24 24"><rect x="5.500" y="2.500" width="13" height="19" rx="2"/><rect x="8" y="5" width="8" height="6" rx=".8"/><path d="M8.500 15.500h3m-1.500-1.500v3"/><circle class="ic-f" cx="15" cy="15" r="1"/><circle class="ic-f" cx="13.500" cy="17.500" r="1"/></symbol>
 <symbol id="steam" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.500"/><circle cx="15" cy="9.500" r="2.800"/><path d="m3 13.500 5.500 2.300M12.300 11.800 10 14.500"/><circle class="ic-f" cx="8.500" cy="16" r="2"/></symbol>
 <symbol id="network-off" viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.800 12.700a9 9 0 0 1 12.400 0M9 16.200a4.300 4.300 0 0 1 6 0M4 3l16 18"/><circle class="ic-f" cx="12" cy="19.500" r="1.500"/></symbol>
@@ -70,4 +72,11 @@
 <symbol id="btn-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4.600"/></symbol>
 <symbol id="btn-triangle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6.800 16.800 15H7.200z"/></symbol>
 <symbol id="btn-square" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 8h8v8H8z"/></symbol>
+<!-- E124: eigener, neutraler Pokal; je Stufe gefüllt in deren Farbe aus tokens.css (Block E124-trophies), Platin mit Stern.
+     Kein doppelter Bindestrich in Kommentaren: Das Sprite wird als XML gelesen (dom.js loadIcons). -->
+<symbol id="trophy" viewBox="0 0 24 24"><path d="M7 3.5h10v5a5 5 0 0 1-10 0zM7 5.5H4.5v1.2a3.3 3.3 0 0 0 3 3.3M17 5.5h2.5v1.2a3.3 3.3 0 0 1-3 3.3M12 13.5v3.5M9.2 17h5.6l.9 3.5H8.3z"/></symbol>
+<symbol id="trophy-bronze" viewBox="0 0 24 24"><g style="color:var(--c-tr-bronze)"><path class="ic-f" d="M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z"/><path d="M6.5 5.5H4.2v1.2a3.4 3.4 0 0 0 3.1 3.4M17.5 5.5h2.3v1.2a3.4 3.4 0 0 1-3.1 3.4M12 14v3"/><path class="ic-f" d="M8.8 16.5h6.4l1 4.5H7.8z"/></g></symbol>
+<symbol id="trophy-silver" viewBox="0 0 24 24"><g style="color:var(--c-tr-silver)"><path class="ic-f" d="M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z"/><path d="M6.5 5.5H4.2v1.2a3.4 3.4 0 0 0 3.1 3.4M17.5 5.5h2.3v1.2a3.4 3.4 0 0 1-3.1 3.4M12 14v3"/><path class="ic-f" d="M8.8 16.5h6.4l1 4.5H7.8z"/></g></symbol>
+<symbol id="trophy-gold" viewBox="0 0 24 24"><g style="color:var(--c-tr-gold)"><path class="ic-f" d="M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z"/><path d="M6.5 5.5H4.2v1.2a3.4 3.4 0 0 0 3.1 3.4M17.5 5.5h2.3v1.2a3.4 3.4 0 0 1-3.1 3.4M12 14v3"/><path class="ic-f" d="M8.8 16.5h6.4l1 4.5H7.8z"/></g></symbol>
+<symbol id="trophy-platinum" viewBox="0 0 24 24"><g style="color:var(--c-tr-platinum)"><path class="ic-f" d="M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0z"/><path d="M6.5 5.5H4.2v1.2a3.4 3.4 0 0 0 3.1 3.4M17.5 5.5h2.3v1.2a3.4 3.4 0 0 1-3.1 3.4M12 14v3"/><path class="ic-f" d="M8.8 16.5h6.4l1 4.5H7.8z"/><path style="fill:var(--c-tr-star);stroke:none" d="m12 4.6 1.05 2.15 2.35.33-1.7 1.66.4 2.36L12 10l-2.1 1.1.4-2.36-1.7-1.66 2.35-.33z"/></g></symbol>
 </svg>

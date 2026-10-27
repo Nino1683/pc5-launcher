@@ -45,8 +45,14 @@ SLOW_STEP_MS = 50.0             # ab hier steht die Dauer eines Bausteins als Wa
 # bisherigen nutzen (store_routes, proton_jobs, idle, library): Einrichtung (E105), Sichern und
 # Übernehmen (E106), Ruhemodus-Timer (E107), Rückblick (E108), Platz schaffen (E110)
 # E116: "selfupdate" (Selbst-Update von GitHub) als letzter, er braucht nur Dienste des Kerns
+# E120/E121: "gallery" (Mediengalerie, eigener Hintergrund) dahinter: braucht nur Kern und Einstellungen
+# E122/E123: "wishlist" (Angebote der Wunschliste, braucht store_steam_account) und "gameinfo" (Spielinfos,
+# Neuigkeiten, Trailer; braucht art und store_open_url) ans Ende
+# E124/E126: "trophies" (Steam-Trophäen, nimmt die Attrappe von gameinfo) und "widgets" (Widget-Leiste im Home) dahinter
+# E130: "videos" (Start- und Ruhemodus-Videos von steamdeckrepo.com; hängt sich an power) als letzter
 PARTS = ("library", "art", "launch", "settings", "install", "files", "saves", "store", "itch", "launchers", "proton",
-         "home", "setup", "backup", "sleeptimer", "stats", "cleanup", "selfupdate")
+         "home", "setup", "backup", "sleeptimer", "stats", "cleanup", "selfupdate", "gallery", "wishlist", "gameinfo",
+         "trophies", "widgets", "videos")
 
 UNAVAILABLE = "Das ist gerade nicht verfügbar."
 # RPC-Methoden je Baustein von Wiring.run(): Fällt er aus, antworten sie mit UNAVAILABLE

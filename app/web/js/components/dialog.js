@@ -135,12 +135,14 @@ export function logDialog({ title, text }) {
 // Bild und Unterschrift wechseln zusammen, erst wenn das neue Bild dekodiert ist: Vorher stand die
 // neue Unterschrift schon unter dem alten Bild. Eine laufende Nummer verwirft späte Antworten, wenn
 // inzwischen weitergeblättert wurde.
-export function imageViewer({ count, start = 0, src, caption }) {
+// fill: Bilder aus dem Netz (Store, Steam) füllen die Fläche, auch wenn sie kleiner sind; in 4K standen sie sonst
+// in Originalgröße und waren kaum größer als in der Liste (2026-10-27). Der Explorer zeigt eigene Bilder in echter Größe.
+export function imageViewer({ count, start = 0, src, caption, fill = false }) {
   const total = Math.max(0, Number(count) || 0);
   if (!total) return null;
   let i = Math.max(0, Math.min(total - 1, Number(start) || 0));
   let serial = 0;
-  const img = h("img.ex-image", { alt: "" });
+  const img = h("img.ex-image" + (fill ? ".is-fill" : ""), { alt: "" });
   const cap = h("div.ex-caption.ell");
   const show = async () => {
     const mine = ++serial;

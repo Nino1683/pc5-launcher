@@ -13,11 +13,22 @@
 // Prüfschalter (nur aus der Adresse und nur zusammen mit intro=1): introAt=<ms> (Standbild, kein Lauf),
 // introOut=<ms> (Ausgang zu diesem Stand), introMode=css, introScale=<0..1>.
 // window.__couchIntro = {mode, scale, at, frames, …} für Prüfungen.
-import { params } from "../core/bridge.js";
+// E130: Ist „Video“ gewählt (sys.state.videos), läuft statt dessen das Startvideo (components/intro-video.js); geht
+// das nicht, diese Animation. Das Ruhemodus-Video zählt für introActive/skipIntro mit (jede Taste überspringt). Die
+// Auswahl der Videos (screens/boot-videos.js) meldet sich von hier aus beim Router an: intro.js lädt main.js immer.
+import { params, role } from "../core/bridge.js";
 import { h, cssMs, cssPx } from "../core/dom.js";
+import { router } from "../core/router.js";
 import { sound } from "../core/sound.js";
 import { store } from "../core/store.js";
 import { createGuard, createSky } from "./intro-sky.js";
+import { skipSuspend, startVideoIntro, suspendActive, videoFor } from "./intro-video.js";
+
+// E130: Bildschirm boot-videos (Auswahl aus steamdeckrepo.com) nur im Home; ein Fehler dort kostet nur ihn
+if (role === "home") {
+  import("../screens/boot-videos.js").then((m) => router.register(...(m.screens || [])))
+    .catch((e) => console.error("Bildschirm boot-videos: " + (e && e.stack || e)));
+}
 
 // Zeitplan in ms ab Bildbeginn (SPEC 6.2). Zeiten, die Kern und Prüfung kennen (Halten, Höchstdauer,
 // Ausgang, Überspringen, Ruhefassung), stehen in tokens.css.
@@ -49,12 +60,13 @@ export function introWanted() {
 }
 
 export function introActive() {
-  return !!current && !current.leaving;
+  return (!!current && !current.leaving) || suspendActive();
 }
 
-// Ein Tastendruck: schnell ins Home
+// Ein Tastendruck: schnell ins Home (bzw. das Ruhemodus-Video weg, E130)
 export function skipIntro() {
   if (current) current.leave(true);
+  skipSuspend();
 }
 
 // ------------------------------------------------------------------ Hilfen
@@ -93,8 +105,24 @@ function testSwitches() {
 }
 
 // homeReady: Promise, das erfüllt ist, sobald das Home seine Reihen hat
+// E130: das gewählte Startvideo; ohne (oder mit Prüfschaltern für Standbilder, oder bei „Bewegung reduzieren“) die eigene
 export function startIntro(homeReady) {
   if (current) return current.done;
+  const video = videoFor("boot");
+  const test = testSwitches();
+  if (video && !(store.state.ui || {}).reduceMotion && test.at === null && test.out === null) {
+    const state = startVideoIntro(video, homeReady, () => {
+      if (current === state) current = null;
+      return startOwn(homeReady);
+    });
+    current = state;
+    state.done.then(() => { if (current === state) current = null; });
+    return state.done;
+  }
+  return startOwn(homeReady);
+}
+
+function startOwn(homeReady) {
   const [first, ...rest] = String(document.title || "").split(" ");
   const calm = !!(store.state.ui || {}).reduceMotion;
   const test = testSwitches();
