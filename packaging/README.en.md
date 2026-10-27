@@ -68,7 +68,7 @@ keys, firmware and games are yours to bring; PC5 Launcher never downloads any of
 ## Updating and rolling back
 
 From 0.3.1 on, PC5 Launcher updates itself: it checks GitHub once a day and shows a notification when there is a new
-version. Settings › System › Updates › PC5 Launcher › "Update" downloads the package from GitHub, verifies its
+version. Settings › Updates › PC5 Launcher › "Update" (before 0.4.0: Settings › System › Updates) downloads the package from GitHub, verifies its
 checksum and runs this installer (`install.sh --yes`); the new version starts after "Restart". Turn the daily check
 off on the same page.
 

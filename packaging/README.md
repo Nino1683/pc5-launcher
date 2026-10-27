@@ -72,7 +72,8 @@ Flathub. BIOS-Dateien, Schlüssel, Firmware und Spiele bringst du selbst mit; de
 ## Aktualisieren und zurück zur vorigen Fassung
 
 Ab 0.3.1 aktualisiert sich der PC5 Launcher selbst: Er schaut einmal am Tag auf GitHub nach und meldet eine neue
-Fassung mit einer Mitteilung. Einstellungen › System › Updates › PC5 Launcher › „Aktualisieren“ lädt das Paket von
+Fassung mit einer Mitteilung. Einstellungen › Updates › PC5 Launcher › „Aktualisieren“ (vor 0.4.0: Einstellungen ›
+System › Updates) lädt das Paket von
 GitHub, prüft die Prüfsumme und ruft diesen Installer auf (`install.sh --yes`); die neue Fassung gilt nach „Neu
 starten“. Die tägliche Suche lässt sich auf derselben Seite ausschalten.
 

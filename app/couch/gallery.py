@@ -1,6 +1,6 @@
 """Mediengalerie (E120) und eigener Hintergrund des Home (E121).
 
-Nino, 2026-10-27: die Bildschirmfotos (capture.py) als eigene Galerie wie an der Konsole, und das eigene Bild
+Wunsch 2026-10-27: die Bildschirmfotos (capture.py) als eigene Galerie wie an der Konsole, und das eigene Bild
 bzw. eine Diashow als Hintergrund des Home. Hier liegt, was die Platte anfasst; die Seite steht in
 web/js/screens/gallery.js und web/js/components/backdrop.js, angemeldet wird in wiring_gallery.py.
 

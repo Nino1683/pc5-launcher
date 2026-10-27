@@ -1,6 +1,6 @@
 # Änderungen
 
-## Nächste Fassung
+## 0.4.0 (2026-10-27)
 
 - **Mediengalerie:** Alle Bildschirmfotos nach Spiel sortiert, Vollbild mit L1/R1, Löschen in den Papierkorb, „Als
   Hintergrund verwenden“. Unter Medien und als erste Kachel der Spielebibliothek.

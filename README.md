@@ -24,10 +24,18 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 - Steam games start without Big Picture: Steam stays invisible in the background
 - Play time per game and a weekly recap, "Your week"
 
+### Game page and trophies
+
+- Under each game: short description, genre, developer, release date, Metacritic, Steam screenshots and news
+- The full trailer plays quietly in the background when you rest on a game; game music in the Home if you like
+- **Steam achievements as trophies:** bronze, silver, gold and platinum by rarity, per game and as an overview, with
+  a notification when you unlock one. Read from Steam's own files, no login needed.
+- Adjust the size and position of each game's logo with the controller
+
 ### Install games
 
-- **Built-in stores** for Steam, GOG, Epic, itch.io, Battle.net, Ubisoft and Rockstar: lists by genre, store pages,
-  install and play. You buy on the store's own checkout page in the built-in browser.
+- **Built-in stores** for Steam, GOG, Epic, itch.io, Battle.net, Ubisoft and Rockstar: lists by genre, store pages
+  (with trailers for Steam games), install and play. You buy on the store's own checkout page in the built-in browser.
 - The launchers of Battle.net, Ubisoft and Rockstar install and run hidden in the background; you rarely see them.
 - **From archives:** zip, 7z and rar, also split into several parts or protected with a password. PC5 Launcher finds
   the game's program and adds it to the library.
@@ -39,7 +47,7 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 
 ### Windows games with Proton
 
-- Proton-CachyOS or GE-Proton, chosen per game; more Proton versions under Settings › System › Updates
+- Proton-CachyOS or GE-Proton, chosen per game; more Proton versions under Settings › Updates
 - Per-game switches for **FSR 4, HDR and OptiScaler**, frame-rate limit (every value that divides your refresh
   rate, from 20 fps) and resolution
 - **OptiScaler menu with the controller:** Control Center › Performance opens it in the running game. The D-pad,
@@ -65,6 +73,10 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 
 ### Apps and media
 
+- **Media gallery:** all your screenshots sorted by game, full screen, and use one as your Home background
+- Your own Home background: game art, your own picture or a slideshow; boot videos from steamdeckrepo.com
+- Widget bar in the Home: storage, trophies, Steam wishlist deals (with a notification when a game goes on sale),
+  recently played
 - Built-in browser with bookmarks and downloads
 - From the setup wizard: YouTube (TV view), Kodi, Jellyfin, Moonlight
 - File explorer with a text editor for .txt and .ini files
@@ -77,7 +89,8 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 - **Settings like on a console:** sound, screen and video (HDR, VRR, force composition for streaming with Sunshine), network (Wi-Fi, speed test), Bluetooth and
   controllers, storage, power (sleep, sleep timer, screensaver), updates for the system, Flatpaks and Proton
 - **Updates itself:** PC5 Launcher checks GitHub once a day, tells you when there's a new version and installs it
-  with one button (Settings › System › Updates). Your settings stay.
+  with one button. Settings › Updates shows all updates on one page, and "What's new" lists the changes of each
+  version. Your settings stay.
 - **Themes:** six built-in color themes or your own, see [Themes](#themes)
 - Back up your settings and take them to a new PC
 - Free up space: trash, archives of installed games, large downloads
@@ -141,7 +154,8 @@ terminal inside the extracted folder:
 
     bash install.sh
 
-From 0.3.1 on, PC5 Launcher updates itself (Settings › System › Updates). Coming from 0.2.0 or 0.3.0, update once
+From 0.3.1 on, PC5 Launcher updates itself (Settings › Updates; before 0.4.0 Settings › System › Updates). Coming
+from 0.2.0 or 0.3.0, update once
 the same way as installing; your settings stay. Everything else (supported systems, requirements, the way back to
 Steam, updating and uninstalling): [packaging/README.en.md](packaging/README.en.md).
 
@@ -199,10 +213,18 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
 - Steam-Spiele starten ohne Big Picture: Steam bleibt unsichtbar im Hintergrund
 - Spielzeit je Spiel und der Wochenrückblick „Deine Woche“
 
+**Spielansicht und Trophäen**
+
+- Unter jedem Spiel: Kurzbeschreibung, Genre, Entwickler, Erscheinungsdatum, Metacritic, Steam-Bilder und Neuigkeiten
+- Ruht die Auswahl auf einem Spiel, läuft leise der ganze Trailer im Hintergrund; auf Wunsch Spielmusik im Home
+- **Steam-Errungenschaften als Trophäen:** Bronze, Silber, Gold und Platin nach Seltenheit, je Spiel und als
+  Übersicht, mit Mitteilung beim Freischalten. Aus Steams eigenen Dateien, ohne Anmeldung.
+- Größe und Lage des Spiellogos je Spiel mit dem Controller anpassen
+
 **Spiele installieren**
 
 - **Eingebaute Stores** für Steam, GOG, Epic, itch.io, Battle.net, Ubisoft und Rockstar: Listen nach Genre,
-  Store-Seiten, installieren und spielen. Gekauft wird auf der Kassenseite des Stores im eingebauten Browser.
+  Store-Seiten (bei Steam-Spielen mit Trailern), installieren und spielen. Gekauft wird auf der Kassenseite des Stores im eingebauten Browser.
 - Die Launcher von Battle.net, Ubisoft und Rockstar installieren und laufen versteckt im Hintergrund.
 - **Aus Archiven:** zip, 7z und rar, auch mehrteilig oder mit Kennwort. Der PC5 Launcher findet das Programm des
   Spiels und nimmt es in die Bibliothek auf.
@@ -215,7 +237,7 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
 
 **Windows-Spiele mit Proton**
 
-- Proton-CachyOS oder GE-Proton je Spiel; weitere Proton-Versionen unter Einstellungen › System › Updates
+- Proton-CachyOS oder GE-Proton je Spiel; weitere Proton-Versionen unter Einstellungen › Updates
 - Je Spiel schaltbar: **FSR 4, HDR und OptiScaler**, Bildratenbegrenzung (jeder Wert, der die Bildwiederholrate glatt
   teilt, ab 20) und Auflösung
 - **OptiScaler-Menü mit dem Controller:** Control Center › Leistung öffnet es im laufenden Spiel. Steuerkreuz, Kreuz
@@ -241,6 +263,10 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
 
 **Apps und Medien**
 
+- **Mediengalerie:** alle Bildschirmfotos nach Spiel sortiert, im Vollbild, und eins als Hintergrund im Home
+- Eigener Hintergrund im Home: Spielbilder, ein eigenes Bild oder eine Diashow; Startvideos von steamdeckrepo.com
+- Widget-Leiste im Home: Speicherplatz, Trophäen, Angebote der Steam-Wunschliste (mit Mitteilung, wenn ein Spiel
+  reduziert ist), zuletzt gespielt
 - Eingebauter Browser mit Lesezeichen und Downloads
 - Aus dem Einrichtungs-Assistenten: YouTube (Fernsehansicht), Kodi, Jellyfin, Moonlight
 - Datei-Explorer mit Text-Editor für .txt- und .ini-Dateien
@@ -254,7 +280,8 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
   Geschwindigkeitsmessung), Bluetooth und Controller, Speicher, Energie (Ruhemodus, Ruhemodus-Timer,
   Bildschirmschoner), Updates für System, Flatpaks und Proton
 - **Aktualisiert sich selbst:** Der PC5 Launcher schaut einmal am Tag auf GitHub nach, meldet eine neue Fassung und
-  installiert sie mit einem Knopfdruck (Einstellungen › System › Updates). Die Einstellungen bleiben.
+  installiert sie mit einem Knopfdruck. Einstellungen › Updates zeigt alle Updates auf einer Seite, „Was ist neu“
+  die Änderungen jeder Fassung. Die Einstellungen bleiben.
 - **Designs:** sechs eingebaute Farbdesigns oder ein eigenes, siehe [Designs](#designs)
 - Einstellungen sichern und auf einen neuen PC mitnehmen
 - Platz schaffen: Papierkörbe, Archive installierter Spiele, große Downloads
@@ -279,7 +306,8 @@ Verläufe (`--g-…`) aus [app/web/css/tokens.css](app/web/css/tokens.css); alle
 ### Installieren
 
 Paket unter [Releases](../../releases) laden, entpacken und im Desktop-Modus im entpackten Ordner `bash install.sh`
-ausführen. Ab 0.3.1 aktualisiert sich der PC5 Launcher selbst (Einstellungen › System › Updates); von 0.2.0 oder
+ausführen. Ab 0.3.1 aktualisiert sich der PC5 Launcher selbst (Einstellungen › Updates, vor 0.4.0 Einstellungen › System ›
+Updates); von 0.2.0 oder
 0.3.0 aus einmal genauso wie beim Installieren, die Einstellungen bleiben. Alles Weitere:
 [packaging/README.md](packaging/README.md).
 
