@@ -482,6 +482,15 @@ class ArtWorker:
 
 
 # ====================================================================== der Teil
+def shown_count(library: Any, records: list, shown: list | None) -> int:
+    """E134: So viele übernommene Spiele zeigt die Bibliothek: shown (sonst alle), ohne die vorher aus der Liste
+    entfernten, deren Spiel fehlt (E91). Sonst nennte die Mitteilung auch längst gelöschte Spiele."""
+    ids = [r.get("id") for r in records] if shown is None else shown
+    available = {r.get("id"): r.get("available") for r in records}
+    gone = getattr(library, "is_forgotten", None)
+    return sum(1 for i in ids if not (gone is not None and gone(i, available.get(i))))
+
+
 class LibraryPart:
     def __init__(self, wiring: Any):
         self.wiring = wiring
@@ -523,9 +532,40 @@ class LibraryPart:
         if paths.test_mode():
             # Prüfmodus: Der Kontext zeigt von selbst in den Attrappen-Baum
             # (<COUCH_FIXTURES>/home, /games, /flatpak) und fragt den echten Rechner nichts.
-            return lib_sources.SourceContext(data_dir=paths.data_dir(), cache_dir=paths.cache_dir())
+            return lib_sources.SourceContext(data_dir=paths.data_dir(), cache_dir=paths.cache_dir(),
+                                             state_dir=paths.state_dir(), keep_imported=self.keep_imported)
         return lib_sources.SourceContext(games_disk=paths.games_disk(), data_dir=paths.data_dir(),
-                                         cache_dir=paths.cache_dir(), run_read=_read3)
+                                         cache_dir=paths.cache_dir(), run_read=_read3,
+                                         state_dir=paths.state_dir(), keep_imported=self.keep_imported)
+
+    def keep_imported(self, name: str, records: list, finish: Callable[[bool], bool] | None = None,
+                      shown: list | None = None) -> None:
+        """E134, aus dem Thread des Einlesens (library/imported.py): den Schnappschuss der Übernahme aus Lutris an
+        den Index (der library.json schreibt, in der Hauptschleife). finish(geschrieben) vermerkt danach die
+        Übernahme; nur beim ersten Mal (True) und mit Spielen kommt die Mitteilung, einmal je Rechner. shown: die
+        IDs, die die Bibliothek davon zeigt (ohne needs-steam-Einträge, die es als Steam-Spiel gibt)."""
+        library = getattr(self.app, "library", None)
+        keep = getattr(library, "keep_imported", None)
+        if keep is None:
+            return                          # ohne Index bleibt die Übernahme offen (nächster Start)
+        then = None
+        if finish is not None:
+            def then(flushed: bool) -> None:
+                if finish(flushed) and records:
+                    self.announce_import(shown_count(library, records, shown))
+        self.post(keep, name, records, then)
+
+    def announce_import(self, count: int) -> None:
+        """Eine Mitteilung nach der Übernahme aus Lutris (E134). Aus jedem Thread (notify.push reicht weiter)."""
+        notify = getattr(self.app, "notify", None)
+        if notify is None or count <= 0:
+            return
+        title = "1 Spiel aus Lutris übernommen" if count == 1 else "%d Spiele aus Lutris übernommen" % count
+        try:
+            notify.push(title, "Die Spiele starten jetzt ohne Lutris; Lutris wird nicht mehr gebraucht.",
+                        icon="info")
+        except Exception:
+            _log.exception("Mitteilung zur Übernahme aus Lutris")
 
     def allow_steam_art(self) -> None:
         """Liegt Steam nicht unter ~/.local/share/Steam (anderer Ort, Flatpak-Steam), lieferte

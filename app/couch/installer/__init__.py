@@ -6,6 +6,7 @@ und mit Kennwort). Kein Herunterladen, keine Shop-Anbindung.
 Module:
   browse.py   Dateiauswahl unter festen Wurzeln (nur lesend)
   probe.py    Archiv ansehen und einen Plan liefern (nur lesend)
+  setupexe.py Windows-Installationsprogramme erkennen, benennen, Platz schätzen (E114, nur lesend)
   extract.py  Entpacker: Zwischenordner, bubblewrap, Platzwächter, Marker, rename an den Zielort
   jobs.py     JobManager: Warteschlange, Unterprozess, Ereignisse, Aufräumen beim Start
   trash.py    Papierkorb und das einzige Löschen des Produkts

@@ -6,9 +6,10 @@ to next wizard page; aborting“. Das Skript des Installers lässt die Willkomme
 egal mit welchem Ziel und welcher Sprache. Linux-Programme für GOG (Lutris, Minigalaxy) packen solche Installer
 deshalb mit innoextract aus; das macht der Launcher dann auch.
 
-innoextract kommt nur vom System: aus dem PATH oder aus der Laufzeit von Lutris (nativ und als Flatpak), die es
-ohnehin für GOG-Spiele lädt. Der Launcher lädt selbst kein Programm aus dem Netz. Im Prüfmodus gilt nur die
-Attrappe aus COUCH_TEST_INNOEXTRACT.
+innoextract kommt nur vom System: aus dem PATH oder aus Homebrew (/home/linuxbrew/.linuxbrew/bin, Bazzite bringt
+Homebrew mit; der PATH der Game-Mode-Sitzung nennt es oft nicht). Lutris' Laufzeit wird seit E134 nicht mehr
+benutzt. Der Launcher lädt selbst kein Programm aus dem Netz. Im Prüfmodus gilt nur die Attrappe aus
+COUCH_TEST_INNOEXTRACT.
 
 Ablauf: in einen Zwischenordner im eigenen Spielordner auspacken (eine Sprache: Deutsch, sonst Englisch), alles
 außer den Hilfsordnern des Installers in den Spielordner verschieben, dazu __support/app (Einstellungen, z. B.
@@ -17,7 +18,6 @@ Der Rest des Zwischenordners kommt in den Papierkorb, gelöscht wird nichts.
 """
 from __future__ import annotations
 
-import glob
 import os
 import shutil
 import signal
@@ -32,11 +32,13 @@ STAGING = ".gog-extract"
 SKIP = frozenset({"tmp", "commonappdata", "__redist", "__support"})    # Hilfsordner des Installers
 SUPPORT = ("__support/app", "__support/save")
 TIMEOUT_S = 2 * 3600
-LUTRIS_RUNTIMES = ("~/.local/share/lutris/runtime", "~/.var/app/net.lutris.Lutris/data/lutris/runtime")
+# E134: außer dem PATH nur noch Homebrew (Bazzite); fest, damit kein Ordner aus der Umgebung hineinkommt
+EXTRA_DIRS = ("/home/linuxbrew/.linuxbrew/bin",)
 
 
-def find_tool(environ: dict | None = None) -> str | None:
-    """Pfad zu innoextract oder None. Im Prüfmodus nur die Attrappe."""
+def find_tool(environ: dict | None = None, extra_dirs=EXTRA_DIRS) -> str | None:
+    """Pfad zu innoextract oder None: zuerst der PATH, dann Homebrew (extra_dirs). Im Prüfmodus nur die
+    Attrappe aus COUCH_TEST_INNOEXTRACT."""
     env = os.environ if environ is None else environ
     if paths.test_mode():
         fake = env.get("COUCH_TEST_INNOEXTRACT") or ""
@@ -44,12 +46,10 @@ def find_tool(environ: dict | None = None) -> str | None:
     found = shutil.which("innoextract", path=env.get("PATH"))
     if found:
         return found
-    for root in LUTRIS_RUNTIMES:
-        # neueste Fassung zuerst (innoextract-1.9-linux vor innoextract-1.8-linux)
-        for folder in sorted(glob.glob(os.path.join(os.path.expanduser(root), "innoextract-*")), reverse=True):
-            tool = os.path.join(folder, "innoextract")
-            if os.path.isfile(tool) and os.access(tool, os.X_OK):
-                return tool
+    for folder in extra_dirs:
+        tool = os.path.join(folder, "innoextract")
+        if os.path.isfile(tool) and os.access(tool, os.X_OK):
+            return tool
     return None
 
 
@@ -101,14 +101,16 @@ def _merge(src: str, dst: str) -> None:
 
 
 def extract(tool: str, installer: str, target: str, log_fh: Any, cancel: Any = None,
-            on_proc: Callable[[Any], None] | None = None, trash: Callable[[str], None] | None = None) -> str:
+            on_proc: Callable[[Any], None] | None = None, trash: Callable[[str], None] | None = None,
+            wanted: tuple = ("de", "en")) -> str:
     """installer nach target auspacken. Rückgabe: die gewählte Sprache ("" = alle). Fehler: RuntimeError mit
-    deutschem Satz. target ist der eigene, markierte Spielordner (wiring_store._new_target)."""
+    deutschem Satz. target ist der eigene, markierte Spielordner (wiring_store._new_target). wanted: Sprachen in
+    der Reihenfolge der Oberfläche."""
     listing = subprocess.run([tool, "--list-languages", installer], capture_output=True, text=True,
                              timeout=120, stdin=subprocess.DEVNULL)
     if listing.returncode != 0:
         raise RuntimeError("innoextract kann diesen Installer nicht lesen.")
-    lang = pick_language(listing.stdout)
+    lang = pick_language(listing.stdout, wanted)
     staging = os.path.join(target, STAGING)
     os.makedirs(staging, exist_ok=True)
     argv = [tool, "--gog", "--exclude-temp", "--silent", "--progress=0", "-d", staging]

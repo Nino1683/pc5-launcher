@@ -6,8 +6,8 @@ Haken für lib.get läuft in der Hauptschleife und fasst die Platte nicht an: Er
 „Spielstände“ und den vollen Pfad aus der letzten Suche ein (Zwischenspeicher je Eintrag) und
 stößt sonst eine Suche an. Die Seite holt alles Weitere mit saves.info.
 
-Wo gesucht wird, hängt am Start des Eintrags: der Prefix, mit dem das Spiel wirklich läuft (Lutris-
-Weg E55: der Lutris-Prefix; sonst der von prefix.decide), bei Steam compatdata/<AppID>/pfx und
+Wo gesucht wird, hängt am Start des Eintrags: der Prefix, mit dem das Spiel wirklich läuft (der von
+prefix.decide; den Startweg „wie in Lutris“ E55 gibt es seit E134 nicht mehr), bei Steam compatdata/<AppID>/pfx und
 userdata/<Konto>/<AppID>, bei Linux-Spielen der Home-Ordner. Switch und Wii U (E99): Edens bzw.
 Cemus Spielstand-Ordner zur TitleID des Eintrags (detail.title_id) oder zur gelernten (nach einer
 Sitzung aus Edens bzw. Cemus Ordnern, gemerkt in <state>/saves-learned.json). Zurückholen in
@@ -189,7 +189,7 @@ def emu_refuse(wiring: Any):
 
 def places(entry: Any, wiring: Any) -> dict:
     """Wo gesucht wird (Arbeits-Thread, ein paar stat): {"prefix", "home", "game_dir", "extra"}."""
-    from .launch import builders, lutris_way
+    from .launch import builders
     from .library import describe
     d = entry.detail
     src = getattr(wiring, "sources", None)
@@ -199,8 +199,6 @@ def places(entry: Any, wiring: Any) -> dict:
         if entry.source == "steam":
             if not describe.is_shortcut(entry) and d.get("library") and d.get("appid"):
                 out["prefix"] = os.path.join(str(d["library"]), "steamapps", "compatdata", str(d["appid"]), "pfx")
-        elif lutris_way.wanted(entry):
-            out["prefix"] = str(d.get("prefix") or "")
         else:
             info = None
             if getattr(wiring, "launch", None) is not None:
@@ -209,7 +207,7 @@ def places(entry: Any, wiring: Any) -> dict:
                 except Exception:
                     _log.exception("Prefix von %s", entry.id)
             saved = d.get("saves") if isinstance(d.get("saves"), dict) else {}
-            # Steht die Übernahme aus Lutris noch aus, liegen die Stände noch im Lutris-Prefix
+            # Steht die Kopie des Prefix noch aus (E10), liegen die Stände noch im bisherigen Prefix des Spiels
             out["prefix"] = _first_dir([(info or {}).get("path"), saved.get("path"), d.get("prefix")])
     elif entry.source in ("steam", "native", "local"):
         out["home"] = home

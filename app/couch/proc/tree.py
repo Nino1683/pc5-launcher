@@ -198,6 +198,34 @@ def signal_tree(root_pid: int, sig: int, include_root: bool = False,
     return sent
 
 
+def open_hidraw(pids: list[int], vendor: str, proc_root: str = "/proc", sys_root: str = "/sys") -> list[str]:
+    """Gerätedateien /dev/hidrawN eines Herstellers (HID-Kennung wie "054C"), die einer der pids
+    offen hält, ohne Doppelte. Nur lesend; wer verschwindet oder fremd ist, zählt nicht."""
+    found: list[str] = []
+    vendors: dict[str, bool] = {}
+    for pid in pids:
+        fd_dir = os.path.join(proc_root, str(pid), "fd")
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                target = os.readlink(os.path.join(fd_dir, fd))
+            except OSError:
+                continue
+            name = os.path.basename(target)
+            if not target.startswith("/dev/hidraw") or name in found:
+                continue
+            if name not in vendors:
+                hid = os.path.basename(os.path.realpath(os.path.join(sys_root, "class/hidraw", name, "device")))
+                parts = hid.split(":")              # 0005:054C:0CE6.0013 (Bus, Hersteller, Gerät)
+                vendors[name] = len(parts) > 2 and parts[1].upper() == vendor.upper()
+            if vendors[name]:
+                found.append(name)
+    return ["/dev/" + n for n in found]
+
+
 def states(root_pid: int) -> dict[int, str]:
     """Zustand je Nachkomme ("T" = angehalten). Für Tests und zur Kontrolle nach dem Anhalten."""
     snap = snapshot()

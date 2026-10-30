@@ -585,6 +585,20 @@ class _EvdevPad:
             self._rumble = fx.Rumble(self._dev)
         self._rumble.silence()
 
+    def release_triggers(self) -> bool:
+        """Nimmt den Widerstand der adaptiven Trigger zurück (nur DualSense, über hidraw). Ein Spiel, das
+        hängt oder beendet wird, kommt selbst nicht mehr dazu; der Widerstand bliebe bis zum Ausschalten."""
+        from . import dualsense_fx as fx
+        pad = self._sysfs()
+        node = pad.hidraw_node() if pad else None
+        if not node or not c.is_dualsense(getattr(self, "vendor", 0), getattr(self, "product", 0)):
+            return False
+        fd = os.open(node, os.O_WRONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            return os.write(fd, fx.build_output_report(pad.is_bluetooth(), triggers_off=True)) > 0
+        finally:
+            os.close(fd)
+
     def _close_touch(self) -> None:
         if self._touch_fd is not None:
             try:

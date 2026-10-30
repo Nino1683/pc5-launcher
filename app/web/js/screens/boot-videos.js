@@ -20,12 +20,13 @@ import { toast } from "../components/toast.js";
 const COLS = 5;
 const ROWS_SHOWN = 3;
 const PREVIEW_MS = 900;
+const RETRY_MS = 10000;           // nach einem Fehler beim Nachladen frühestens so spät noch einmal
 const SORTS = ["popular", "new"];
 
 function create(params = {}) {
   const kind = params.kind === "suspend" ? "suspend" : "boot";
   const state = { posts: [], sort: SORTS.includes(params.sort) ? params.sort : "popular", page: 0, more: true, loading: false,
-    loaded: false, failed: "", chosen: "", top: 0, busy: "", stale: false };
+    loaded: false, failed: "", chosen: "", top: 0, busy: "", stale: false, retryAt: 0 };
   const titleEl = h("h1.flow-title.ell", { text: kind === "boot" ? S.bvTitleBoot : S.bvTitleSuspend });
   const subEl = h("div.flow-sub.ell");
   const sortLabel = h("span.btn-label");
@@ -80,7 +81,7 @@ function create(params = {}) {
       const row = Math.floor(index / COLS);
       if (row < state.top) state.top = row;
       else if (row > state.top + ROWS_SHOWN - 1) state.top = row - ROWS_SHOWN + 1;
-      if (row >= Math.floor((shots.length - 1) / COLS) && state.more && !state.loading) load(false);
+      if (row >= Math.floor((shots.length - 1) / COLS) && state.more && !state.loading && Date.now() >= state.retryAt) load(false);
     }
     grid.style.setProperty("--top", state.top);
   }
@@ -96,8 +97,15 @@ function create(params = {}) {
     state.loading = false;
     state.loaded = true;
     if (!r || r.ok === false) {
-      if (!state.posts.length) state.failed = (r && r.message) || S.errorGeneric;
-      state.more = false;
+      if (!state.posts.length) {
+        state.failed = (r && r.message) || S.errorGeneric;
+        state.more = false;
+      } else {
+        // Aussetzer beim Nachladen: nicht für immer aufgeben (sonst schien die Liste vollständig), nach RETRY_MS
+        // beim nächsten Schritt in der letzten Reihe noch einmal
+        state.retryAt = Date.now() + RETRY_MS;
+        toast((r && r.message) || S.errorGeneric);
+      }
     } else {
       state.page = r.page || state.page + 1;
       state.more = !!r.more;

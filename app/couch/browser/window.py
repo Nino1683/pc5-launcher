@@ -70,6 +70,10 @@ def _t(text: str) -> str:
 HERE = os.path.dirname(os.path.realpath(__file__))
 ZOOM_STEP = 0.1
 MEMORY_LIMIT_MB = 2048             # je Seitenprozess; darüber räumt WebKit seine Zwischenspeicher
+# E138: kein eigener Seitenprozess je Website. Mit dem Wechsel behielt WebKit jede besuchte Seite als
+# eigenen Prozess (300–600 MB) im Vorrat: nach 8 Seiten 13 Prozesse und 2,7 GB statt 3 und 0,7 GB,
+# bei gleichen Ladezeiten (gemessen 2026-10-28, 4K)
+FEATURES_OFF = ("ProcessSwapOnCrossSiteNavigation",)
 TOAST_MS = 4500
 CRASH_LIMIT = 3                    # so oft je Minute lädt der Browser eine abgestürzte Seite neu
 POPUP_WAIT_MS = 10000              # so lange darf ein Fenster der Seite leer bleiben (E89)
@@ -123,6 +127,15 @@ popover.menu > contents { background: #1b1e26; border-radius: 20px; padding: 14p
                      color: #ffffff; border: none; box-shadow: none; }
 .popup-head button:hover { background: #3a4150; }
 """
+
+
+def _features_off(settings, names) -> None:
+    """Schaltet WebKit-Funktionen ab, die diese WebKit-Fassung kennt; unbekannte Namen zählen nicht."""
+    features = WebKit.Settings.get_all_features()
+    for i in range(features.get_length()):
+        feature = features.get(i)
+        if feature.get_identifier() in names:
+            settings.set_feature_enabled(feature, False)
 
 
 def _env_path(name: str, default: str) -> str:
@@ -219,6 +232,7 @@ class Browser:
         st.set_enable_smooth_scrolling(True)
         st.set_media_playback_requires_user_gesture(False)
         st.set_enable_back_forward_navigation_gestures(False)
+        _features_off(st, FEATURES_OFF)
         self.view.set_zoom_level(self.prefs.zoom)
         self.apply_adblock()
         self.view.set_vexpand(True)

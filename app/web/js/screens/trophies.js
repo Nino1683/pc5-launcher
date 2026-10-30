@@ -19,6 +19,7 @@ import { TIERS, ensureTrophyStyle, forgetTrophies, percentText, progressBar, rar
 
 const AROUND = [6, 14];           // Symbole für so viele Zeilen vor und nach dem Fokus
 
+const count = (n) => Number(n || 0).toLocaleString(S.locale);      // „1.234“ bzw. „1,234“ wie die übrigen Zahlen
 const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
 
 function tierName(tier) {
@@ -27,15 +28,15 @@ function tierName(tier) {
 
 function countsText(p) {
   const t = (p && p.tiers) || {};
-  return TIERS.filter((k) => t[k]).map((k) => tierName(k) + " " + t[k]).join(" · ");
+  return TIERS.filter((k) => t[k]).map((k) => tierName(k) + " " + count(t[k])).join(" · ");
 }
 
 // Links: Stufen untereinander (Pokal, Name, Zahl)
 function tierRows(tiers, unknown) {
   const t = tiers || {};
   const rows = TIERS.map((k) => h("div.tr-tier-row", { dataset: { tier: k } }, tierIcon(k), h("span.ell", { text: tierName(k) }),
-    h("b", { text: String(t[k] || 0) })));
-  if (unknown) rows.push(h("div.tr-tier-row.is-unknown", tierIcon(null), h("span.ell", { text: S.trTiers.unknown }), h("b", { text: String(unknown) })));
+    h("b", { text: count(t[k]) })));
+  if (unknown) rows.push(h("div.tr-tier-row.is-unknown", tierIcon(null), h("span.ell", { text: S.trTiers.unknown }), h("b", { text: count(unknown) })));
   return h("div.tr-tier-rows", rows);
 }
 
@@ -61,7 +62,7 @@ function createOverview() {
       return;
     }
     const t = r.totals || {};
-    panel.replaceChildren(h("div.tr-total", { text: String(t.unlocked || 0) }), h("div.tr-total-label", { text: S.trTotal }),
+    panel.replaceChildren(h("div.tr-total", { text: count(t.unlocked) }), h("div.tr-total-label", { text: S.trTotal }),
       tierRows(t, t.unknown), h("div.tr-games", { text: fmt(S.trGames, { n: (r.games || []).length, all: t.games || 0, total: t.total || 0 }) }));
     list.setRows((r.games || []).map((g) => ({
       id: g.id, type: "progress", label: g.title, value: g.percent, valueText: percentText(g.percent),

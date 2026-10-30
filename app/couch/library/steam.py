@@ -783,7 +783,7 @@ EXCLUDE_HIDDEN = "hidden"           # in Steam ausgeblendet
 EXCLUDE_DESKTOP = "desktop"         # nested-desktop: dafür gibt es die App „Desktop“
 EXCLUDE_OWN_APP = "own-app"         # unsere eigenen Apps (YouTube, Kodi, Browser, EmuDeck, Steam, couch)
 EXCLUDE_EMULATOR = "emulator"       # Emulator-Starter: die Spiele liefert die Emulator-Quelle
-EXCLUDE_LUTRIS = "lutris"           # Aufruf eines Lutris-Spiels: das liefert die Lutris-Quelle
+EXCLUDE_LUTRIS = "lutris"           # Aufruf eines Lutris-Spiels: würde Lutris starten (E134: die Spiele sind übernommen)
 EXCLUDE_ASSIGNED = "assigned"       # gehört schon zu einem anderen Eintrag (Aufruf, exe, Titel)
 EXCLUDE_SYSTEM = "system-tool"      # Programm des Systems (Dateiverwaltung …), kein Spiel
 
@@ -849,7 +849,7 @@ def shortcut_exclusion(ctx, sc: dict, others=()) -> str | None:
     Verknüpfungen und Programme des Systems (/usr/bin/dolphin ist kein Spiel).
     """
     from . import apps as apps_mod
-    from . import lutris as lutris_mod
+    from . import imported as imported_mod   # Helfer der übernommenen Lutris-Spiele (E134)
     exe = sc.get("exe") or ""
     prog = _program(sc)
     if not sc.get("name") or not exe:
@@ -860,15 +860,18 @@ def shortcut_exclusion(ctx, sc: dict, others=()) -> str | None:
         return EXCLUDE_DESKTOP
     flatpaks = _flatpak_ids(sc)
     # nur die ersten vier Felder (id, Titel, Art, Ziel): die Tabelle darf hinten wachsen (E105)
-    own_flatpaks = {a[3] for a in apps_mod.APPS if a[2] == "flatpak"}
+    # E139: Apps mit eigenem Schalter (Discord) gelten nur eingeschaltet als eigene; aus bleibt eine Verknüpfung, wie sie war
+    own_flatpaks = {a[3] for a in apps_mod.APPS if a[2] == "flatpak" and apps_mod.switched_on(ctx, a[0])}
     own_paths = [os.path.join(ctx.home, a[3]) for a in apps_mod.APPS if a[2] == "appimage"]
+    # E140: erkannte Flatpaks (library/flatpaks.py) haben schon einen eigenen Eintrag
+    own_flatpaks |= {str(e.detail.get("flatpak")) for e in others if getattr(e, "source", "") == "flatpak"}
     app_dir = getattr(ctx, "app_dir", "") or ""
     if prog in _OWN_PROGRAMS or any(f in own_flatpaks for f in flatpaks) \
             or any(os.path.isabs(exe) and same_path(exe, p) for p in own_paths) \
             or (app_dir and os.path.isabs(exe) and os.path.realpath(exe).startswith(
                 os.path.realpath(app_dir).rstrip(os.sep) + os.sep)):
         return EXCLUDE_OWN_APP
-    if prog in lutris_mod.EMULATOR_STARTERS or _is_emulator_name(prog) \
+    if prog in imported_mod.EMULATOR_STARTERS or _is_emulator_name(prog) \
             or any(_EMULATOR_FLATPAK.search(f) for f in flatpaks) \
             or "/Emulation/tools/" in exe or "/Emulation/roms/" in (sc.get("args") or ""):
         return EXCLUDE_EMULATOR
@@ -896,7 +899,7 @@ def load_shortcuts(ctx, others=()) -> list[Entry]:
     (shortcuts.vdf, config.vdf, je Windows-Spiel der FSR-Scan); wirft nicht.
 
     others: Einträge der übrigen Quellen (sources.run_source gibt die des laufenden Laufs)."""
-    from . import lutris as lutris_mod
+    from . import imported as imported_mod   # Helfer der übernommenen Lutris-Spiele (E134)
     shortcuts = shortcut_art(ctx)
     if not shortcuts:
         return []
@@ -920,8 +923,8 @@ def load_shortcuts(ctx, others=()) -> list[Entry]:
             tool = compat.get(sc["appid"]) or (compat.get(0) if windows else "") or ""
             game_dir = ""
             if os.path.isabs(exe):
-                game_dir = lutris_mod.game_root(exe, start_dir if os.path.isabs(start_dir) else "",
-                                                mounts, ctx.home)
+                game_dir = imported_mod.game_root(exe, start_dir if os.path.isabs(start_dir) else "",
+                                                  mounts, ctx.home)
                 if game_dir.startswith(_SYSTEM_DIRS) or same_path(game_dir, ctx.home):
                     game_dir = ""
             scan = ctx.fsr.scan(game_dir) if (windows and game_dir) else None

@@ -1,20 +1,23 @@
-"""Quelle "lutris": Spiele aus der Lutris-Bibliothek, nur gelesen (E10: gestartet wird ohne Lutris).
+"""Einmalige Übernahme der Spiele aus Lutris (E134). Nur library/imported.py lädt dieses Modul, und nur solange die
+Übernahme nicht erledigt ist (<state_dir>/lutris-import.json): Danach liest der Launcher Lutris nie wieder.
 
-Nur lesend, blockierend (SQLite mit mode=ro, YAML-Dateien, ein paar lstat je Prefix, dazu der
-FSR-Scan der Spielordner).
+Nur lesend, blockierend (SQLite mit mode=ro, YAML-Dateien, ein paar lstat je Prefix, dazu der FSR-Scan der
+Spielordner). Geschrieben wird nur in den eigenen Ordner <data_dir>/lutris-import (copy_art): Lutris' Bilder
+werden einmal kopiert, weil Lutris danach nicht mehr gelesen wird (und vielleicht nicht mehr installiert ist).
 
 Gelesen werden <lutris_db> (pga.db, Tabelle games, nur installed = 1), die Vorgaben
 <lutris_config>/system.yml und runners/<runner>.yml und je Spiel games/<configpath>.yml.
 
-Regeln je Runner:
+Regeln je Runner (dieselben wie bis 0.4.0 bei jedem Einlesen):
   wine    -> Entry(id="lutris:<slug>", source="proton", badge="PROTON")
   steam   -> ausgelassen (kommt aus der Steam-Quelle)
   linux   -> ausgelassen, wenn das Programm eden-launch oder cemu-launch ist (Emulator-Quelle);
              sonst Entry(id="lutris:<slug>", source="native", badge=""); rocksmith-launch bekommt
              die Marke "needs-steam" (braucht den laufenden Steam-Client) und, wenn das Skript
              eine Steam-App nennt, detail.steam_appid. Gibt es dieses Steam-Spiel in der
-             Bibliothek, lässt sources.run_source den Lutris-Eintrag weg (Bauplan E25).
+             Bibliothek, lässt sources.run_source den Eintrag weg (Bauplan E25).
   andere  -> ausgelassen, mit Warnung
+Derselbe Slug zweimal: der zweite heißt "lutris:<slug>~<zeile>".
 
 detail bei wine:
   slug, lutris_id, exe, args (Liste), working_dir, prefix (realpath oder ""), wine_version,
@@ -23,9 +26,12 @@ detail bei wine:
   Pfad oder None}, prefix_state, shared_prefix, store ("battlenet" oder ""), game_dir
   (durchsuchter Spielordner), fsr {verdict, detail, version, dir, stale}
 detail bei linux: slug, lutris_id, exe, args (Liste), working_dir, env, lutris_art, steam_appid (nur needs-steam)
+wine_version und is_proton beschreiben nur, was in Lutris eingestellt war: Gestartet wird mit der Proton-Wahl des
+Launchers (launch/proton.py), nie mit einem Runner aus Lutris. copy_art ersetzt lutris_art durch imported_art
+{cover, banner, icon} mit den Kopien.
 
 available = exe vorhanden (fehlt z. B., wenn die Spiele-Platte nicht eingehängt ist).
-Marken: "fsr4" / "fsr4-upgrade" (FSR-Scan), "vr" (siehe is_vr_title), "battlenet".
+Marken: "fsr4" / "fsr4-upgrade" (FSR-Scan), "vr" (siehe imported.is_vr_title), "battlenet".
 """
 from __future__ import annotations
 
@@ -38,74 +44,21 @@ import sqlite3
 import yaml
 
 from . import fsr as fsr_mod
+from .imported import (ART_DIR, EMULATOR_STARTERS, NEEDS_STEAM, art_folder, game_root, is_vr_title,
+                       prefix_state)
 from .model import Entry
 from .sources import clean_text, err_text, expand_home, sort_title, title_key, to_float
 
 _YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
-# Lutris-Einträge, die nur die eigenen Emulator-Starter des Nutzers aufrufen: Diese Spiele liefert die Emulator-Quelle.
-EMULATOR_STARTERS = {"eden-launch", "cemu-launch"}
-NEEDS_STEAM = {"rocksmith-launch"}
-
-# Unterordner, in denen die exe liegt, während das Spiel weiter oben beginnt (bin/x64, Binaries/Win64)
-_BIN_DIRS = {"binaries", "bin", "bin64", "bin32", "win64", "win32", "x64", "x86", "x86_64", "wingdk", "retail"}
-
-# Reine VR-Titel ohne Bildschirm-Modus, deren Name das nicht verrät (Vergleich über title_key).
-KNOWN_VR_ONLY = {
-    "beatsaber", "halflifealyx", "gunmancontracts", "boneworks", "bonelab", "bladeandsorcery",
-    "pistolwhip", "jobsimulator", "thewalkingdeadsaintssinners", "intotheradius", "pavlovvr",
-}
-_VR_WORD = re.compile(r"(?<![A-Za-z0-9])VR(?![A-Za-z0-9])", re.I)
+ART_MAX_BYTES = 40 * 1024 * 1024        # größer ist kein Cover (wie art.USER_MAX_BYTES)
+_ART_EXT = (".jpg", ".png")
 
 
 # ---------------------------------------------------------------- Helfer
 
-def overrides_env(overrides) -> str:
-    """Lutris-Schreibweise {dll: disabled|native|builtin|…} -> Wert für WINEDLLOVERRIDES (für den Starter)."""
-    short = {"disabled": "", "native": "n", "builtin": "b", "n,b": "n,b", "b,n": "b,n"}
-    parts = []
-    for dll, mode in (overrides.items() if isinstance(overrides, dict) else []):
-        parts.append("%s=%s" % (dll, short.get(str(mode), str(mode))))
-    return ";".join(parts)
-
-
-def prefix_state(prefix: str) -> str:
-    """Zustand eines Wine-Prefix (03, Abschnitt 4.2). Nur lstat/readlink, schnell.
-
-    "missing"  Ordner fehlt oder kein Prefix eingetragen
-    "empty"    Ordner da, aber nie gestartet (keine system.reg)
-    "proton"   Protons Marke (Datei version oder tracked_files), DXVK von Proton
-    "mixed"    Protons Marke, aber system32/dxgi.dll ist ein Symlink in Lutris' DXVK (ein
-               wine-staging-Start hat Protons Dateien ersetzt)
-    "wine"     kein Proton-Zeichen (Lutris-Wine, z. B. wine-staging)
-    """
-    if not prefix or not os.path.isdir(prefix):
-        return "missing"
-    # Lutris nennt den Ordner mit drive_c; Steam-artige Prefixe haben darunter noch pfx/.
-    roots = [prefix, os.path.join(prefix, "pfx")]
-    if not any(os.path.isfile(os.path.join(r, "system.reg")) for r in roots):
-        return "empty"
-    proton_mark = False
-    for name in ("version", "tracked_files"):
-        try:
-            proton_mark = proton_mark or os.path.getsize(os.path.join(prefix, name)) > 0
-        except OSError:
-            pass
-    lutris_dxvk = False
-    for r in roots:
-        dxgi = os.path.join(r, "drive_c/windows/system32/dxgi.dll")
-        try:
-            if os.path.islink(dxgi) and "/lutris/runtime/" in os.readlink(dxgi).replace("\\", "/"):
-                lutris_dxvk = True
-        except OSError:
-            pass
-    if proton_mark:
-        return "mixed" if lutris_dxvk else "proton"
-    return "wine"
-
-
 def is_proton_version(version: str, steam_root: str, lutris_data: str, libraries=()) -> bool:
-    """Ist die in Lutris gewählte Wine-Fassung ein Proton-Build?
+    """War die in Lutris gewählte Wine-Fassung ein Proton-Build? (nur zur Beschreibung, detail.is_proton)
 
     Ja, wenn es dazu ein Skript "proton" gibt (compatibilitytools.d oder steamapps/common). Nein,
     wenn der Build unter Lutris' eigenen Wine-Fassungen liegt. Liegt er nirgends, entscheidet der
@@ -121,60 +74,6 @@ def is_proton_version(version: str, steam_root: str, lutris_data: str, libraries
     if os.path.isdir(os.path.join(lutris_data, "runners/wine", version)):
         return False
     return bool(re.match(r"(ge-)?proton", version, re.I))
-
-
-def game_root(exe: str, directory: str = "", mounts=None, home: str = "") -> str:
-    """Spielordner zu einer exe (das ist der Ordner, den der FSR-Scan durchsucht).
-
-    Ausgang ist der Ordner der exe. Heißt er wie ein Programm-Unterordner (bin/x64,
-    Binaries/Win64), geht es bis zu drei Ebenen hoch; bei Unreal-Spielen (Ordner Engine neben dem
-    Projektordner) noch eine. Nie bis auf einen Einhängepunkt oder das Home. Liegt Lutris'
-    "directory" darüber, gilt das.
-    """
-    mounts = mounts or {}
-    home_real = os.path.realpath(home) if home else ""
-
-    def forbidden(path: str) -> bool:
-        real = os.path.realpath(path)
-        return not path or real == "/" or real in mounts or (home_real and real == home_real)
-
-    base = os.path.dirname(exe)
-    cur = base
-    for _ in range(3):
-        parent = os.path.dirname(cur)
-        if os.path.basename(cur).lower() in _BIN_DIRS and not forbidden(parent):
-            cur = parent
-        else:
-            break
-    parent = os.path.dirname(cur)
-    if cur != base and not forbidden(parent) and os.path.isdir(os.path.join(parent, "Engine")):
-        cur = parent
-    if directory and not forbidden(directory):
-        d = os.path.realpath(directory)
-        c = os.path.realpath(cur)
-        if c != d and c.startswith(d.rstrip("/") + "/"):
-            cur = directory
-    return cur
-
-
-def is_vr_title(title: str, slug: str, root: str, scan: dict | None) -> bool:
-    """Vorsichtige VR-Erkennung: lieber keine Marke als eine falsche.
-
-    Bedingung 1: Im Spielordner liegt eine VR-Laufzeit (openvr_api.dll, OVRPlugin.dll,
-    openxr_loader.dll …) oder der Ordner game/hlvr (Source 2 VR). Das allein reicht nicht:
-    Cyberpunk 2077, Resident Evil Village, Superliminal und jedes Unreal-Spiel bringen solche
-    DLLs mit, ohne VR-Spiele zu sein.
-    Bedingung 2: Der Titel ist erkennbar kein Bildschirmspiel: game/hlvr vorhanden, oder „VR“
-    steht als eigenes Wort im Titel, im Slug oder im Namen des Spielordners, oder der Titel steht
-    in der kleinen Liste KNOWN_VR_ONLY.
-    """
-    files = (scan or {}).get("files") or {}
-    if files.get("vr_marker"):
-        return True
-    if not files.get("vr"):
-        return False
-    words = "%s %s %s" % (title, (slug or "").replace("-", " "), os.path.basename(root.rstrip("/")))
-    return bool(_VR_WORD.search(words)) or title_key(title) in KNOWN_VR_ONLY
 
 
 def _load_yaml(path: str) -> dict:
@@ -233,8 +132,9 @@ def steam_appid_of_script(path: str) -> int | None:
     return None
 
 
-def _rows(ctx) -> list[dict]:
-    """Installierte Spiele aus pga.db. Leere Liste und Warnung, wenn die Datenbank nicht lesbar ist."""
+def _rows(ctx) -> list[dict] | None:
+    """Installierte Spiele aus pga.db. [] und Warnung, wenn es keine Datenbank gibt; None (dazu
+    ctx.fail), wenn sie da, aber nicht lesbar ist (gesperrt, halb geschrieben, kaputt)."""
     if not os.path.isfile(ctx.lutris_db):
         ctx.warn("lutris: Datenbank fehlt (%s)" % ctx.lutris_db)
         return []
@@ -246,11 +146,12 @@ def _rows(ctx) -> list[dict]:
         con.row_factory = sqlite3.Row
         return [dict(r) for r in con.execute("select * from games where installed = 1 order by id")]
     except (sqlite3.Error, OSError, ValueError) as e:
-        ctx.warn("lutris: Datenbank nicht lesbar (%s)" % type(e).__name__)
+        ctx.warn("lutris: Datenbank nicht lesbar (%s), die Übernahme versucht es beim nächsten Start wieder"
+                 % type(e).__name__)
         fail = getattr(ctx, "fail", None)
         if fail:
             fail("lutris")          # gesperrt oder halb geschrieben: kein „es gibt keine Spiele mehr“
-        return []
+        return None
     finally:
         if con is not None:
             con.close()
@@ -277,11 +178,31 @@ def _art(ctx, slug: str) -> dict:
     return {k: (p if os.path.isfile(p) else None) for k, p in cand.items()}
 
 
-# ---------------------------------------------------------------- Quelle
+# ---------------------------------------------------------------- Lesen
+
+def read(ctx) -> tuple[str, list[Entry]]:
+    """("ok", Einträge) | ("none", []) ohne Datenbank | ("failed", []) wenn sie nicht lesbar ist (ctx.fail ist
+    dann gesetzt). Blockierend; wirft nicht."""
+    rows = _rows(ctx)
+    if rows is None:
+        return "failed", []
+    if not os.path.isfile(ctx.lutris_db):
+        return "none", []
+    if any(str(r.get("runner") or "") in ("wine", "linux") for r in rows) and not os.path.isdir(ctx.lutris_config):
+        # Datenbank da, Konfiguration nicht erreichbar: Das wären „keine Spiele“ für immer. Lieber später wieder
+        ctx.warn("lutris: Konfiguration fehlt (%s), die Übernahme versucht es beim nächsten Start wieder"
+                 % ctx.lutris_config)
+        ctx.fail("lutris")
+        return "failed", []
+    return "ok", _entries(ctx, rows)
+
 
 def load(ctx) -> list[Entry]:
-    """Lutris-Spiele als Einträge. Blockierend; wirft nicht, Probleme stehen in ctx.warnings."""
-    rows = _rows(ctx)
+    """Lutris-Spiele als Einträge (wie read, nur die Liste). Blockierend; wirft nicht."""
+    return read(ctx)[1]
+
+
+def _entries(ctx, rows: list[dict]) -> list[Entry]:
     if not rows:
         return []
     system_defaults = _section(_defaults(ctx, "system.yml"), "system")
@@ -364,7 +285,7 @@ def _entry(ctx, row, name, slug, runner, system_defaults, runner_cfg, lutris_dat
         "working_dir": working_dir, "env": env, "lutris_art": _art(ctx, slug),
     }
     if getattr(ctx, "lutris_flatpak", False):
-        base["lutris_flatpak"] = True       # E104: aus Lutris als Flatpak gelesen; „wie in Lutris“ (E55) nur nativ
+        base["lutris_flatpak"] = True       # E104: aus Lutris als Flatpak gelesen (nur zur Beschreibung)
     title = name
     common = dict(
         id="lutris:%s" % slug, title=title, kind="game",
@@ -419,3 +340,82 @@ def _entry(ctx, row, name, slug, runner, system_defaults, runner_cfg, lutris_dat
         "fsr": fsr_mod.summary(scan),
     })
     return Entry(source="proton", badge="PROTON", tags=tags, detail=detail, **common)
+
+
+# ---------------------------------------------------------------- Bilder einmal kopieren
+
+def _art_sources(ctx, slug: str, found: dict) -> dict:
+    """Wo Lutris Bilder zu diesem Slug hat, je Art die erste vorhandene Datei. Gesucht wird wie bisher beim
+    Auflösen (art.py bis 0.4.0): coverart/ und banners/ neben pga.db, unter ~/.local/share/lutris und
+    ~/.cache/lutris (ältere Lutris-Fassungen), .jpg vor .png; das Symbol unter hicolor/128x128 (auch das von
+    Lutris als Flatpak)."""
+    dirs = []
+    for base in (os.path.dirname(ctx.lutris_db), os.path.join(ctx.home, ".local/share/lutris"),
+                 os.path.join(ctx.home, ".cache/lutris")):
+        if base not in dirs:
+            dirs.append(base)
+    icon_dirs = [os.path.join(ctx.home, ".local/share/icons/hicolor/128x128/apps"),
+                 os.path.join(ctx.home, ".var/app/net.lutris.Lutris/data/icons/hicolor/128x128/apps")]
+    cand = {
+        "cover": [found.get("coverart")] + [os.path.join(d, "coverart", slug + x) for d in dirs for x in _ART_EXT],
+        "banner": [found.get("banner")] + [os.path.join(d, "banners", slug + x) for d in dirs for x in _ART_EXT],
+        "icon": [found.get("icon")] + [os.path.join(d, "lutris_%s.png" % slug) for d in icon_dirs],
+    }
+    out = {}
+    for kind, paths in cand.items():
+        out[kind] = next((p for p in paths if isinstance(p, str) and p and os.path.isfile(p)), None)
+    return out
+
+
+def _copy_file(src: str, folder: str, name: str) -> str | None:
+    """src nach <folder>/<name> kopieren (Zwischendatei, dann rename). Nur gewöhnliche Dateien bis ART_MAX_BYTES;
+    gelesen wird nur src. Rückgabe: Pfad der Kopie oder None."""
+    tmp = os.path.join(folder, ".%s.%d.tmp" % (name, os.getpid()))
+    try:
+        with open(src, "rb") as fin:
+            st = os.fstat(fin.fileno())
+            if not (st.st_mode & 0o170000 == 0o100000) or not 0 < st.st_size <= ART_MAX_BYTES:
+                return None
+            data = fin.read(ART_MAX_BYTES + 1)
+        if len(data) > ART_MAX_BYTES:
+            return None
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+        with os.fdopen(fd, "wb") as fout:
+            fout.write(data)
+        os.replace(tmp, os.path.join(folder, name))
+        return os.path.join(folder, name)
+    except OSError:
+        try:
+            os.unlink(tmp)                  # nur die eigene Zwischendatei
+        except OSError:
+            pass
+        return None
+
+
+def copy_art(ctx, records: list) -> None:
+    """Die Bilder aus Lutris einmal in den eigenen Ordner <data_dir>/lutris-import/<slug>/ (cover, banner, icon mit
+    der Endung der Vorlage) und detail.imported_art auf die Kopien. detail.lutris_art (Pfade in Lutris' Ordnern)
+    entfällt. Geschrieben wird nur dort; ein Ordner, der ein Verweis ist, wird nicht benutzt. Wirft nicht."""
+    root = os.path.join(ctx.data_dir, ART_DIR)
+    data_real = os.path.realpath(ctx.data_dir)
+    for record in records:
+        detail = record.get("detail") if isinstance(record.get("detail"), dict) else {}
+        record["detail"] = detail
+        found = detail.pop("lutris_art", None)
+        slug = str(detail.get("slug") or str(record.get("id", "")).split(":", 1)[-1])
+        copies = {"cover": None, "banner": None, "icon": None}
+        sources = _art_sources(ctx, slug, found if isinstance(found, dict) else {})
+        if any(sources.values()):
+            folder = os.path.join(root, art_folder(slug))
+            try:
+                os.makedirs(folder, mode=0o755, exist_ok=True)
+                usable = not os.path.islink(folder) and not os.path.islink(root) \
+                    and os.path.realpath(folder) == os.path.join(data_real, ART_DIR, art_folder(slug))
+            except OSError as e:
+                ctx.warn("lutris: Ordner für die Bilder von %s nicht anlegbar (%s)" % (slug, err_text(e)))
+                usable = False
+            for kind, src in sources.items():
+                if usable and src:
+                    ext = os.path.splitext(src)[1].lower() if kind != "icon" else ".png"
+                    copies[kind] = _copy_file(src, folder, kind + (ext if ext in _ART_EXT else ".jpg"))
+        detail["imported_art"] = copies

@@ -36,15 +36,16 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from . import apps, emulator, lutris_way, native, prefix, proton
+from . import apps, emulator, native, prefix, proton, winerun
 from .prefix import AdoptCancelled, AdoptionRequired
 from .spec import APP_KINDS, LaunchError, LaunchSpec
 
 TEXT_NO_LAUNCHER = "Für diesen Eintrag gibt es keinen Starter."
 
 # Quellen, für die register_all einen Starter einträgt. "steam" und app:steam sind Übergaben
-# und gehören dem Kern. "rom" (E105, ROM-Ordner ohne SRM) startet wie switch/wiiu über emulator.py.
-SOURCES = ("proton", "local", "native", "switch", "wiiu", "app", "rom")
+# und gehören dem Kern. "rom" (E105, ROM-Ordner ohne SRM) startet wie switch/wiiu über emulator.py,
+# "flatpak" (E140, erkannte Flatpak-Apps und -Spiele) wie die festen Apps über apps.py.
+SOURCES = ("proton", "local", "native", "switch", "wiiu", "app", "rom", "flatpak")
 
 
 class DictConfig:
@@ -159,6 +160,8 @@ def default_context(**overrides) -> LaunchContext:
 
 def _module(entry):
     source = entry.source
+    if winerun.wanted(entry):
+        return winerun                      # Wunsch 2026-10-28: je Spiel „Starten mit: wine-run“ statt Proton
     if source == "proton":
         return proton
     if source == "local":
@@ -173,7 +176,7 @@ def _module(entry):
         return native
     if source in ("switch", "wiiu", "rom"):
         return emulator
-    if source == "app":
+    if source in ("app", "flatpak"):
         return apps
     raise LaunchError(TEXT_NO_LAUNCHER, "Quelle %r, Eintrag %s" % (source, entry.id),
                       reason="no-launcher")
@@ -190,10 +193,9 @@ def build(entry, ctx: LaunchContext | None = None, *, check: bool = True,
     """
     ctx = ctx or default_context()
     module = _module(entry)
-    if module is proton and lutris_way.wanted(entry):
-        # Startweg „wie in Lutris“ (E55): gewählt oder von der Startreparatur gesetzt
-        spec = lutris_way.build(entry, ctx, check=check)
-    elif module is proton:
+    # E134: Den Startweg „wie in Lutris“ (E55) gibt es nicht mehr; eine gespeicherte Option launcher "lutris"
+    # wird überlesen, das Spiel startet mit Proton
+    if module is proton:
         spec = proton.build(entry, ctx, check=check, planning=planning)
     else:
         spec = module.build(entry, ctx, check=check)
@@ -207,8 +209,6 @@ def preflight(entry, ctx: LaunchContext | None = None, *, planning: bool = False
     Harte Fehler als LaunchError. BLOCKIEREND wie build(check=True)."""
     ctx = ctx or default_context()
     module = _module(entry)
-    if module is proton and lutris_way.wanted(entry):
-        return []                          # Lutris prüft selbst; der Prefix wird nicht übernommen
     if module is proton:
         return proton.preflight(entry, ctx, planning=planning)
     return module.preflight(entry, ctx)
@@ -220,8 +220,8 @@ def needs_adoption(entry, ctx: LaunchContext | None = None) -> tuple | None:
     Die Oberfläche zeigt dann vorher prefix.TEXT_ADOPT_HINT und ruft adopt() im Thread.
     Schnell (einige stat-Aufrufe)."""
     ctx = ctx or default_context()
-    if _module_or_none(entry) is not proton or lutris_way.wanted(entry):
-        return None                        # „wie in Lutris“ startet in Lutris' eigenem Prefix
+    if _module_or_none(entry) is not proton:
+        return None
     return prefix.needs_adoption(entry, ctx)
 
 

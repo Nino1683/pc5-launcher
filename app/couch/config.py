@@ -88,6 +88,18 @@ DEFAULTS: dict[str, Any] = {
                                        # im Bestand setzt portable.migrate einmal False
     # --- Emulatoren (E105)
     "emu.root": "",                    # Emulator-Ordner; "" = EmuDeck-Ordner (emulationPath), sonst <Spiele-Ort>/Emulation
+    # --- Discord (E139, wiring_discord.py; Einstellungen › Apps › Discord). Ohne discord.enabled wirkt keiner der anderen
+    "discord.enabled": False,          # Discord verwenden: Kachel, Symbol im Control Center, Hintergrund-Start, Mitteilungen
+    "discord.autostart": True,         # mit der Sitzung im Hintergrund starten (--start-minimized)
+    "discord.notify": True,            # Nachrichten aus Discord als Mitteilung (mitgelesen auf dem Sitzungsbus)
+    "discord.presence": True,          # „Spielt gerade …“ über Discords lokale RPC-Schnittstelle
+    "discord.app_id": "",              # Application ID aus dem Discord Developer Portal; "" = keine Anzeige
+    # --- Fernseher (E142, wiring_tv.py; Einstellungen › Bildschirm und Video › Fernseher steuern). Ohne tv.enabled wirkt keiner
+    "tv.enabled": False,               # Fernseher steuern (Google TV / Android TV über das Heimnetz)
+    "tv.off_with_pc": "never",         # beim Ruhemodus und Ausschalten: never | pc (nur wenn er den PC zeigt) | always
+    "tv.wake_with_pc": False,          # beim Aufwachen und nach dem Einschalten des PCs: Fernseher an, auf den PC umschalten
+    # --- Apps (E141, wiring_apps.py; Einstellungen › Apps)
+    "claude.autostart": False,         # Claude Code nach dem Start im Hintergrund, mit der letzten Unterhaltung (continue)
     # --- Store
     "store.itch_client_id": "",        # itch.io (E100): öffentliche Kennung der eigenen OAuth-App, 32 Hex-Zeichen, kein Geheimnis
     # --- Archiv-Installer

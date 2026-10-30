@@ -202,6 +202,7 @@ class Part:
         self.volume = {"level": 0, "muted": False, "sink": ""}
         self.volume_pending = False
         self.res_apps: set[int] = set()         # Apps, für die eine eigene Spielauflösung gilt
+        self.muted: dict[int, list[str]] = {}   # App -> von uns stumm geschaltete Tonströme (nur im Ton-Thread)
         self.net: NetWatch | None = None
         self.net_timer: Any = None
         self.size_timer: Any = None
@@ -420,6 +421,8 @@ def proc_changed(wiring: Any, running: Any, what: str) -> None:
     if what == "started":
         _app_resolution(wiring, running)
         return
+    if what in ("frozen", "thawed", "exited"):
+        freeze_audio(wiring, running, what)
     if what != "exited":
         return
     p = part(wiring)
@@ -432,6 +435,32 @@ def proc_changed(wiring: Any, running: Any, what: str) -> None:
         # nicht auf den Fokuswechsel warten: Das Limit darf nie am Home hängen bleiben
         wiring._front = None
         _perf_job(wiring, wiring.perf.restore_global)
+
+
+def freeze_audio(wiring: Any, running: Any, what: str) -> None:
+    """E137: Ein Spiel mit Herzschlag läuft auch angehalten alle paar Sekunden kurz; sein Ton ist so
+    lange stumm. Beides im Ton-Thread und in Reihe: Ein schnelles Fortsetzen hebt auf, was davor kam."""
+    audio = getattr(wiring, "audio", None)
+    if audio is None:
+        return
+    p = part(wiring)
+    app_id = running.app_id
+    if what == "frozen":
+        if not getattr(running, "heartbeat", False):
+            return
+        from .proc import tree
+
+        def mute() -> None:
+            pids = set(tree.descendants(running.reaper_pid))
+            p.muted[app_id] = p.muted.get(app_id, []) + audio.mute_streams_of(pids)
+        p.audio_lane.submit(mute)
+        return
+
+    def unmute() -> None:
+        serials = p.muted.pop(app_id, [])
+        if serials:
+            audio.unmute_streams(serials)
+    p.audio_lane.submit(unmute)
 
 
 # ================================================================ Ton
@@ -1294,9 +1323,10 @@ def start_idle(wiring: Any) -> None:
         lambda title, body: app.notify.push(title, body, icon="power", important=True), suspend)
     wiring.idle.start()
     # Aufgewacht: Leerlauf zählt neu, ohne Controller ein Hinweis (Shell.after_resume), fällige
-    # Update-Suchen kommen nach (after_resume)
+    # Update-Suchen kommen nach (after_resume), dann die Haken der Teile (E142: Fernseher wecken)
     def on_resume() -> None:
-        for fn in (wiring.idle.resumed, shell.after_resume, lambda: after_resume(wiring)):
+        for fn in (wiring.idle.resumed, shell.after_resume, lambda: after_resume(wiring),
+                   *list(getattr(wiring, "resume_hooks", None) or [])):
             try:
                 fn()
             except Exception:
@@ -1614,7 +1644,9 @@ def proton_choices(wiring: Any) -> None:
 def _proton_hook(wiring: Any) -> Callable[[Any, dict], None]:
     """Haken für lib.get (LibraryIndex.detail_hooks, Hauptschleife): Windows-Spiele bekommen
     choices.proton = [{value: <Ordnername>, label, fsr4}]. Gelesen wird nie hier, sondern im
-    Arbeits-Thread; die Antwort trägt den letzten bekannten Stand."""
+    Arbeits-Thread; die Antwort trägt den letzten bekannten Stand. Gibt es wine-run und startet die Konsole das
+    Spiel selbst (nicht Epic, kein Hersteller-Launcher), dazu choices.runners = ["proton", "wine-run"]
+    (2026-10-28; ein stat, launch/winerun.py)."""
     def hook(entry: Any, out: dict) -> None:
         windows = entry.source == "proton" or (entry.source == "local"
                                                and entry.detail.get("platform") == "windows")
@@ -1627,6 +1659,15 @@ def _proton_hook(wiring: Any) -> Callable[[Any, dict], None]:
         choices = out.setdefault("choices", {})
         if isinstance(choices, dict):
             choices["proton"] = [dict(b) for b in p.proton_builds]
+            d = entry.detail
+            if not (d.get("epic") or d.get("launcher") or d.get("launcher_app")):
+                from .launch import winerun
+                # wie die Starter: im Prüfmodus das Home der Attrappen (wiring_launch.make_context)
+                home = (getattr(getattr(wiring, "launch", None), "home", None)
+                        or getattr(getattr(wiring, "sources", None), "home", None)
+                        or ("" if paths.test_mode() else paths.home()))
+                if home and winerun.script(home):
+                    choices["runners"] = ["proton", winerun.RUNNER]
     return hook
 
 

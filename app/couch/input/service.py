@@ -533,6 +533,20 @@ class InputService:
         except Exception as exc:
             log.debug("Spieler-LEDs von %s: %s", pad.ident, exc)
 
+    def release_triggers(self) -> int:
+        """Adaptive Trigger aller DualSense freigeben (nach dem Ende eines Spiels, E137). Scheitert still;
+        liefert, an wie vielen Pads es ging."""
+        done = 0
+        for pad in self._mgr.real_pads():
+            release = getattr(pad.dev, "release_triggers", None)
+            if release is None:
+                continue
+            try:
+                done += int(bool(release()))
+            except OSError as exc:
+                log.debug("Trigger von %s: %s", pad.ident, exc)
+        return done
+
     def rumble(self, kind: str) -> None:
         """Kurze Rückmeldung am Pad: "tick", "confirm", "error", "boundary", "home"; "stop" = Motoren aus.
 
@@ -827,6 +841,18 @@ class InputService:
         typer = self._get_typer()
         if typer is not None:
             typer.press_key(name)
+            self._pump_typer()
+
+    def press_combo(self, names) -> None:
+        """E139: Tastenkombination per XTEST in die vordere App, gehalten (xtest.XTestTyper.press_combo), z. B. die
+        Tastenbelegungen für Discord. Unbekannter Name: ValueError."""
+        from .xtest import keycode_for
+        names = [str(n) for n in names]
+        for name in names:
+            keycode_for(name)
+        typer = self._get_typer()
+        if typer is not None:
+            typer.press_combo(names)
             self._pump_typer()
 
     def _type_error(self, message: str) -> None:

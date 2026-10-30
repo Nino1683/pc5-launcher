@@ -9,7 +9,9 @@ setzt UTF-8 auch über Stückgrenzen richtig zusammen.
 
 Umgebung:
     COUCH_TERM_SIZE    "BxH" statt der Größe des Bildschirms (Tests)
-    COUCH_TERM_RUN     Kennung aus session.ACTIONS, die sofort startet (Tests)
+    COUCH_TERM_RUN     Kennung aus session.ACTIONS, die einmal sofort startet, ohne Auswahl (Tests; E141: „continue“,
+                       wenn Claude Code mit dem PC5 Launcher startet, wiring_apps). Endet das Programm, kommt wie
+                       sonst die Startauswahl
     COUCH_OSK_SOCK     Eingang für Text der Bildschirmtastatur (sonst <run>/osk-terminal.sock)
 """
 from __future__ import annotations
@@ -74,6 +76,7 @@ class Terminal:
         self._child_id = 0
         self._ready = False
         self._quitting = False
+        self._first = session.autorun(os.environ)      # nur beim ersten „ready“ (lädt die Seite neu, nicht noch einmal)
 
         ucm = WebKit.UserContentManager()
         ucm.register_script_message_handler("term", None)
@@ -172,7 +175,7 @@ class Terminal:
             self.send({"t": "init", "font": self.prefs["font"], "fontMin": FONT_MIN, "fontMax": FONT_MAX,
                        "claude": session.argv_for("new", self.env) is not None,
                        "running": self.action if self.pty is not None else ""})
-            first = os.environ.get("COUCH_TERM_RUN", "")
+            first, self._first = self._first, ""
             if first and self.pty is None and not self.action:
                 self.run(first)
         elif t == "run":

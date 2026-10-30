@@ -18,14 +18,16 @@ Reihenfolge der Quellen, die erste mit brauchbarem Treffer gewinnt je Bildart:
   3. Steams grid-Ordner             über shortcuts.vdf (Name, Startbefehl) bzw. die App-ID
   4. Steams librarycache            Dateinamen aus appinfo (library_assets_full), sonst Muster
   5. Emulator-Quellen               Wii U: meta/iconTex.tga, meta/bootTvTex.tga neben dem Spiel
-  6. Lutris                         coverart, banners, Symbol (klein)
+  6. aus Lutris übernommen (E134)   <data_dir>/lutris-import/<slug>/cover|banner|icon.*: die Bilder, die die
+                                    Übernahme einmal aus Lutris kopiert hat (detail.imported_art); Lutris'
+                                    eigene Ordner liest der Auflöser nie
   7. erzeugter Platzhalter          placeholder.py
 
 Abgeleitete Bilder (Kachel-Ausschnitt, weichgezeichneter Hintergrund, TGA/ICO -> PNG, beschnittenes
 Logo) liegen als ``d-<art>-<hash>.jpg|png`` im Ordner des Eintrags. Der Hash enthält Quelle, mtime
 und Größe: Ändert sich die Vorlage, entsteht eine neue Datei und die alte wird entfernt.
 
-Fremde Dateien (Steam, Lutris, Emulatoren) werden nur gelesen. Gelöscht wird ausschließlich über
+Fremde Dateien (Steam, Emulatoren) und die übernommenen Bilder werden nur gelesen. Gelöscht wird ausschließlich über
 ``ArtResolver._remove_own_file``: einzelne Dateien im eigenen, markierten Ordner, nie rekursiv.
 
 Keine GLib-Schleife, kein Fenster. ``resolve`` blockiert kurz (warm < 20 ms je Eintrag, kalt
@@ -66,6 +68,7 @@ URL_PREFIX = "couch://art/"
 # Steckt im Hash jeder Ableitung: hochzählen, wenn sich ein Rezept ändert
 RECIPE = 8
 MARKER = ".couch-art"
+IMPORTED_DIR = "lutris-import"           # in <data_dir>: übernommene Bilder (imported.ART_DIR, E134)
 MEMO_FILE = "memo.json"
 DERIVED_PREFIX = "d-"
 USER_PREFIX = "user-"
@@ -91,7 +94,7 @@ ICON_MAX = 256
 USER_MAX_BYTES = 40 * 1024 * 1024
 
 BROWSER_EXT = (".jpg", ".jpeg", ".png", ".webp")
-PC_SOURCES = ("steam", "proton", "native", "local")
+PC_SOURCES = ("steam", "proton", "native", "local", "flatpak")    # flatpak: erkannte Spiele (E140)
 EMU_SOURCES = ("switch", "wiiu")
 BADGES = {"steam": "STEAM", "proton": "PROTON", "native": "LINUX", "switch": "SWITCH", "wiiu": "WII U"}
 
@@ -107,6 +110,7 @@ APP_STYLE = {
     "desktop": ("desktop", ()),
     "emudeck": ("handheld", ()),
     "claude": ("terminal", ()),
+    "bazaar": ("apps", ("io.github.kolunmi.Bazaar",)),            # E140: Symbol aus /usr/share/icons
 }
 
 def art_url(path) -> str | None:
@@ -155,8 +159,7 @@ class ArtContext:
     cache_dir: str
     config: object = None                         # Protokoll Config (get/set/on_change) oder None
     steam_roots: tuple = field(default_factory=lambda: (_home(".local/share/Steam"),))
-    lutris_dir: str = field(default_factory=lambda: _home(".local/share/lutris"))
-    lutris_icon_dir: str = field(default_factory=lambda: _home(".local/share/icons/hicolor"))
+    imported_dir: str = ""                        # leer = <data_dir>/lutris-import (übernommene Bilder, E134)
     app_icon_roots: tuple = field(default_factory=lambda: (
         "/var/lib/flatpak/exports/share/icons", _home(".local/share/flatpak/exports/share/icons"),
         "/usr/share/icons"))
@@ -651,7 +654,7 @@ def load_program_icon(path: str, size: int = 512) -> Image.Image | None:
 class Candidate:
     """Eine gefundene Bilddatei: Art der Vorlage, Quelle, Stempel."""
     kind: str        # tile | cover | hero | background | header | logo | icon
-    source: str      # user | cache | steam-grid | steam-cache | emulator | lutris
+    source: str      # user | cache | steam-grid | steam-cache | emulator | imported (aus Lutris, E134) | flatpak (E140)
     path: str
     mtime_ns: int
     size: int
@@ -682,7 +685,7 @@ class ArtResolver:
     """Löst die Bilder eines Eintrags auf. Siehe Modulkopf.
 
     ctx: ArtContext oder ein Objekt mit data_dir, cache_dir (auch als ctx.paths.*), optional
-    config, steam_roots, lutris_dir, lutris_icon_dir, app_icon_roots, online, fetcher, log.
+    config, steam_roots, imported_dir, app_icon_roots, online, fetcher, log.
     """
 
     def __init__(self, ctx):
@@ -696,8 +699,9 @@ class ArtResolver:
         self.art_root = os.path.join(self.data_dir, "art")
         self.config = _ctx_get(ctx, "config")
         default = ArtContext(self.data_dir, self.cache_dir)
-        self.lutris_dir = _ctx_get(ctx, "lutris_dir", default.lutris_dir)
-        self.lutris_icon_dir = _ctx_get(ctx, "lutris_icon_dir", default.lutris_icon_dir)
+        # E134: die einmal aus Lutris kopierten Bilder (library/lutris_import.copy_art); Lutris selbst nie
+        self.imported_dir = os.path.realpath(os.fspath(_ctx_get(ctx, "imported_dir", "")
+                                                       or os.path.join(self.data_dir, IMPORTED_DIR)))
         self.app_icon_roots = tuple(_ctx_get(ctx, "app_icon_roots", default.app_icon_roots))
         self.steam = _SteamFiles(tuple(_ctx_get(ctx, "steam_roots", default.steam_roots)))
         self._log = _ctx_get(ctx, "log") or (lambda text: None)
@@ -992,10 +996,10 @@ class ArtResolver:
     def art_roots(self) -> list:
         """Ordner, aus denen resolve() Dateien unverändert weiterreicht (für paths.art_roots()).
 
-        Alle liegen unter <data_dir>/art, den Steam-Wurzeln und dem Lutris-Ordner. Bilder von
-        woanders (Symbolordner, Spielordner) werden nie direkt gemeldet, sondern umgewandelt.
+        Alle liegen unter <data_dir>/art, den Steam-Wurzeln und dem Ordner der übernommenen Bilder (E134). Bilder
+        von woanders (Symbolordner, Spielordner) werden nie direkt gemeldet, sondern umgewandelt.
         """
-        roots = [self.art_root, os.path.join(self.lutris_dir, "coverart"), os.path.join(self.lutris_dir, "banners")]
+        roots = [self.art_root, self.imported_dir]
         roots += self.steam.grid_dirs() + self.steam.library_cache_dirs()
         seen, out = set(), []
         for root in roots:
@@ -1007,7 +1011,7 @@ class ArtResolver:
 
     def _servable(self, path: str) -> bool:
         real = os.path.realpath(path)
-        for root in [self.art_root, self.lutris_dir] + list(self.steam.roots):
+        for root in [self.art_root, self.imported_dir] + list(self.steam.roots):
             base = os.path.realpath(root).rstrip(os.sep) + os.sep
             if real.startswith(base):
                 return True
@@ -1138,20 +1142,29 @@ class ArtResolver:
             for key, path in (hint.items() if isinstance(hint, dict) else ()):
                 if _ART_ALIASES.get(key, key) in ("cover", "header", "hero", "logo", "icon"):
                     add(_ART_ALIASES.get(key, key), "steam-cache", path)
+        if getattr(entry, "source", "") == "flatpak":                  # E140: Symbol eines Flatpak-Spiels
+            add("icon", "flatpak", self._detail(entry, "icon_png"))
         meta = self._wiiu_meta_dir(entry)                               # 5. Emulator-Quellen
         if meta:
             add("icon", "emulator", os.path.join(meta, "iconTex.tga"))
             add("background", "emulator", os.path.join(meta, "bootTvTex.tga"))
-        slug = self._lutris_slug(entry)                                 # 6. Lutris
+        slug = self._lutris_slug(entry)                                 # 6. aus Lutris übernommen (E134)
         if slug:
-            for kind, sub in (("cover", "coverart"), ("header", "banners")):
+            from .imported import art_folder
+            folder = os.path.join(self.imported_dir, art_folder(slug))
+            for kind, name in (("cover", "cover"), ("header", "banner")):
                 for ext in (".jpg", ".png"):
-                    add(kind, "lutris", os.path.join(self.lutris_dir, sub, slug + ext))
-            add("icon", "lutris", os.path.join(self.lutris_icon_dir, "128x128", "apps", "lutris_%s.png" % slug))
-        hint = self._detail(entry, "lutris_art")
+                    add(kind, "imported", os.path.join(folder, name + ext))
+            add("icon", "imported", os.path.join(folder, "icon.png"))
+        # Was die Übernahme kopiert hat (detail.imported_art), nur aus dem eigenen Ordner: Ein alter Pfad in
+        # Lutris' Ordnern (detail.lutris_art aus library-cache.json von vor E134) wird nie gelesen
+        hint = self._detail(entry, "imported_art")
+        base = self.imported_dir.rstrip(os.sep) + os.sep
         for key, path in (hint.items() if isinstance(hint, dict) else ()):
-            if _ART_ALIASES.get(key, key) in ("cover", "header", "icon"):
-                add(_ART_ALIASES.get(key, key), "lutris", path)
+            kind = _ART_ALIASES.get(key, key)
+            if kind in ("cover", "header", "icon") and isinstance(path, str) \
+                    and os.path.realpath(path).startswith(base):
+                add(kind, "imported", path)
         return out, ""
 
     @staticmethod
@@ -1282,6 +1295,10 @@ class ArtResolver:
         key = self._detail(entry, "app") or (entry.id.split(":", 1)[1] if ":" in entry.id else entry.id)
         symbol, names = APP_STYLE.get(str(key), ("apps", ()))
         symbol = self._detail(entry, "symbol") or symbol
+        # E140: erkannte Flatpaks bringen ihr bestes Symbol als Pfad mit (library/flatpaks.find_icons)
+        found = self._detail(entry, "icon")
+        if isinstance(found, str) and os.path.isabs(found) and os.path.isfile(found):
+            return symbol, found
         given = self._detail(entry, "icon_name", "flatpak", "app_id")
         if given:
             names = tuple(given) if isinstance(given, (list, tuple)) else (str(given),)

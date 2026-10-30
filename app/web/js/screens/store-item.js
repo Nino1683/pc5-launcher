@@ -150,7 +150,7 @@ function create(params = {}) {
   function price() {
     priceBox.replaceChildren();
     if (!d || d.owned) return;
-    if (d.discount) priceBox.append(h("span.st-disc", { text: "−" + d.discount + " %" }), h("span.st-old", { text: d.original }));
+    if (d.discount) priceBox.append(h("span.st-disc", { text: "−" + fmt(S.dlPercent, { n: d.discount }) }), h("span.st-old", { text: d.original }));
     if (d.price) priceBox.append(h("span.st-price", { text: d.price }));
     if (d.pwyw) priceBox.append(h("span.st-pwyw", { text: S.stItchPwyw }));
   }

@@ -11,6 +11,7 @@ import { S, fmt } from "../core/strings.js";
 import { confirm } from "../components/dialog.js";
 import { openPicker } from "../components/picker.js";
 import { MOUSE_KEYS } from "./notices.js";
+import { askClose, closeConfirmed } from "../components/entry-actions.js";
 
 const ACTIVE_JOBS = new Set(["queued", "running", "finishing", "installing"]);   // installing: Installationsprogramm (E114)
 
@@ -148,8 +149,9 @@ export const PANELS = {
     onPad: (button, row) => {
       if ((button !== "square" && button !== "options") || !row) return false;
       if (row.closing) return true;
-      confirm({ title: fmt(S.closeAppTitle, { title: row.label }), text: fmt(S.closeGameText, { title: row.label }), ok: S.close })
-        .then((yes) => { if (yes) call("app.close", { id: row.id }).catch(ctx.fail); });
+      // E141: wie im Home (askClose): mit dem Satz des Kerns, wenn das Schließen etwas abbräche (Download im App Store)
+      askClose({ id: row.id, title: row.label, kind: "app" })
+        .then((asked) => { if (asked) closeConfirmed(row.id, asked).catch(ctx.fail); });
       return true;
     },
   }),
@@ -373,6 +375,86 @@ export const PANELS = {
         // Fehler als Ausnahme: Die Zeile springt auf den alten Wert zurück, die Tafel meldet den Satz des Kerns
         if (result.error) throw new Error(result.message || S.settingsFailed);
         if (Array.isArray(result.rows) && (!result.rows_page || result.rows_page === "audio.mic")) { rows = result.rows; ctx.refresh(); }
+      },
+    };
+  },
+
+  // ---------------------------------------------------------------- Discord (E139)
+  // Aus sys.state.discord {enabled, installed, running, background, front, keys}. Discord verrät seinen Zustand nicht:
+  // Die Zeilen schalten um (Tastenbelegung, die der Nutzer in Discord einträgt) und sagen nie „stumm“ oder „an“. Die Taste geht
+  // erst, wenn das Control Center zu ist und die App vorn weiterläuft; die kurze Bestätigung blendet dann der Kern ein.
+  discord: (ctx) => ({
+    keys: ["discord", "foreground"],
+    rows: () => {
+      const d = store.state.discord || {};
+      const keys = d.keys || {};
+      if (d.installed === false) return [{ id: "missing", type: "info", label: S.ccDiscordMissing, enabled: false }];
+      const out = [];
+      if (d.running) {
+        const front = !!store.state.foreground;
+        out.push({ id: "mute", type: "action", label: S.ccDiscordMute, icon: "mic-off", enabled: front,
+          hint: front ? fmt(S.ccDiscordMuteHint, { keys: keys.mute || "" }) : S.ccDiscordNoApp });
+        out.push({ id: "deafen", type: "action", label: S.ccDiscordDeafen, icon: "sound-off", enabled: front,
+          hint: front ? fmt(S.ccDiscordDeafenHint, { keys: keys.deafen || "" }) : "" });
+      }
+      out.push({ id: "open", type: "action", label: d.running ? S.ccDiscordOpen : S.ccDiscordStart, icon: "chat", hint: S.ccDiscordOpenHint });
+      return out;
+    },
+    onAction: async (row) => {
+      if (row.id === "open") await call("discord.open", {});
+      else await call("discord.key", { what: row.id });
+      ctx.api.close();
+    },
+  }),
+
+  // ---------------------------------------------------------------- Fernseher (E142)
+  // tv.state {reachable, on, name, inputs: [{port, name, state, pc}], current, hdmi_keys, wol, error?} (verbindet erst
+  // jetzt; danach bleibt die Verbindung kurz offen, so reagieren die Tasten sofort). Lautstärke und Stumm schalten nur:
+  // Den Pegel kennt der PC5 Launcher nicht. „Eingang“ öffnet die Liste der Eingänge mit Namen, „Dieser PC“ und dem
+  // aktiven (ohne „Eingänge genauer erkennen“ HDMI 1 bis 4) und dem Eingangsmenü; so passen alle Zeilen in die Tafel.
+  // Fehler zeigt die Liste als Einblendung (onError).
+  tv: (ctx) => {
+    let st = null;
+    const inputLabel = (input) => fmt(S.ccTvHdmi, { n: input.port }) + (input.name ? " · " + input.name : "");
+    const inputNote = (input) => [input.pc ? S.ccTvThisPc : "", st.current === input.port ? S.ccTvActive
+      : input.state === "disconnected" ? S.ccTvUnplugged : ""].filter(Boolean).join(" · ");
+    return {
+      load: async () => { st = await call("tv.state", {}); },
+      rows: () => {
+        if (!st) return [];
+        if (!st.reachable) {
+          const out = [{ id: "unreachable", type: "info", label: S.ccTvUnreachable, hint: st.error || "", enabled: false }];
+          if (st.wol) out.push({ id: "on", type: "action", label: S.ccTvOn, icon: "power" });
+          return out;
+        }
+        const inputs = st.inputs || [];
+        const current = inputs.find((i) => i.port === st.current);
+        return [
+          { id: "vol-down", type: "action", label: S.ccTvVolDown, icon: "sound", hint: S.ccTvVolumeHint },
+          { id: "vol-up", type: "action", label: S.ccTvVolUp, icon: "sound" },
+          { id: "mute", type: "action", label: S.ccTvMute, icon: "sound-off" },
+          { id: "input", type: "select", label: S.ccTvInputs, icon: "tv", value: current ? current.port : null,
+            note: current ? "" : S.ccTvPick, hint: st.hdmi_keys ? S.ccTvKeysHint : "",
+            options: [...inputs.map((i) => ({ value: i.port, label: inputLabel(i), note: inputNote(i) })),
+              { value: "menu", label: S.ccTvMenu, note: S.ccTvMenuHint }] },
+          st.on === false ? { id: "on", type: "action", label: S.ccTvOn, icon: "power" }
+            : { id: "off", type: "action", label: S.ccTvOff, icon: "power" },
+        ];
+      },
+      onSet: async (row, value) => {
+        if (row.id !== "input") return;
+        if (value === "menu") { await call("tv.input", { menu: true }); ctx.api.close(); return; }
+        const port = Number(value);
+        await call("tv.input", { port });
+        st.current = port;
+        // Ein anderes Gerät ist jetzt zu sehen: Das Control Center hat dort nichts mehr zu tun
+        if (!(st.inputs || []).some((i) => i.port === port && i.pc)) ctx.api.close(); else ctx.refresh();
+      },
+      onAction: async (row) => {
+        const keys = { "vol-down": "volume_down", "vol-up": "volume_up", mute: "mute" };
+        if (keys[row.id]) { await call("tv.key", { what: keys[row.id] }); return; }
+        if (row.id === "off") { await call("tv.power", { on: false }); st.on = false; ctx.api.close(); return; }
+        if (row.id === "on") { await call("tv.power", { on: true }); st = await call("tv.state", {}); }
       },
     };
   },

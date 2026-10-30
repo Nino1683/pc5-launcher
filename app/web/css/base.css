@@ -63,6 +63,10 @@ html.is-idle .is-focus::after, html.is-idle .caret { animation-play-state: pause
 /* (web-settings) Nur der Schimmer steht: Ein Element, das in Ruhe den Fokus bekommt (Ansicht vom Kern
    geöffnet, Liste neu gebaut), blendet seinen Ring trotzdem ein, statt unsichtbar stehen zu bleiben */
 html.is-idle .is-focus::after { animation-play-state: running, paused; }
+/* E128: Die Rückkehr in die Reihe setzt die Animation als Kurzform mit höherem Vorrang neu (damit auch
+   animation-play-state: running): Auch dort steht der Schimmer in Ruhe. Sonst zeichnete das Home nach jedem Weg aus dem
+   Hub zurück in die Reihe ohne Ende 60 Bilder je Sekunde (gemessen 2026-10-27, check_e120 home-bg-still) */
+html.is-idle .tile.is-ring-return.is-focus::after { animation-play-state: running, paused; }
 /* Nichts bewegt sich, solange die Oberfläche nicht zu sehen ist */
 html.is-hidden *, html.is-hidden *::before, html.is-hidden *::after { animation-play-state: paused !important; transition: none !important; }
 /* Bewegung reduzieren: keine Verschiebung, kein Maßstab, nur kurzes Überblenden */

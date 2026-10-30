@@ -8,6 +8,7 @@
 // selbst, geladen wird erst, wenn der Hub offen ist, und höchstens alle REFRESH_MS (nie, solange das Home verdeckt ist).
 import { h, icon, sizeText } from "../core/dom.js";
 import { call } from "../core/bridge.js";
+import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
 import { store } from "../core/store.js";
 import { S, fmt, whenText } from "../core/strings.js";
@@ -54,7 +55,7 @@ export function createWidgetBar({ recent = () => [] } = {}) {
     const r = data.trophies;
     const t = r && r.ok && r.totals;
     cards.trophies.replaceChildren(head("trophy", S.wgTrophies),
-      h("div.wg-value.ell", { text: t && t.unlocked ? String(t.unlocked) : S.wgTrophiesNone }),
+      h("div.wg-value.ell", { text: t && t.unlocked ? Number(t.unlocked).toLocaleString(S.locale) : S.wgTrophiesNone }),
       t && t.unlocked ? tierCounts(t, { cls: "wg-tiers" }) : h("div.wg-sub.ell", { text: S.wgTrophiesHint }));
   }
 
@@ -71,6 +72,9 @@ export function createWidgetBar({ recent = () => [] } = {}) {
   }
 
   function paintRecent() {
+    // Lag der Fokus auf einem Cover, bleibt er dort (bzw. auf dem ersten): Sonst verschwand er mit dem alten Element,
+    // und der Hub blieb ohne nav-blur verschoben stehen
+    const held = nav.current && cards.recent.contains(nav.current) ? nav.current.dataset.id || "" : null;
     const list = recent().filter((e) => e && e.kind === "game" && !e.system && e.last_played).slice(0, RECENT);
     const covers = list.map((e) => {
       const node = h("div.wg-cover", { "data-focus": true, dataset: { id: e.id } }, artBox(e, { withTitle: false }));
@@ -79,6 +83,10 @@ export function createWidgetBar({ recent = () => [] } = {}) {
     });
     cards.recent.replaceChildren(head("clock", S.wgRecent),
       covers.length ? h("div.wg-covers", covers) : h("div.wg-sub.ell", { text: S.wgRecentNone }));
+    if (held !== null) {
+      const again = covers.find((n) => n.dataset.id === held) || covers[0];
+      if (!(again && nav.focus(again))) [cards.deals, cards.trophies, cards.storage].some((c) => !c.hidden && nav.focus(c));
+    }
   }
 
   // Welche Widgets zu sehen sind; ohne eines bleibt der Abschnitt verborgen

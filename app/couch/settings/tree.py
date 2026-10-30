@@ -51,7 +51,7 @@ NOT_RESETTABLE = "Diese Einstellung lässt sich nicht einzeln zurücksetzen."
 
 
 class SettingsTree:
-    AREA_MODULES = ["audio", "display", "network", "accessories", "games", "updates", "performance",
+    AREA_MODULES = ["audio", "display", "network", "accessories", "games", "updates", "apps", "performance",
                     "storage", "home", "notifications", "accessibility", "system", "session"]
 
     def __init__(self, deps, modules: list[str] | None = None, package: str = "couch.settings"):

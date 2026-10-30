@@ -84,6 +84,8 @@ KEYCODES = {
     "Up": 111, "Down": 116, "Left": 113, "Right": 114,
     "Home": 110, "End": 115, "Page_Up": 112, "Page_Down": 117,
     "Insert": 118,                      # Einfg: öffnet das Menü von OptiScaler (E118)
+    # E139: Tastenbelegungen in Discord (discord.KEYS); nur als Kombination über press_combo
+    "F11": 95, "F12": 96, "Control_L": 37, "Shift_L": 50, "Alt_L": 64,
 }
 _ALIASES = {"enter": "Return", "esc": "Escape", "backspace": "BackSpace", "del": "Delete", "ins": "Insert",
             "pageup": "Page_Up", "pagedown": "Page_Down", "page_up": "Page_Up", "page_down": "Page_Down"}
@@ -132,6 +134,8 @@ class XTestTyper:
     Frist. Für Werkzeuge und Tests wartet run() blockierend, bis alles getippt ist.
     """
     ACK_TIMEOUT = 0.30      # so lange darf die Quittung einer Taste ausbleiben
+    COMBO_HOLD = 0.12       # E139: so lange bleibt eine Kombination gedrückt (wer den Tastenzustand nur abfragt,
+    #                         sähe ein Drücken und Loslassen im selben Augenblick nie)
     REUSE_AFTER = 0.15      # frühestens dann bekommt ein Ersatz-Tastencode ein anderes Zeichen:
     #                         Der Empfänger liest die Belegung erst, wenn er die Taste verarbeitet
     RELEASE_AFTER = 2.0     # Ruhezeit, nach der die vorübergehenden Zuordnungen verschwinden
@@ -212,6 +216,16 @@ class XTestTyper:
     def press_key(self, name: str) -> None:
         self._queue.append(("key", keycode_for(name)))
 
+    def press_combo(self, names, hold: float | None = None) -> None:
+        """E139: Tastenkombination, z. B. ("Control_L", "Shift_L", "Alt_L", "F11"): Umschalttasten in dieser Reihenfolge
+        drücken, dann die letzte Taste, alles hold Sekunden halten, in umgekehrter Reihenfolge loslassen. Quittiert
+        wird wie bei jeder Taste über das Loslassen der letzten."""
+        codes = [keycode_for(n) for n in names]
+        if not codes:
+            raise ValueError("leere Tastenkombination")
+        self._queue.append(("combo", (tuple(codes[:-1]), codes[-1],
+                                      self.COMBO_HOLD if hold is None else max(0.0, float(hold)))))
+
     # --- Ablauf ------------------------------------------------------------------------
     def pump(self, now: float | None = None) -> float | None:
         """Tippt, was gerade geht. Liefert die Wartezeit bis zum nächsten Aufruf oder None."""
@@ -249,6 +263,33 @@ class XTestTyper:
                 continue
             kind, value = self._queue[0]
             mods: tuple[int, ...] = ()
+            if kind == "release":
+                # E139: zweite Hälfte einer gehaltenen Kombination
+                held, code, at = value
+                if now < at:
+                    self._d.flush()
+                    return at - now
+                self._queue.popleft()
+                self._fake(self._d, self._X.KeyRelease, code)
+                for mod in reversed(held):
+                    self._fake(self._d, self._X.KeyRelease, mod)
+                self._pending[code] = self._pending.get(code, 0) + 1
+                self._sent[code] = now
+                self._last_send = now
+                continue
+            if kind == "combo":
+                held, code, hold = value
+                if (self._xi_opcode is not None and now - self._confirmed_at > self.CONFIRM_FOR
+                        and any(self._pending.values())):
+                    self._d.flush()
+                    return 0.02
+                self._queue.popleft()
+                for mod in held:
+                    self._fake(self._d, self._X.KeyPress, mod)
+                self._fake(self._d, self._X.KeyPress, code)
+                self._last_send = now
+                self._queue.appendleft(("release", (held, code, now + hold)))
+                continue
             if kind == "key":
                 code = value
             elif value not in self._table and value in self._shifted:
@@ -459,8 +500,21 @@ class XTestTyper:
             except Exception:
                 log.exception("xtest: on_error")
 
+    def _let_go(self) -> None:
+        """E139: Steht eine gehaltene Kombination noch aus, sie jetzt loslassen (nie mit gedrückter Strg-Taste enden)."""
+        for kind, value in list(self._queue):
+            if kind == "release":
+                held, code, _at = value
+                try:
+                    self._fake(self._d, self._X.KeyRelease, code)
+                    for mod in reversed(held):
+                        self._fake(self._d, self._X.KeyRelease, mod)
+                except Exception:
+                    pass
+
     def _fail(self, message: str) -> None:
-        dropped = len(self._queue)
+        self._let_go()
+        dropped = len([item for item in self._queue if item[0] != "release"])
         self._queue.clear()
         try:
             self._release_slots()              # sonst gingen die Ersatz-Tastencodes nach und nach verloren
@@ -475,6 +529,7 @@ class XTestTyper:
 
     def close(self) -> None:
         try:
+            self._let_go()
             self._release_slots()
             if self._probe is not None:
                 self._map(self._probe, 0)

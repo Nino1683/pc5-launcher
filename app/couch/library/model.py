@@ -5,14 +5,17 @@ from dataclasses import asdict, dataclass, field
 
 KINDS = ("game", "app")
 SOURCES = ("steam", "proton", "native", "switch", "wiiu", "app", "local", "fixture",
-           "rom")                    # E105: ROM-Ordner ohne Steam ROM Manager (library/roms.py)
+           "rom",                    # E105: ROM-Ordner ohne Steam ROM Manager (library/roms.py)
+           "flatpak")                # E140: erkannte Flatpak-Apps und -Spiele (library/flatpaks.py)
 
 # Vorgaben der Einstellungen je Spiel; gespeichert wird nur, was davon abweicht
 OPTION_DEFAULTS = {
     "proton": "",            # Ordnername des Proton-Builds, leer = Standard aus den Einstellungen
+    "runner": "proton",      # "proton" | "wine-run": Windows-Spiel mit dem Skript wine-run starten (launch/winerun.py, 2026-10-28)
     "fsr4": "auto",          # "auto" | "off"
     "hdr": "auto",           # "auto" | "off"
     "optiscaler": "off",     # "off" | "on": PROTON_USE_OPTISCALER (Wunsch 2026-10-24, je Spiel ein und aus)
+    "dxvk": "on",            # "on" | "off": aus = PROTON_USE_WINED3D, Direct3D über WineD3D (Wunsch 2026-10-28)
     "freeze": True,          # anhalten, solange unsere Oberfläche vorn ist
     "prefer_sdl": True,      # PROTON_PREFER_SDL
     "gameid": "umu-default",
@@ -22,7 +25,6 @@ OPTION_DEFAULTS = {
     "resolution": "native",  # "native" | "1440p" | "1080p"
     "fps_limit": 0,
     "perf_overlay": "",      # leer = globale Einstellung
-    "launcher": "auto",      # nur Lutris-Spiele: "auto" (Proton) | "lutris" (wie in Lutris, E55)
     "saves": "",             # Spielstand-Ordner (E63), leer = automatisch gefunden
     "pad": "auto",           # "auto" | "xbox" | "direct" (Controller fürs Spiel, E74) | "kbm" (Tastatur und Maus, E64) | "mouse" (Zeiger, E97)
     "pad_look": 1.0,         # Spiel-Modus: Tempo des Umschauens (Faktor, PAD_LOOKS)
@@ -161,8 +163,9 @@ class Entry:
 
 
 # Herkunft für den Filter der Bibliothek (E99): source "local" umfasst Store-, Launcher- und eigene
-# Spiele, die Seite sieht detail nicht. Werte: steam, proton, native (Lutris), switch, wiiu, epic, gog,
-# itch (E100), battlenet, ubisoft, rockstar, own-windows, own-linux (Archiv und Datei-Explorer), sonst die Quelle.
+# Spiele, die Seite sieht detail nicht. Werte: steam, proton und native (aus Lutris übernommen, E134), switch,
+# wiiu, epic, gog, itch (E100), battlenet, ubisoft, rockstar, own-windows, own-linux (Archiv und Datei-Explorer),
+# sonst die Quelle (flatpak: erkannte Flatpak-Spiele, E140).
 _LAUNCHER_ORIGINS = ("battlenet", "ubisoft", "rockstar")
 _STORE_ORIGINS = {"GOG": "gog", "itch.io": "itch"}     # archive der Store-Spiele mit eigenem Ordner
 

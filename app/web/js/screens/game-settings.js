@@ -12,7 +12,7 @@
 //   epic      Epic (E73): legendary startet seine eigene Startdatei, also keine Zeile „Startdatei“
 //   launcher  Battle.net, Ubisoft, Rockstar (E94): Der Launcher startet das Spiel, weder Startdatei
 //             noch Startargumente wirken
-//   linux     native.py (Lutris-Linux, lokale Linux-Programme): ohne Proton, FSR 4, HDR und ohne
+//   linux     native.py (aus Lutris übernommene und lokale Linux-Programme): ohne Proton, FSR 4, HDR und ohne
 //             „Als Xbox-Controller“/„Direkt“
 //   other     Emulatoren: nur die allgemeinen Zeilen
 //
@@ -202,7 +202,16 @@ function buildRows(entry, detail, extra) {
   const rows = [];
   const way = startWay(entry, choices);
   const steam = way === "steam";
-  const win = way === "windows" || way === "epic" || way === "launcher";     // Proton-Start der Konsole
+  // 2026-10-28: eigene Windows-Spiele auch mit wine-run (choices.runners nur, wenn es das Skript gibt). Ist es
+  // eingestellt, bleibt die Zeile auch ohne Skript (der Start scheitert dann mit Satz), damit man zurückstellen kann
+  const runners = way === "windows" && Array.isArray(choices.runners) ? choices.runners : [];
+  const wineRun = way === "windows" && o.runner === "wine-run";
+  const win = !wineRun && (way === "windows" || way === "epic" || way === "launcher");     // Proton-Start der Konsole
+  if (runners.includes("wine-run") || wineRun) {
+    rows.push({ id: "runner", type: "select", label: S.gsRunner, value: wineRun ? "wine-run" : "proton",
+      hint: wineRun ? S.gsRunnerWineHint : S.gsRunnerHint, section: S.gsSectionStart,
+      options: [{ value: "proton", label: S.gsRunnerProton }, { value: "wine-run", label: S.gsRunnerWine }] });
+  }
   if (win) {
     const builds = [{ value: "", label: S.gsProtonDefault }, ...(choices.proton || []).map((b) => ({ value: b.value, label: b.label }))];
     if (o.proton && !builds.some((b) => b.value === o.proton)) builds.push({ value: o.proton, label: o.proton });
@@ -223,6 +232,10 @@ function buildRows(entry, detail, extra) {
     rows.push({ id: "optiscaler", type: "select", label: S.gsOpti, value: o.optiscaler === "on" ? "on" : "off",
       hint: steam ? S.gsSteamOptiHint : S.gsOptiHint, section: S.gsSectionPicture,
       options: [{ value: "off", label: S.off }, { value: "on", label: S.on }] });
+    // DXVK je Spiel (2026-10-28): aus = WineD3D (PROTON_USE_WINED3D), Vorgabe an
+    rows.push({ id: "dxvk", type: "select", label: S.gsDxvk, value: o.dxvk === "off" ? "off" : "on",
+      hint: steam ? S.gsSteamDxvkHint : S.gsDxvkHint, section: S.gsSectionPicture,
+      options: [{ value: "on", label: S.gsDxvkOn }, { value: "off", label: S.gsDxvkOff }] });
   }
   rows.push({ id: "resolution", type: "select", label: S.gsResolution, value: o.resolution || "native", hint: S.gsResolutionHint, section: S.gsSectionPicture,
     options: [{ value: "native", label: S.optNative }, { value: "1440p", label: "1440p" }, { value: "1080p", label: "1080p" }] });
@@ -237,7 +250,7 @@ function buildRows(entry, detail, extra) {
     options: [{ value: "", label: S.optSystem }, { value: "off", label: S.perfOff }, { value: "fps", label: S.perfFps }, { value: "bar", label: S.perfCompact }, { value: "detailed", label: S.perfFull }] });
   // Controller (E74): automatisch, als Xbox-Controller, direkt; ohne Controller-Unterstützung (E64) als
   // Tastatur und Maus, für reine Maus-Spiele als Zeiger (E97). Xbox und direkt nur für Windows-Spiele (Proton)
-  if (win || way === "linux") {
+  if (win || wineRun || way === "linux") {
     const padOptions = [{ value: "auto", label: S.gsPadAuto },
       ...(win ? [{ value: "xbox", label: S.gsPadXbox }, { value: "direct", label: S.gsPadDirect }] : []),
       { value: "kbm", label: S.gsPadKbm }, { value: "mouse", label: S.gsPadMouse }];

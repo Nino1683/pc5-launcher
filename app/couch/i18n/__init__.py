@@ -112,7 +112,7 @@ class Catalog:
 
     def translate(self, text: str) -> str:
         out = self._translate(text)
-        return _DECIMAL.sub(lambda m: m.group(1).replace(".", ",") + "." + m.group(2), out) if "," in out else out
+        return _DECIMAL.sub(_decimal, out) if "," in out else out
 
     def _translate(self, text: str) -> str:
         hit = self.exact.get(text)
@@ -134,6 +134,16 @@ class Catalog:
                 return en + _dates(self.exact.get(rest) or self._template(rest) or rest)
         # Sonst nur ein reines Datum („24. Oktober 2026, 21:14“): kein halb übersetzter deutscher Satz
         return _dates(text) if _DATE.fullmatch(_WEEKDAY_LEAD.sub("", text).split(",")[0].strip()) else text
+
+
+def _decimal(m: re.Match) -> str:
+    """Deutsche Dezimalzahl auf Englisch („1,5“ -> „1.5“, „1.234,5“ -> „1,234.5“). Genau drei Stellen nach dem
+    Komma ohne Tausenderpunkt davor sind ein englischer Tausender aus einem Titel („Warhammer 40,000“, Trophäe
+    „1,000 Kills“): Der blieb sonst nicht stehen, und die Galerie fand die Fotos des Spiels nicht mehr (2026-10-27).
+    Der Kern schreibt Zahlen höchstens mit zwei Nachkommastellen."""
+    if len(m.group(2)) == 3 and "." not in m.group(1):
+        return m.group(0)
+    return m.group(1).replace(".", ",") + "." + m.group(2)
 
 
 def _dates(text: str) -> str:

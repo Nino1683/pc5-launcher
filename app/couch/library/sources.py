@@ -13,6 +13,9 @@ als deutsche Sätze in ``ctx.warnings``; eine Quelle wirft nie.
     for name, fn in sources.bound_derived(ctx).items():         # danach: Quellen, die auf den
         register_source(name, fn)                               # anderen aufbauen (Verknüpfungen)
 
+Die Quelle "lutris" liest seit E134 nur noch die einmal übernommenen Spiele (library/imported.py); Lutris selbst
+liest einzig library/lutris_import.py, einmal je Rechner.
+
 Abgeleitete Quellen (``derived_sources``): "shortcuts" macht aus Steam-Verknüpfungen, die zu
 keinem anderen Eintrag gehören, eigene Einträge ``steam:shortcut:<appid>`` (Bauplan E25). Sie
 läuft nach den anderen und sieht deren Ergebnis des laufenden Laufs (``ctx.last``).
@@ -39,9 +42,10 @@ from typing import Callable
 from .model import Entry
 
 # E105: "roms" (ROM-Ordner ohne SRM) direkt nach "emulators": Bei doppelter ID gewinnt die frühere Quelle
-SOURCE_NAMES = ("steam", "lutris", "emulators", "roms", "apps", "local")
+# E140: "flatpaks" (erkannte Flatpak-Apps) nach den festen "apps": In der Reihe stehen sie dahinter
+SOURCE_NAMES = ("steam", "lutris", "emulators", "roms", "apps", "flatpaks", "local")
 DERIVED_NAMES = ("shortcuts",)
-# E104: Ordner von Lutris als Flatpak unter dem persönlichen Ordner (nur gelesen)
+# E104: Ordner von Lutris als Flatpak unter dem persönlichen Ordner (nur gelesen, nur für die Übernahme E134)
 FLATPAK_LUTRIS = ".var/app/net.lutris.Lutris"
 
 
@@ -180,12 +184,15 @@ class SourceContext:
         home           ~
         steam_root     ~/.steam/root (aufgelöst), sonst ~/.local/share/Steam
         lutris_db      ~/.local/share/lutris/pga.db; fehlt sie, die von Lutris als Flatpak
-                       (~/.var/app/net.lutris.Lutris/data/lutris/pga.db, nur gelesen, E104)
+                       (~/.var/app/net.lutris.Lutris/data/lutris/pga.db, nur gelesen, E104). Nur die
+                       einmalige Übernahme liest sie (E134, library/lutris_import.py)
         lutris_config  ~/.config/lutris (beim Flatpak ~/.var/app/net.lutris.Lutris/config/lutris)
         srm_dir        ~/.config/steam-rom-manager/userData
         games_disk     paths.games_disk() (E104: library.games_disk, im Bestand /run/media/<nutzer>/Spiele,
                        sonst ~/Games)
-        data_dir       ~/.local/share/couch        (nur gelesen: library.json)
+        data_dir       ~/.local/share/couch        (nur gelesen: library.json; die Übernahme E134 legt
+                       dort einmal lutris-import/ mit Lutris' Bildern an, nur mit keep_imported)
+        state_dir      ~/.local/state/couch        (lutris-import.json: Übernahme erledigt, E134)
         cache_dir      None = kein Zwischenspeicher, es wird gar nichts geschrieben
         run_read       subprocess (default_run_read); in Attrappen-Kontexten no_run_read
         flatpak_dirs   /var/lib/flatpak, ~/.local/share/flatpak
@@ -193,11 +200,16 @@ class SourceContext:
     Mit ausdrücklichem ``home`` (Tests) leitet sich alles aus diesem Ordner ab und nichts
     außerhalb wird gelesen: games_disk = None, flatpak_dirs = [<home>/.local/share/flatpak].
 
+    keep_imported (E134): fn(quelle, einträge, fertig, angezeigt=None) für den Index, der den Schnappschuss der
+    Übernahme in library.json schreibt; fertig(geschrieben) kommt danach, angezeigt sind die IDs, die die
+    Bibliothek davon zeigt (für die Mitteilung; die Verdrahtung setzt die Funktion). Ohne sie wird Lutris nur gelesen, nichts kopiert und nichts als
+    erledigt vermerkt (Befehlszeile, Startplan, Prüfungen).
+
     Ohne ``home``, aber mit COUCH_FIXTURES=<ordner> (bzw. <COUCH_TEST_ROOT>/fixtures):
         <ordner>/home/…          wie oben unter ~
         <ordner>/games           games_disk
         <ordner>/flatpak         flatpak_dirs
-    data_dir ist dann <COUCH_TEST_ROOT>/data. (Die Prüf-Quelle "fixture" des Kerns mit
+    data_dir ist dann <COUCH_TEST_ROOT>/data, state_dir <COUCH_TEST_ROOT>/state. (Die Prüf-Quelle "fixture" des Kerns mit
     <ordner>/library.json ist davon unabhängig.)
 
     Der Kontext darf über mehrere Läufe leben (der FSR-Zwischenspeicher bleibt dann im Speicher).
@@ -205,7 +217,8 @@ class SourceContext:
 
     def __init__(self, home=None, steam_root=None, lutris_db=None, lutris_config=None,
                  srm_dir=None, games_disk=None, data_dir=None, cache_dir=None, run_read=None, *,
-                 flatpak_dirs=None, app_dir=None, fsr_depth=None, mountinfo=None):
+                 flatpak_dirs=None, app_dir=None, fsr_depth=None, mountinfo=None, state_dir=None,
+                 keep_imported=None):
         real_home = os.path.expanduser("~")
         fx = fixtures_root() if home is None else None
         test_root = os.environ.get("COUCH_TEST_ROOT")
@@ -220,8 +233,8 @@ class SourceContext:
             steam_root = os.path.realpath(link) if os.path.isdir(os.path.join(link, "steamapps")) \
                 else os.path.join(home, ".local/share/Steam")
         self.steam_root = steam_root
-        # E104: Lutris als Flatpak nur lesen, wenn es kein natives gibt. Gestartet wird wie bisher direkt
-        # mit umu (E10); „wie in Lutris“ (E55) kennt nur das native Lutris (lutris_flatpak)
+        # E104: Lutris als Flatpak nur lesen, wenn es kein natives gibt. Gestartet wird direkt mit umu (E10);
+        # gelesen wird Lutris nur noch einmal für die Übernahme (E134)
         self.lutris_flatpak = False
         if not lutris_db:
             lutris_db = os.path.join(home, ".local/share/lutris/pga.db")
@@ -251,6 +264,17 @@ class SourceContext:
             else:
                 data_dir = os.path.join(home, ".local/share/couch")
         self.data_dir = data_dir
+        if state_dir is None:
+            if test_root:
+                state_dir = os.path.join(test_root, "state")
+            elif is_real:
+                state_dir = os.path.join(os.environ.get("XDG_STATE_HOME")
+                                         or os.path.join(real_home, ".local/state"), "couch")
+            else:
+                state_dir = os.path.join(home, ".local/state/couch")
+        self.state_dir = state_dir
+        self.keep_imported: Callable | None = keep_imported      # E134, siehe oben
+        self._pending_import = None                  # Übernahme gelesen, der Index schreibt noch (imported.py)
         self.cache_dir = cache_dir
         # Attrappen-Kontext ohne eigenes run_read: nichts vom echten Rechner erfragen (flatpak info)
         self.run_read: Callable = run_read or (default_run_read if is_real else no_run_read)
@@ -312,13 +336,14 @@ class SourceContext:
 def all_sources() -> dict[str, Callable[[SourceContext], list[Entry]]]:
     """Name -> Ladefunktion load(ctx), in der Reihenfolge des Einlesens. Jede blockiert und
     schreibt nichts (Ausnahme: die Zwischenspeicher fsr.json und emu_titles.json unter cache_dir)."""
-    from . import apps, emulators, local, lutris, roms, steam      # hier, damit kein Importkreis entsteht
+    from . import apps, emulators, flatpaks, imported, local, roms, steam    # hier, damit kein Importkreis entsteht
     return {
         "steam": steam.load,
-        "lutris": lutris.load,
+        "lutris": imported.load,            # E134: die einmal übernommenen Spiele, liest Lutris nicht mehr
         "emulators": emulators.load,
         "roms": roms.load,                  # E105
         "apps": apps.load,
+        "flatpaks": flatpaks.load,          # E140
         "local": local.load,
     }
 
@@ -345,7 +370,7 @@ _SHORTCUT_TIMES = ("lutris", "emulators", "local")
 
 
 def _drop_needs_steam(ctx: SourceContext, entries: list[Entry]) -> list[Entry]:
-    """E25: Ein Lutris-Eintrag, der den laufenden Steam-Client braucht (Marke needs-steam),
+    """E25: Ein übernommener Lutris-Eintrag, der den laufenden Steam-Client braucht (Marke needs-steam),
     entfällt, wenn es dasselbe Spiel als Steam-Spiel gibt oder als Verknüpfung, die couch zeigt
     (dann startet es per Übergabe, und Steam läuft). Erkannt wird das Steam-Spiel an der
     App-Nummer aus dem Startskript (detail.steam_appid) oder am gleichen Titel, die Verknüpfung
@@ -434,7 +459,7 @@ def load_all(ctx: SourceContext | None = None, only=None, derived: bool = False)
     """Alle Quellen einlesen. Blockierend (auf dem Entwicklungsrechner ohne Zwischenspeicher rund 0,7 bis
     1,5 s, mit Zwischenspeicher rund 0,1 s). Rückgabe: (entries, warnings, timings).
 
-    timings: {"steam": s, "lutris": s, "emulators": s, "roms": s, "apps": s, "local": s, "total": s}.
+    timings: {"steam": s, "lutris": s, "emulators": s, "roms": s, "apps": s, "flatpaks": s, "local": s, "total": s}.
     Eine abgestürzte Quelle liefert nichts und eine Warnung; die anderen laufen weiter. Doppelte
     IDs über Quellen hinweg: der erste Eintrag bleibt.
     derived=True nimmt die abgeleiteten Quellen dazu (Verknüpfungen nach E25; timings bekommt
@@ -486,7 +511,7 @@ def _detail_column(e: Entry) -> str:
                                          " (geteilt)" if d.get("shared_prefix") else "", d.get("exe", ""))
     if e.source in ("switch", "wiiu"):
         return "%s | %s" % (d.get("emulator", ""), d.get("rom", ""))
-    if e.source == "app":
+    if e.source in ("app", "flatpak"):
         return d.get("flatpak") or d.get("path") or d.get("hint") or ""
     return d.get("exe_path") or d.get("exe") or ""
 

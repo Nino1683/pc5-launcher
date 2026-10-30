@@ -81,15 +81,16 @@ def stop_argv(entry_id: str, ctx) -> list:
 
 
 def build(entry, ctx, app_id: str, app_args=(), *, kind: str, label: str = "",
-          freeze: bool = False, mouse: bool | str = False, env=None, unset=(), check: bool = True
-          ) -> LaunchSpec:
-    """LaunchSpec für eine Flatpak-App. check=True prüft, ob sie installiert ist."""
+          freeze: bool = False, mouse: bool | str = False, env=None, unset=(), check: bool = True,
+          flatpak_args=()) -> LaunchSpec:
+    """LaunchSpec für eine Flatpak-App. check=True prüft, ob sie installiert ist. flatpak_args: Schalter für
+    flatpak run vor der Kennung (E140: --command=… aus der Desktop-Datei)."""
     if check and not is_installed(app_id, ctx):
         raise LaunchError("%s ist nicht installiert." % (label or entry.title or app_id),
                           "Flatpak %s fehlt" % app_id, reason="not-installed")
     return LaunchSpec(
         entry_id=entry.id,
-        argv=run_argv(app_id, *app_args),
+        argv=run_argv(app_id, *app_args, flatpak_args=flatpak_args),
         env=dict(env or {}),
         unset=list(unset),
         cwd=ctx.home,

@@ -125,6 +125,12 @@ def start_steam_file() -> str:
     return os.path.join(config_dir(), "start-steam")
 
 
+def tv_dir() -> str:
+    """E142: Schlüssel und gekoppelter Fernseher (client.key, client.pem, adbkey, tv.json; Ordner 0700, Dateien
+    0600). Im Prüfmodus unter <COUCH_TEST_ROOT>/config/tv."""
+    return os.path.join(config_dir(), "tv")
+
+
 def library_file() -> str:
     return os.path.join(data_dir(), "library.json")
 
@@ -135,6 +141,11 @@ def library_cache_file() -> str:
 
 def art_dir() -> str:
     return os.path.join(data_dir(), "art")
+
+
+def lutris_import_dir() -> str:
+    """Die einmal aus Lutris kopierten Bilder (E134, library/lutris_import.copy_art): <data>/lutris-import."""
+    return os.path.join(data_dir(), "lutris-import")
 
 
 def webkit_data_dir() -> str:
@@ -354,10 +365,13 @@ def art_roots() -> list[str]:
     h = home()
     roots = [
         art_dir(),
+        lutris_import_dir(),                # E134: die einmal aus Lutris kopierten Bilder
         os.path.join(h, ".local", "share", "Steam"),
+        # Lutris' Ordner (auch als Flatpak, E104): Bilder von dort meldet seit E134 nichts mehr (der Auflöser
+        # nimmt die Kopien). Sie bleiben erlaubt, damit Adressen aus library-cache.json von vor dem Update bis
+        # zum ersten Einlesen noch ein Bild zeigen; gelesen wird nur, was die Seite mit so einer Adresse anfragt
         os.path.join(h, ".local", "share", "lutris"),
         os.path.join(h, ".cache", "lutris"),
-        # E104: Lutris als Flatpak (nur gelesen, library/sources.py): Cover und Banner liegen dort
         os.path.join(h, ".var", "app", "net.lutris.Lutris", "data", "lutris"),
         os.path.join(h, ".var", "app", "net.lutris.Lutris", "cache", "lutris"),
         games_disk(),

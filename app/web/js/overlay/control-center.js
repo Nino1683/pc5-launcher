@@ -1,9 +1,14 @@
 // Control Center (07 Abschnitt 3 und 11.4): Symbolleiste unten, darüber Karten; Kreuz auf einem
 // Symbol öffnet dessen Tafel über der Leiste, die Karten weichen dabei aus. Kreis schließt die
 // Tafel bzw. das Control Center, PS schließt alles (overlay.js).
-//   Karten   laufende Spiele/Apps (fortsetzen, wechseln), Installation, Startdatei wählen,
-//            Bilder laden, Home, Zuletzt gespielt, Medien (zuletzt geöffnete App)
-//   Leiste   Home · Wechsler · Mitteilungen · Downloads · Ton · Mikrofon · Zubehör · Leistung ·
+//   Karten   alle laufenden Spiele/Apps (die vorn laufende zuerst: fortsetzen, die anderen: wechseln),
+//            Installation, Startdatei wählen, Bilder laden, Zuletzt gespielt, zuletzt geöffnete App (Unterzeile
+//            „Apps“ oder „Medien“ nach der Reihe der App im Home, E140).
+//            Keine Karte „Zum Home-Bildschirm“ (Wunsch 2026-10-29: „in der Leiste reicht“, erstes Symbol).
+//            Mehr als MAX_CARDS: Die Reihe rückt mit dem Fokus (--fx-x), so bleibt die fokussierte zu sehen
+//   Leiste   Home · Wechsler · Mitteilungen · Downloads · Ton · Mikrofon · Discord (nur mit „Discord verwenden“,
+//            sys.state.discord.enabled; E139, abgesprochen am 2026-10-29) · Fernseher (nur eingeschaltet und
+//            gekoppelt, sys.state.tv {enabled, paired}; E142, abgesprochen am 2026-10-30) · Zubehör · Leistung ·
 //            Maus-Modus (nur wenn eine App vorn ist; Kreuz schaltet, Dreieck zeigt die Belegung) ·
 //            Einstellungen (öffnet sie im Home) · Ein/Aus
 //   oben rechts  Netz (Art und Zustand als Text), Akku des Controllers, Uhr
@@ -24,9 +29,9 @@ import { launchEntry } from "../components/entry-actions.js";
 import { PANELS, jobActive, jobText, artJobPercent, artJobText, downloadActive, downloadText } from "./panels.js";
 import { openPowerMenu } from "./power-menu.js";
 
-const MAX_CARDS = 4;            // mehr passen nicht nebeneinander (erste Karte bei x=84, fokussiert 432 breit)
+const MAX_CARDS = 4;            // so viele passen nebeneinander (erste Karte bei x=84, fokussiert 432 breit)
 
-function iconDefs(withMouse) {
+function iconDefs(withMouse, withDiscord, withTv) {
   return [
     { id: "home", icon: "home", label: S.ccHome },
     { id: "switcher", icon: "switcher", label: S.ccSwitcher, panel: true },
@@ -35,6 +40,10 @@ function iconDefs(withMouse) {
     { id: "sound", icon: "sound", label: S.ccSound, panel: true },
     // Mikrofon (07 11.4, Symbol 6): Eingabegerät, Pegel, Stumm aus der Einstellungsseite audio.mic
     { id: "mic", icon: "mic", label: S.ccMic, panel: true },
+    // E139: Discord (Tasten für Stumm und Ton, Discord öffnen); ohne den Schalter gibt es das Symbol nicht
+    withDiscord ? { id: "discord", icon: "chat", label: S.ccDiscord, panel: true } : null,
+    // E142: Fernseher (Lautstärke, Eingang, Ein/Aus über das Heimnetz); nur eingeschaltet und gekoppelt
+    withTv ? { id: "tv", icon: "tv", label: S.ccTv, panel: true } : null,
     { id: "accessories", icon: "gamepad", label: S.ccAccessories, panel: true },
     { id: "performance", icon: "speed", label: S.ccPerformance, panel: true },
     withMouse ? { id: "mouse", icon: "mouse", label: S.ccMouse } : null,
@@ -59,7 +68,9 @@ export function createControlCenter(params, api) {
   const panelHost = h("div.cc-panel-host");
   const el = h("div.cc", h("div.cc-dim"), status.el, cards, panelHost, keyHint, label, bar);
   const front = params.entryId || store.state.foreground || null;
-  const ICONS = iconDefs(!!front);
+  const tvState = store.state.tv || {};
+  const ICONS = iconDefs(!!front, !!(store.state.discord && store.state.discord.enabled === true),
+    tvState.enabled === true && tvState.paired === true);
   const iconEls = new Map();
   const entries = new Map();        // Einträge der laufenden Apps (für Bilder und Titel)
   let panel = null;                 // {id, el, scope, list, unsubs, refresh}
@@ -142,7 +153,9 @@ export function createControlCenter(params, api) {
   function paintCards() {
     const st = store.state;
     const running = [];
-    for (const run of st.running || []) {
+    // Alle laufenden Apps (2026-10-29: vorher nur zwei), die vorn laufende zuerst
+    const runs = [...(st.running || [])].sort((a, b) => (b.entryId === st.foreground) - (a.entryId === st.foreground));
+    for (const run of runs) {
       const entry = entries.get(run.entryId) || { id: run.entryId, title: run.title, kind: run.kind === "game" || run.kind === "emulator" ? "game" : "app", art: {} };
       const isFront = run.entryId === st.foreground;
       running.push({
@@ -163,14 +176,17 @@ export function createControlCenter(params, api) {
     const dl = (st.downloads || []).find(downloadActive);
     const dlCard = dl ? { id: "dl", icon: "download", sub: S.ccCardDownload, title: dl.name, progress: dl.percent || 0, progressText: downloadText(dl), busy: !(dl.total > 0), action: () => openPanel("downloads") } : null;
     const art = st.art_job ? { id: "art", icon: "download", sub: S.ccCardArt, title: S.ccArtJob, progress: artJobPercent(st.art_job), progressText: artJobText(st.art_job), action: () => openPanel("downloads") } : null;
-    const home = st.foreground ? { id: "home", icon: "home", sub: S.ccCardHomeSub, title: S.ccCardHome, action: () => activate("home") } : null;
-    // 07 11.4: „Zuletzt gespielt“ und „Medien“ (zuletzt geöffnete App); was gerade läuft, hat schon seine Karte
+    // 07 11.4: „Zuletzt gespielt“ und die zuletzt geöffnete App (E140: Unterzeile wie ihr Reiter im Home, „Apps“
+    // oder „Medien“); was gerade läuft, hat schon seine Karte
     const runningIds = new Set((st.running || []).map((r) => r.entryId));
     const last = extra.recent.find((e) => !runningIds.has(e.id));
     const recent = last ? { id: "recent:" + last.id, entry: last, sub: S.ccCardRecent, title: last.title, action: () => startFromCard(last) } : null;
     const media = extra.media && !runningIds.has(extra.media.id)
-      ? { id: "media:" + extra.media.id, entry: extra.media, sub: S.ccCardMedia, title: extra.media.title, action: () => startFromCard(extra.media) } : null;
-    const defs = [...running.slice(0, 2), ...jobCards.slice(0, 1), dlCard, home, art, recent, media].filter(Boolean).slice(0, MAX_CARDS);
+      ? { id: "media:" + extra.media.id, entry: extra.media, sub: (extra.media.tags || []).includes("media-row") ? S.ccCardMedia : S.ccCardApps,
+        title: extra.media.title, action: () => startFromCard(extra.media) } : null;
+    // Laufende Apps und Fortschritt immer; „Zuletzt gespielt“ und die zuletzt geöffnete App nur, solange Platz ist
+    const shown = [...running, ...jobCards.slice(0, 1), dlCard, art].filter(Boolean);
+    const defs = [...shown, ...[recent, media].filter(Boolean).slice(0, Math.max(0, MAX_CARDS - shown.length))];
     // Dieselben Karten: nur den Fortschritt nachführen (sonst flackert der Fokusring bei jedem Prozent)
     const key = JSON.stringify(defs.map((d) => [d.id, d.title, d.sub, d.key, d.busy]));
     if (key === cardKey) {
@@ -189,9 +205,25 @@ export function createControlCenter(params, api) {
     if (nodes[0]) nodes[0].setAttribute("data-focus-default", "");
     cards.replaceChildren(...nodes);
     if (focusedId) nav.focus(nodes.find((n) => n.dataset.id === focusedId) || nodes[0] || iconEls.get("home"));
+    scrollCards();
   }
 
-  // Karten „Zuletzt gespielt“ und „Medien“: einmal beim Öffnen gelesen
+  // Mehr Karten, als nebeneinander passen: so weit rücken, dass die fokussierte zu sehen ist (Fenster aus
+  // MAX_CARDS Karten; die übrigen sind schmal, nur die fokussierte ist breiter)
+  let firstCard = 0;
+  function scrollCards() {
+    const nodes = [...cards.children];
+    const at = nodes.indexOf(nav.current);
+    if (nodes.length <= MAX_CARDS) firstCard = 0;
+    else if (at >= 0 && at < firstCard) firstCard = at;
+    else if (at >= firstCard + MAX_CARDS) firstCard = at - MAX_CARDS + 1;
+    firstCard = Math.min(firstCard, Math.max(0, nodes.length - MAX_CARDS));
+    const step = cssPx("--cc-card-w") + cssPx("--cc-card-gap");
+    if (firstCard) cards.style.setProperty("--fx-x", -(firstCard * step) + "px"); else cards.style.removeProperty("--fx-x");
+  }
+  cards.addEventListener("nav-focus", scrollCards);
+
+  // Karten „Zuletzt gespielt“ und zuletzt geöffnete App: einmal beim Öffnen gelesen
   const extra = { recent: [], media: null };
   async function loadExtra() {
     try {

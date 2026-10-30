@@ -202,7 +202,9 @@ class SystemArea:
         self._cache = TtlCache(5.0)
         self._flatpak: dict = {"at": None, "updates": [], "error": "", "phase": "unknown"}
         self.sudo_runner = x.get("sudo_runner")  # Systemfreigaben: Tests stecken eine Attrappe ein
-        self.admin_root = x.get("admin_root", "/")
+        # Im Prüfmodus nie das echte /etc lesen (Stand der Systemfreigaben hinge sonst vom Rechner ab)
+        self.admin_root = x.get("admin_root") or (
+            os.path.join(os.environ.get("COUCH_TEST_ROOT") or "/nonexistent", "admin") if test_mode() else "/")
 
     # --- Hilfen --------------------------------------------------------------------------
 
@@ -339,7 +341,9 @@ class SystemArea:
         return out
 
     def _admin_note(self) -> str:
-        open_ = sum(1 for s in self._admin_states().values() if s != "on")
+        states = self._admin_states()
+        # zurückgezogene zählen nur, solange sie noch eingerichtet sind (dann: entfernen)
+        open_ = sum(1 for aid, s in states.items() if (s != "off") == sysadmin.ACTIONS[aid].retired)
         return f"{open_} offen" if open_ else "Alles eingerichtet"
 
     def _admin_rows(self) -> list:
@@ -348,7 +352,10 @@ class SystemArea:
         rows = []
         for aid, state in self._admin_states().items():
             act = sysadmin.ACTIONS[aid]
-            rows.append(R.info(f"system.admin.state:{aid}", act.title, texts.get(state, state), hint=act.purpose))
+            if act.retired and state != "on":
+                continue                        # nicht (mehr) eingerichtet: nichts zu tun
+            text = "Nicht mehr nötig" if act.retired else texts.get(state, state)
+            rows.append(R.info(f"system.admin.state:{aid}", act.title, text, hint=act.purpose))
             if state == "unknown":
                 continue
             what = "remove" if state == "on" else "install"

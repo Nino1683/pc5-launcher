@@ -20,8 +20,10 @@ import { call, notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
 import { sound } from "../core/sound.js";
+import { store } from "../core/store.js";
 import { S, fmt } from "../core/strings.js";
 import { openMenu } from "../components/menu.js";
+import { clockLabel } from "../components/statusbar.js";
 import { confirm, infoDialog } from "../components/dialog.js";
 import { toast } from "../components/toast.js";
 
@@ -34,7 +36,8 @@ const PAGE_ROWS = 3;              // L2/R2
 const timeOf = (item) => new Date((Number(item.time) || 0) * 1000);
 const dateLong = (item) => timeOf(item).toLocaleDateString(S.locale, { day: "numeric", month: "long", year: "numeric" });
 const dateShort = (item) => timeOf(item).toLocaleDateString(S.locale, { day: "numeric", month: "short", year: "numeric" });
-const clock = (item) => timeOf(item).toLocaleTimeString(S.locale, { hour: "2-digit", minute: "2-digit" });
+// Uhrzeit wie in der Statusleiste: nach Einstellungen › System › 24-Stunden-Anzeige, nicht nach der Sprache
+const clock = (item) => clockLabel(timeOf(item), store.ui.clock24h !== false);
 
 // Anzeige-Titel: Spiel aus dem Dateinamen, „Home“ als Home-Bildschirm, eigene Hintergründe mit Dateinamen
 export function titleOf(item) {

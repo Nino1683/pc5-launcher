@@ -40,7 +40,7 @@ TAG_NOTES = {
 _TAG_ORDER = ("needs-exe", "needs-steam", "battlenet", "vr", "fsr4-needs-cachyos")
 
 _APP_SOURCES = {"flatpak": "Flatpak", "handover": "Steam", "script": "Konsole", "appimage": "AppImage",
-                "browser": "Konsole"}
+                "browser": "Konsole", "program": "System"}          # program: Bazaar (E140)
 _EMULATORS = {"eden": "Eden", "cemu": "Cemu"}
 _SYSTEMS = {"switch": "Nintendo Switch", "wiiu": "Wii U"}
 
@@ -169,14 +169,16 @@ def source_label(entry: Entry) -> str:
     if entry.source == "steam":
         return "Steam-Verknüpfung" if is_shortcut(entry) else "Steam"
     if entry.source == "proton":
-        return "Lutris (Windows)"
+        return "Aus Lutris übernommen (Windows)"        # E134: einmal übernommen, startet ohne Lutris
     if entry.source == "native":
-        return "Lutris (Linux)"
+        return "Aus Lutris übernommen (Linux)"
     if entry.source in _SYSTEMS:
         emulator = _EMULATORS.get(_text(d.get("emulator")), _text(d.get("emulator")).capitalize())
         return "%s (%s)" % (_SYSTEMS[entry.source], emulator) if emulator else _SYSTEMS[entry.source]
     if entry.source == "rom":
         return system_label(entry)
+    if entry.source == "flatpak":
+        return "Flatpak"                                # E140: erkanntes Flatpak-Spiel
     if entry.source == "local":
         # Aus dem Store (E68, E73, E94) oder von Hand: sagen, woher; sonst das Archiv
         launcher = _LAUNCHER_SOURCES.get(_text(d.get("launcher")))
@@ -244,13 +246,15 @@ def saves_text(entry: Entry, env: dict) -> str:
     if saves and _text(saves.get("path")):
         where = place(saves["path"], env)
         mode = saves.get("mode")
+        # E134: Lutris wird nicht mehr benutzt; der Prefix ist der bisherige des Spiels (an Ort und Stelle
+        # oder einmal kopiert, E10)
         if saves.get("pending"):
-            return "werden beim ersten Start aus Lutris übernommen"
+            return "werden beim ersten Start einmalig kopiert"
         if mode == "in-place":
-            return "%s (gemeinsam mit Lutris)" % where
+            return "%s (bisheriger Prefix des Spiels)" % where
         return where
     if entry.source == "proton" and _text(d.get("prefix")):
-        return "%s (Lutris)" % place(d["prefix"], env)
+        return "%s (bisheriger Prefix des Spiels)" % place(d["prefix"], env)
     return ""
 
 
@@ -355,16 +359,22 @@ def deletable(entry: Entry, env: dict | None = None) -> bool:
     return True
 
 
+# E141: Apps ohne „Ausblenden“ (Steam steht fest vorn in „Spiele“, wie Store, Installieren und Bibliothek)
+NOT_HIDEABLE = frozenset({"app:steam"})
+
+
 def fetchable(entry: Entry) -> bool:
     return entry.kind == "game" and entry.source in ("steam", "proton", "native", "local",
-                                                     "switch", "wiiu", "rom")
+                                                     "switch", "wiiu", "rom", "flatpak")
 
 
 def actions(entry: Entry, running: bool = False, env: dict | None = None) -> list[dict]:
     """Kennungen für Hauptknopf und Optionsmenü, in der Reihenfolge der Anzeige:
     launch | focus + close, settings, exe, art, art-fetch, rename, rename-reset, info, forget, hide | unhide,
     delete | uninstall (nicht, wenn der Ordner fehlt: env["gone"], E91). settings bekommt jedes Spiel,
-    seit E99 auch Steam-Spiele und Steam-Verknüpfungen (die Seite zeigt dort nur, was die Konsole regelt)."""
+    seit E99 auch Steam-Spiele und Steam-Verknüpfungen (die Seite zeigt dort nur, was die Konsole regelt).
+    E141: Apps heißen „Ausblenden“ / „Wieder anzeigen“ (Spiele weiter „Aus der Bibliothek ausblenden“); die Kachel
+    „Steam“ (NOT_HIDEABLE) hat keins."""
     env = env or {}
     game = entry.kind == "game"
     tags = entry.tags if isinstance(entry.tags, list) else []
@@ -389,8 +399,12 @@ def actions(entry: Entry, running: bool = False, env: dict | None = None) -> lis
     if env.get("gone"):
         # Ordner von Hand gelöscht (E91): Es gibt nichts mehr zu deinstallieren, nur den Eintrag
         out.append({"id": "forget", "label": "Aus der Liste entfernen"})
-    out.append({"id": "unhide" if entry.hidden else "hide",
-                "label": "Wieder einblenden" if entry.hidden else "Aus der Bibliothek ausblenden"})
+    if game:
+        out.append({"id": "unhide" if entry.hidden else "hide",
+                    "label": "Wieder einblenden" if entry.hidden else "Aus der Bibliothek ausblenden"})
+    elif entry.id not in NOT_HIDEABLE:
+        # E141: Apps verschwinden aus dem Home (Weg zurück: Einstellungen › Apps › Ausgeblendete Apps); Steam bleibt
+        out.append({"id": "unhide" if entry.hidden else "hide", "label": "Wieder anzeigen" if entry.hidden else "Ausblenden"})
     if env.get("gone"):
         return out
     if own_install(entry) and entry.detail.get("launcher") and not running:

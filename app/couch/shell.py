@@ -75,12 +75,9 @@ SPOT_LABELS = {"up": "Steuerkreuz ↑", "down": "Steuerkreuz ↓", "left": "Steu
 OPTISCALER_KEY = "Insert"
 OPTISCALER_WAIT_S = 10.0
 OPTISCALER_DELAY_MS = 250
-# Controller fällt kurz nach dem Fortsetzen eines angehaltenen Spiels ab (E119; Wunsch 2026-10-25, am Fernseher
-# bestätigt: ohne Anhalten blieb er verbunden). Das Spiel spricht den DualSense selbst an und reißt nach dem
-# Weiterlaufen die Bluetooth-Verbindung ab. So lange nach dem Fortsetzen zählt ein Abfall, ab so vielen je Spiel
-# (in dieser Sitzung) wird es nicht mehr angehalten
-PAD_DROP_WINDOW_S = 30.0
-PAD_DROP_LIMIT = 2
+# E141: Rückfrage, wenn das Schließen etwas abbräche (close_guards, z. B. ein Download im App Store)
+CLOSE_BUSY_TITLE = "„%s“ trotzdem schließen?"
+CLOSE_BUSY_OK = "Trotzdem schließen"
 
 # Kennungen im Ereignis app.error (Feld code), soweit die Shell sie selbst vergibt. Die der
 # Starter stehen als LaunchError.reason in couch/launch (needs-exe, missing-file, disk-missing,
@@ -183,7 +180,6 @@ class Shell:
         # Den Fortschritt meldet sie über adopt_progress() (aus der Hauptschleife).
         self.adopt_prefix: Callable[[Any, Any], Any] | None = None
         self._closing: set[int] = set()         # Apps, deren Ende wir selbst verlangt haben
-        self._repairing: set[str] = set()       # Einträge im Reparaturversuch „wie in Lutris“ (E55)
         self._shown: set[int] = set()           # Apps, die schon ein Bild hatten (zählt als gespielt)
         self._mouse: dict[int, bool] = {}       # Maus-Modus je App, falls umgeschaltet
         # Maus vom sichtbar gewordenen Launcher (E94) -> Stand davor (None = nie umgeschaltet); mit
@@ -199,6 +195,7 @@ class Shell:
         self._waiters: list[dict] = []          # "wenn diese Apps weg sind, dann …"
         self._had_pads = False
         self._known_pads: dict[Any, str] = {}   # id -> Name, für "verbunden"/"getrennt"
+        self._pads_settle_until = 0.0           # bis dahin meldet sich ein Pad ohne "verbunden" (Start)
         self._low_battery: set = set()          # Pads, für die schon gewarnt wurde
         self._applying = False
         self._dirty = False
@@ -216,9 +213,15 @@ class Shell:
         self._freeze_opts: dict[int, bool] = {}     # zuletzt gesehener Wert je App
         self._freeze_wait: dict[int, tuple] = {}    # eingeschaltet: erst ab dem nächsten Wechsel
         self._key_after: tuple | None = None        # (App, Taste, bis wann): Taste, sobald die App weiterläuft (E118)
+        self._run_after: tuple | None = None        # E139: (App, Funktion, bis wann), wie _key_after (when_running)
+        # E139: entry_id -> fn(app): lässt eine laufende App ohne Fenster ihr Fenster zeigen, bevor sie nach vorn kommt
+        # (Discord im Hintergrund, wiring_discord)
+        self.reveal: dict[str, Callable[[Any], None]] = {}
+        # E141: entry_id -> fn(app) -> Satz oder None: Was ein ausdrückliches Schließen dieser App abbräche (App Store
+        # mit laufendem Download, wiring_apps). Mit Satz fragen app.close und PS + Options erst nach
+        self.close_guards: dict[str, Callable[[Any], str | None]] = {}
+        self._close_asked: set[int] = set()         # Apps, für die die Rückfrage von PS + Options gerade steht
         self._opti: set[int] = set()                # Apps, deren OptiScaler-Menü wir geöffnet haben: Pad bedient es
-        self._thawed_at: dict[int, float] = {}      # App -> wann sie zuletzt nach dem Overlay weiterlief (E119)
-        self._pad_drops: dict[str, int] = {}        # Eintrag -> Controller-Abfälle kurz danach
 
     # ================================================================ Start
     def start(self) -> None:
@@ -241,6 +244,9 @@ class Shell:
             # … und eigene Sprungstellen, die jemand in den Spieleinstellungen zurückgesetzt hat (E99)
             on_change(lambda: self.sched.soon(self._spots_changed))
         pads = self._pads()
+        # Die Eingabe findet ein Pad, das schon an war, oft erst kurz nach dem Start: Die erste Meldung danach ist
+        # kein "Controller verbunden" (2026-10-27 bei jedem Neustart des Home, etwa nach dem Update auf 0.4.0)
+        self._pads_settle_until = 0.0 if pads else self.sched.now() + self.PADS_SETTLE_S
         self._had_pads = bool(pads)
         self._known_pads = {p.get("id"): str(p.get("name", "")) for p in pads}
         self.state.update(pads=pads)
@@ -657,7 +663,6 @@ class Shell:
         front = self._effective_front()
         if front is not None and front.frozen and self.focus.overlay_mode != ACTIVE:
             self.procs.thaw(front)
-            self._thawed_at[front.app_id] = self.sched.now()
         self._apply()
         self._key_when_running()
 
@@ -1012,7 +1017,43 @@ class Shell:
                            mode=PASSIVE, takes_input=False, app_id=front.app_id)
         self.rpc.emit("ps", {"kind": "options", "progress": progress})
         if progress >= 1.0 and front.app_id not in self._closing:
+            if self._ask_before_close(front):
+                return
             self.close_app(front)
+
+    def close_note(self, app: Any) -> str | None:
+        """E141: der Satz eines close_guard (was ein Schließen jetzt abbräche), sonst None. Wirft nicht."""
+        guard = self.close_guards.get(getattr(app, "entry_id", ""))
+        if guard is None:
+            return None
+        try:
+            text = guard(app)
+        except Exception:
+            _log.exception("close_guard von %s", app.entry_id)
+            return None
+        return str(text) if text else None
+
+    def _ask_before_close(self, app: Any) -> bool:
+        """PS + Options (E141): Meldet ein close_guard etwas, erst fragen (Fokus auf „Abbrechen“); True = gefragt."""
+        if app.app_id in self._close_asked:
+            return True
+        note = self.close_note(app)
+        if not note:
+            return False
+        self._close_asked.add(app.app_id)
+        self._remove_views([v for v in self._views if v.name == "quit-progress" and v.app_id == app.app_id])
+        title = self._app_title(app)
+        asked = self.confirm(CLOSE_BUSY_TITLE % title, note, [{"value": "yes", "label": CLOSE_BUSY_OK},
+                                                              {"value": "no", "label": "Abbrechen"}],
+                             default="no", app_id=app.app_id)
+
+        def answered(fut: Future) -> None:
+            self._close_asked.discard(app.app_id)
+            still = self.procs.by_app_id(app.app_id)
+            if fut.result() == "yes" and still is not None and still.app_id not in self._closing:
+                self.close_app(still)
+        asked.add_done_callback(answered)
+        return True
 
     def _ps_options_cancel(self) -> None:
         self.rpc.emit("ps", {"kind": "options", "progress": 0.0, "cancelled": True})
@@ -1022,6 +1063,7 @@ class Shell:
 
     # ------------------------------------------------------------ nach dem Aufwachen
     RESUME_WINDOW_MS = 30_000
+    PADS_SETTLE_S = 5.0                 # Pads, die so kurz nach dem Start auftauchen, waren schon verbunden
     RESUME_HINT_MS = 90_000
 
     def after_resume(self) -> None:
@@ -1051,8 +1093,6 @@ class Shell:
         pads = self._pads()
         self.state.update(pads=pads)
         front = self._effective_front()
-        if front is not None and set(self._known_pads) - {p.get("id") for p in pads}:
-            self._pad_dropped(front)
         shown = next((v for v in self._views if v.name == "disconnected"), None)
         if shown is not None and shown.params.get("resume") and pads:
             # nach dem Aufwachen wieder verbunden: Hinweis weg, die Mitteilung „Controller verbunden“ genügt
@@ -1074,44 +1114,20 @@ class Shell:
         self._had_pads = bool(pads)
         self._pad_toasts(pads, quiet=any(v.name == "disconnected" for v in self._views))
 
-    def _pad_dropped(self, app: Any) -> None:
-        """Ein Pad ist weg, während app vorn ist (E119). Lief sie gerade erst nach dem Anhalten weiter (nicht nach
-        dem Aufwachen: Dann fallen die Pads ohnehin ab), zählt das für ihr Spiel; ab PAD_DROP_LIMIT schaltet die
-        Konsole „Im Hintergrund anhalten“ dafür aus (Option freeze, wie in den Spieleinstellungen) und sagt es."""
-        now = self.sched.now()
-        at = self._thawed_at.pop(app.app_id, None)
-        if (at is None or now - at > PAD_DROP_WINDOW_S or now < self._resume_until
-                or app.spec.kind not in GAME_KINDS or not self._may_freeze(app)):
-            return
-        count = self._pad_drops.get(app.entry_id, 0) + 1
-        self._pad_drops[app.entry_id] = count
-        _log.info("Controller %.1f s nach dem Fortsetzen von %s getrennt (%d. Mal)", now - at, app.entry_id, count)
-        if count < PAD_DROP_LIMIT:
-            return
-        try:
-            self.library.set_option(app.entry_id, "freeze", False)
-        except (KeyError, ValueError) as e:
-            _log.warning("Anhalten für %s nicht abgeschaltet: %s", app.entry_id, e)
-            return
-        notify = getattr(self.app, "notify", None)
-        if notify is not None:
-            notify.push("Spiel wird nicht mehr angehalten",
-                        "Nach dem Fortsetzen von „%s“ hat sich der Controller mehrmals getrennt. Es läuft deshalb unter "
-                        "dem Overlay weiter (Spieleinstellungen › Im Hintergrund anhalten)." % self._app_title(app),
-                        icon="gamepad", important=True)
-
     def _pad_toasts(self, pads: list, quiet: bool) -> None:
         """Mitteilungen zu den Pads: verbunden, getrennt, Akku unter 15 % (Befund 24).
         quiet: Der Hinweis "Controller getrennt" steht schon groß im Overlay."""
         notify = getattr(self.app, "notify", None)
         now = {p.get("id"): p for p in pads}
         before = self._known_pads
+        settling = self.sched.now() < self._pads_settle_until
+        self._pads_settle_until = 0.0           # nur die erste Meldung nach dem Start
         self._known_pads = {pid: str(p.get("name", "")) for pid, p in now.items()}
         if notify is None:
             return
         for pid, pad in now.items():
             name = str(pad.get("name", ""))
-            if pid not in before and not quiet:
+            if pid not in before and not quiet and not settling:
                 notify.push("Controller verbunden", name, icon="gamepad")
             battery = pad.get("battery")
             if isinstance(battery, (int, float)) and not pad.get("charging"):
@@ -1125,7 +1141,8 @@ class Shell:
                 self._low_battery.discard(pid)
         for pid, name in before.items():
             if pid not in now:
-                self._low_battery.discard(pid)
+                # _low_battery bleibt: Ein Pad, das mit leerem Akku aus- und wieder eingeschaltet wird, meldet
+                # sich nicht jedes Mal neu (2026-10-27 dreimal an einem Abend); erst Laden oder 25 % setzen es zurück
                 if not quiet:
                     notify.push("Controller getrennt", name, icon="gamepad")
 
@@ -1145,15 +1162,20 @@ class Shell:
         if app.app_id in self._closing:
             # Sonst liefe das Spiel noch ein paar Sekunden weiter und würde dann hart beendet
             raise RpcError("„%s“ wird gerade beendet." % self._app_title(app), "Closing")
+        reveal = self.reveal.get(app.entry_id)
+        if reveal is not None and not self._has_window(app):
+            # E139: im Hintergrund ohne Fenster (Discord mit --start-minimized): erst zeigen lassen. Vorn steht die App
+            # trotzdem gleich; kommt ihr Fenster, zeigt Gamescope es von selbst (sonst nach DETACH_MS wieder das Home)
+            try:
+                reveal(app)
+            except Exception:
+                _log.exception("Fenster von %s zeigen", app.entry_id)
         self._bring_front(app)
 
     def _bring_front(self, app: Any) -> None:
         self._front_id = app.app_id
         self._set_detached(False)
         self._shown.add(app.app_id)
-        if app.entry_id in self._repairing:
-            self._repairing.discard(app.entry_id)       # Reparatur geglückt: der Weg bleibt gemerkt
-            _log.info("Startreparatur: %s läuft wie in Lutris, der Weg bleibt eingestellt", app.entry_id)
         self._drop_views(lambda v: v.name == "confirm")
         self.focus.set_foreground(app.app_id)
         self._key = None                    # auch bei derselben App neu auf ein neutrales Pad warten
@@ -1266,8 +1288,6 @@ class Shell:
             self.sched.cancel(launch.timer)
             if requested:
                 self._emit_launching(launch.entry_id, "cancelled")
-            elif self._try_repair(app, title):
-                pass                                    # neuer Start „wie in Lutris“ läuft gleich an
             else:
                 self._emit_launching(launch.entry_id, "failed")
                 self._emit_error(app, title, self._own_words(app) or "„%s“ wurde beendet, bevor ein Bild kam." % title,
@@ -1288,10 +1308,16 @@ class Shell:
                 self.library.record_play(app.entry_id, int(self._runtime(app)))
             except Exception:
                 _log.exception("record_play")
+        try:
+            # Ein Spiel, das hängt oder beendet wird, nimmt seinen Trigger-Widerstand nicht mehr zurück
+            # (2026-10-28: L2 blieb nach Alan Wake 2 schwergängig)
+            if self.input.release_triggers():
+                _log.info("Trigger nach %s freigegeben", app.entry_id)
+        except Exception:
+            _log.exception("Trigger freigeben")
         self._mouse.pop(app.app_id, None)
         self._reveal_mouse.pop(app.app_id, None)
         self._opti.discard(app.app_id)
-        self._thawed_at.pop(app.app_id, None)
         self._remove_views([v for v in self._views if v.app_id == app.app_id], None, hold=False)
         back = self.procs.by_app_id(self._return_to.pop(app.entry_id, 0) or 0)
         if self._front_id == app.app_id and back is not None and back.app_id not in self._closing:
@@ -1316,68 +1342,6 @@ class Shell:
             if line.startswith(OWN_WORDS):
                 return line[len(OWN_WORDS):].strip()[:300]
         return ""
-
-    def _try_repair(self, app: Any, title: str) -> bool:
-        """Startreparatur (E55): Ein Lutris-Spiel, das unter Proton endet, bevor ein Bild kam,
-        startet sofort noch einmal „wie in Lutris“ (Lutris' Runner und Prefix). Der Weg wird
-        gleich gespeichert und gilt ab dann; scheitert auch er, geht die Option zurück und der
-        Fehler kommt wie sonst. True = ein neuer Start ist angestoßen."""
-        from .launch import lutris_way
-        entry = self.library.get(app.entry_id) if self.library is not None else None
-        if entry is None or not lutris_way.possible(entry):
-            return False
-        if entry.option(lutris_way.OPTION) == "lutris":
-            # Auch der Lutris-Weg kam ohne Bild: zurück auf Proton, auch wenn die Reparatur aus einer
-            # früheren Sitzung des Home stammt (sonst blieb das Spiel für immer auf Lutris, 2026-10-24)
-            self._undo_repair(app.entry_id)
-            _log.warning("Startreparatur: %s startete auch wie in Lutris nicht, wieder Proton", app.entry_id)
-            return False
-        if lutris_way.lutris_command() is None:
-            return False
-        try:
-            self.library.set_option(app.entry_id, lutris_way.OPTION, "lutris")
-        except Exception:
-            _log.exception("Startreparatur: Option setzen")
-            return False
-        self._repairing.add(app.entry_id)
-        _log.warning("Startreparatur: %s endete unter Proton ohne Bild (Rückgabewert %s, %.1f s); "
-                     "neuer Start wie in Lutris", app.entry_id, getattr(app, "exit_code", None), self._runtime(app))
-        notify = getattr(self.app, "notify", None)
-        if notify is not None:
-            try:
-                notify.push("Startreparatur", "„%s“ startete mit Proton nicht. couch startet es jetzt "
-                            "so wie Lutris und merkt sich das." % title, icon="info")
-            except Exception:
-                _log.exception("Mitteilung der Startreparatur")
-        entry_id = app.entry_id
-
-        def again() -> None:
-            try:
-                self.launch(entry_id, confirmed=True)
-            except Exception as e:                    # z. B. Lutris lieferte kein Skript
-                self._undo_repair(entry_id)
-                self._emit_launching(entry_id, "failed")
-                self.report_launch_error(entry_id, e)
-        self.sched.later(300, again)
-        return True
-
-    def _undo_lutris_way(self, entry_id: str) -> None:
-        """Kein Bild in der Frist auf dem Lutris-Weg: beim nächsten Start wieder Proton (E55)."""
-        from .launch import lutris_way
-        entry = self.library.get(entry_id) if self.library is not None else None
-        if entry is not None and lutris_way.wanted(entry):
-            _log.warning("Startreparatur: %s kam auch wie in Lutris nicht in der Frist, wieder Proton", entry_id)
-            self._undo_repair(entry_id)
-
-    def _undo_repair(self, entry_id: str) -> None:
-        """Startreparatur zurücknehmen (E55): Auch der Lutris-Weg gab keinen Start, die Option geht
-        auf "auto" zurück. Sonst liefe jeder weitere Start dieses Spiels wieder über Lutris."""
-        from .launch import lutris_way
-        self._repairing.discard(entry_id)
-        try:
-            self.library.set_option(entry_id, lutris_way.OPTION, "auto")
-        except Exception:
-            _log.exception("Startreparatur zurücknehmen: %s", entry_id)
 
     @staticmethod
     def _runtime(app: Any) -> float:
@@ -1452,6 +1416,47 @@ class Shell:
             lambda: self._spec_ready(entry, f, close_other, confirmed, result)))
         return result
 
+    def launch_background(self, entry_id: str, args: tuple = (), env: dict | None = None) -> Future:
+        """E139: einen Eintrag im Hintergrund starten (Discord mit der Sitzung, wiring_discord): ohne Ladebild, ohne
+        Rückfrage, ohne nach vorn zu kommen; args hängen hinten an den Startbefehl (--start-minimized), env kommt zur
+        Umgebung des Auftrags dazu (E141: Claude Code mit COUCH_TERM_RUN=continue). Die App steht in running wie jede
+        andere (Karte im Control Center) und kommt nur über focus_app nach vorn. Liefert ein Future auf die laufende
+        App; Fehler stehen nur darin (kein app.error an die Seite: niemand hat gedrückt)."""
+        result: Future = Future()
+        entry = self.library.get(entry_id)
+        running = self.procs.by_entry(entry_id)
+        if running is not None:
+            result.set_result(running)
+            return result
+        if entry is None or not entry.installed or self.ending or entry_id in self._preparing:
+            result.set_exception(LaunchError("„%s“ lässt sich gerade nicht im Hintergrund starten." % (
+                entry.title if entry is not None else entry_id), reason="unavailable"))
+            return result
+        work = self._background(build_spec, entry, self.app)
+
+        def ready(f: Future) -> None:
+            try:
+                spec: LaunchSpec = f.result()
+                if self.ending:
+                    raise LaunchError("Die Konsole wird gerade beendet.", reason="ending")
+                if self.procs.by_entry(entry_id) is not None or entry_id in self._preparing:
+                    result.set_result(self.procs.by_entry(entry_id))   # inzwischen über die Kachel gestartet
+                    return
+                spec.background = True
+                spec.argv = [*spec.argv, *[str(a) for a in args]]
+                if env:
+                    spec.env = {**(spec.env or {}), **{str(k): str(v) for k, v in env.items()}}
+                app = self.procs.launch(spec)
+            except BaseException as e:
+                _log.warning("Hintergrund-Start von %s: %s", entry_id, getattr(e, "message", e))
+                result.set_exception(e)
+                return
+            _log.info("%s läuft im Hintergrund", entry_id)
+            self._apply()
+            result.set_result(app)
+        work.add_done_callback(lambda f: self.sched.soon(lambda: ready(f)))
+        return result
+
     def _launch_after_close(self, entry: Any, old: Any, close_other: bool, confirmed: bool) -> Future:
         """Der Eintrag wird gerade beendet (Schonfrist läuft) und soll neu starten: auf sein
         Ende warten, dann frisch starten. Die sterbende App wird nie nach vorn geholt."""
@@ -1485,8 +1490,6 @@ class Shell:
         return result
 
     def _launch_failed(self, entry: Any, result: Future, exc: BaseException) -> None:
-        if entry.id in self._repairing:               # Startreparatur: Lutris lieferte keinen Start
-            self._undo_repair(entry.id)
         self._preparing.discard(entry.id)
         self._cancel_wanted.discard(entry.id)
         self._emit_launching(entry.id, "failed")
@@ -1757,7 +1760,6 @@ class Shell:
         if launch is None or app is None:
             return
         seconds = int(self._start_seconds(getattr(app, "spec", None)))
-        self._undo_lutris_way(launch.entry_id)
         self._emit_launching(launch.entry_id, "failed")
         self._emit_error(app, launch.title, "„%s“ hat nach %d Sekunden kein Bild gezeigt und "
                                             "wurde beendet." % (launch.title, seconds),
@@ -2040,7 +2042,37 @@ class Shell:
         self._key_after = (front.app_id, OPTISCALER_KEY, self.sched.now() + OPTISCALER_WAIT_S)
         return {}
 
+    def when_running(self, fn: Callable[[Any], None], wait_s: float = OPTISCALER_WAIT_S) -> bool:
+        """E139: fn(app) einmal, sobald die App vorn nach dem Schließen des Overlays weiterläuft (wie die Taste für
+        OptiScaler): Unter dem Control Center hält das Overlay den Tastaturfokus, eine Taste per XTEST landete dort.
+        Ohne App vorn: False, nichts geplant. Ein neuer Auftrag ersetzt einen alten, der noch wartet."""
+        front = self._front_app()
+        if front is None:
+            return False
+        if self.focus.overlay_mode != ACTIVE and self._settled and self._top() is None:
+            # kein Overlay dazwischen (Aufruf nicht aus dem Control Center): gleich, nach der kurzen Pause
+            app_id = front.app_id
+            self.sched.later(OPTISCALER_DELAY_MS, lambda: self._run_for(app_id, fn))
+            return True
+        self._run_after = (front.app_id, fn, self.sched.now() + wait_s)
+        return True
+
+    def _run_for(self, app_id: int, fn: Callable[[Any], None]) -> None:
+        front = self._effective_front()
+        if front is None or front.app_id != app_id or front.frozen or self._top() is not None:
+            return                          # inzwischen gewechselt oder wieder im Overlay
+        try:
+            fn(front)
+        except Exception:
+            _log.exception("Auftrag für %s nach dem Overlay", front.entry_id)
+
     def _key_when_running(self) -> None:
+        later, self._run_after = self._run_after, None
+        if later is not None:
+            app_id, fn, until = later
+            front = self._effective_front()
+            if self.sched.now() <= until and front is not None and front.app_id == app_id and self._top() is None:
+                self.sched.later(OPTISCALER_DELAY_MS, lambda: self._run_for(app_id, fn))
         pending, self._key_after = self._key_after, None
         if pending is None:
             return
@@ -2093,8 +2125,19 @@ class Shell:
             return {"ok": True, "appId": app.app_id}
 
         def app_close(params: dict) -> dict:
-            self.close_app(need_app(params))
+            # E141: Bräche das Schließen etwas ab (Download im App Store), erst mit confirmed: Die Seite fragt mit
+            # app.closeNote vorher selbst; hat sich der Stand seitdem geändert, kommt der Satz hier zurück
+            app = need_app(params)
+            note = None if params.get("confirmed") is True else self.close_note(app)
+            if note:
+                return {"needsConfirm": "busy", "title": CLOSE_BUSY_TITLE % self._app_title(app), "text": note,
+                        "ok": CLOSE_BUSY_OK}
+            self.close_app(app)
             return {}
+
+        def app_close_note(params: dict) -> dict:
+            app = self.procs.by_entry(str(params.get("id", "")))
+            return {"note": (self.close_note(app) if app is not None else None) or ""}
 
         def app_kill(params: dict) -> dict:
             # „Abbrechen“ im Ladebild: Solange noch vorbereitet wird (Auftrag bauen, Prefix
@@ -2132,6 +2175,7 @@ class Shell:
         rpc.register("app.focus", app_focus)
         rpc.register("app.home", lambda p: self.go_home() or {})
         rpc.register("app.close", app_close)
+        rpc.register("app.closeNote", app_close_note)
         rpc.register("app.kill", app_kill)
         rpc.register("app.adopt", lambda p: self.adopt_answer(str(p.get("id", "")), bool(p.get("ok"))))
         rpc.register("app.optiscaler", lambda p: self.optiscaler_menu())

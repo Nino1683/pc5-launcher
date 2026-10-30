@@ -50,6 +50,7 @@ class Action:
     files: tuple = ()                       # ((quelle relativ zu app/system, ziel), …)
     after: tuple = ()                       # Befehle nach dem Kopieren bzw. Entfernen (argv)
     extra: dict = field(default_factory=dict)
+    retired: bool = False                   # nicht mehr nötig: nur noch entfernen, nie einrichten
 
 
 UDEV_RELOAD = (("udevadm", "control", "--reload"),
@@ -63,6 +64,18 @@ ACTIONS = {
                  "bewegt und klickt. Legt eine udev-Regel an; danach den Controller einmal neu verbinden."),
         files=(("udev/70-pc5-dualsense-touchpad.rules", "/etc/udev/rules.d/70-pc5-dualsense-touchpad.rules"),),
         after=UDEV_RELOAD),
+    # E136, zurückgezogen durch E137 (2026-10-28): Der HID-BPF-Filter fing die Abmeldung des DualSense (Feature-Bericht
+    # 0x08/0x02) ab, das Spiel wartete danach aber vergeblich auf ein Wiederverbinden und war bis zum Neustart taub.
+    # Der Herzschlag beim Anhalten verhindert die Abmeldung; der Filter bleibt nur zum Entfernen in der Liste
+    "dualsense-link": Action(
+        id="dualsense-link",
+        title="Controller-Verbindung beim Fortsetzen (alt)",
+        purpose=("Wird nicht mehr gebraucht: Der Launcher verhindert die Trennung jetzt selbst. Bitte entfernen; "
+                 "es wirkt, sobald sich der Controller das nächste Mal verbindet."),
+        files=(("", "/etc/udev-hid-bpf/0010-PC5__DualSense-keep-connection.bpf.o"),
+               ("", "/etc/udev/rules.d/99-hid-bpf-0010-PC5__DualSense-keep-connection.rules")),
+        after=(("udevadm", "control", "--reload"),),
+        retired=True),
 }
 
 
@@ -86,18 +99,31 @@ def _read(path: str) -> str | None:
         return None
 
 
+def _read_bytes(path: str) -> bytes | None:
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
 def status(action: Action, root: str = "/") -> str:
     """"on" (eingerichtet), "off" (fehlt), "changed" (anderer Inhalt: neu einrichten). Nur lesend."""
+    if action.retired:                          # nichts mehr zu vergleichen: da oder nicht da
+        return "on" if any(os.path.lexists(os.path.join(root, d.lstrip("/"))) for _, d in action.files) else "off"
     states = []
     for rel, dest in action.files:
-        have = _read(os.path.join(root, dest.lstrip("/")))
-        want = _read(_source(rel))
+        have_path = os.path.join(root, dest.lstrip("/"))
+        if dest.endswith(".rules"):
+            have, want = _read(have_path), _read(_source(rel))
+            same = want is not None and have is not None and _rules(have) == _rules(want)
+        else:                                   # Binärdatei (HID-BPF-Filter): Byte für Byte
+            have, want = _read_bytes(have_path), _read_bytes(_source(rel))
+            same = want is not None and have == want
         if have is None:
             states.append("off")
-        elif want is not None and _rules(have) == _rules(want):
-            states.append("on")
         else:
-            states.append("changed")
+            states.append("on" if same else "changed")
     if not states or all(s == "off" for s in states):
         return "off"
     return "on" if all(s == "on" for s in states) else "changed"
@@ -105,7 +131,7 @@ def status(action: Action, root: str = "/") -> str:
 
 def script(action: Action, mode: str) -> str:
     """Das Skript für /bin/sh, das sudo als Root ausführt (nur feste, gequotete Teile)."""
-    if mode not in ("install", "remove"):
+    if mode not in ("install", "remove") or (mode == "install" and action.retired):
         raise ValueError(mode)
     q = shlex.quote
     steps = ["exec </dev/null", "set -e"]       # stdin zu: das Kennwort erreicht nie einen Befehl

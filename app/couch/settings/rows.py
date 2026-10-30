@@ -34,6 +34,7 @@ ROW_TYPES = ("toggle", "select", "slider", "action", "info", "page", "text", "co
 # (Wunsch 2026-10-27), damit der Bereich samt Punkt ohne Rollen zu sehen ist (die Wurzel zeigt acht Bereiche, System
 # stand an elfter Stelle)
 AREA_ORDER = {"audio": 10, "display": 20, "network": 30, "accessories": 40, "games": 50, "updates": 55,
+              "apps": 57,               # E141: unter „Updates“, das wie in E133 direkt unter „Spiele“ bleibt
               "performance": 60, "storage": 70, "home": 80, "notifications": 90,
               "accessibility": 100, "system": 110, "session": 120}
 

@@ -7,7 +7,9 @@ Im ZIP (nur diese Namen, alle in couch-einstellungen.json mit sha256 und Größe
   settings.json        gesetzte Einstellungen ohne Geheimnisse und ohne Werte dieses Rechners (BLOCKED)
   library-meta.json    LibraryIndex.export_meta(): eigene Namen, Favoriten, Ausgeblendetes, Optionen,
                        Spielzeiten der übertragbaren IDs (index.transferable)
-  home-order.json      Reihenfolge des Home, nur übertragbare IDs
+  home-order.json      Reihenfolge des Home je Reihe ({games, apps, media}, E141) und die ausgeblendeten Kacheln der
+                       Seite (hidden: „Dateien“, „Mediengalerie“), nur übertragbare IDs; eine Sicherung von vor E141
+                       nur mit "games" bleibt einlesbar
   sessions.json        Sitzungsverlauf, nur übertragbare IDs
   art/choices.json     von Hand gewählte Bildtreffer, art/images.json + art/user/<n>-<art>.<jpg|png>: eigene Bilder
   browser-prefs.json   Vorlieben des Browsers (Favoriten, Startseite, Suche, Zoom, Werbeblocker)
@@ -21,7 +23,7 @@ jede Prüfsumme), sichert dann den eigenen Stand („… vor-übernahme.zip“) 
 über die laufenden Dienste an (Host, gefüllt von wiring_backup.py): Einstellungen über config.set (nur
 Schlüssel aus config.DEFAULTS, Wert wie dort typisiert und im erlaubten Bereich), Bibliothek und
 Sitzungen über den Index (library.json schreibt weiter nur er, E28), Reihenfolge über
-wiring_home.write_order, eigene Bilder über ArtResolver.set_user_art (prüft das Bild). Die Bildwahl
+wiring_home.write_orders (je Reihe zusammengeführt), eigene Bilder über ArtResolver.set_user_art (prüft das Bild). Die Bildwahl
 (art/choices.json) und die Vorlieben werden als neue Dateien atomar geschrieben; sie gelten nach dem
 Neustart des PC5 Launchers bzw. beim nächsten Öffnen von Browser und Terminal. Gelöscht wird nichts;
 was hier schon gewählt ist (Bild, Bildwahl), bleibt. Zweimal übernehmen ergibt dasselbe.
@@ -57,6 +59,9 @@ MAX_JSON = 8 * 1024 * 1024              # je JSON-Datei im ZIP
 MAX_IMAGE = 8 * 1024 * 1024             # je eigenes Bild; größere bleiben auf dem alten Rechner
 IMAGE_BUDGET = 40 * 1024 * 1024         # alle Bilder zusammen (das ZIP bleibt unter MAX_ZIP)
 PARTS = ("settings", "games", "order", "sessions", "art", "prefs")
+ORDER_ROWS = ("games", "apps", "media")                         # wie wiring_home.ROWS
+ORDER_HIDDEN = "hidden"                                         # wie wiring_home.HIDDEN
+ORDER_TILES = ("sys:files", "sys:gallery")                      # wie wiring_home.TILES: Kacheln der Seite, überall gleich
 ART_KINDS = ("tile", "cover", "hero", "logo", "icon")          # wie library/art.py KINDS
 USER_PREFIX = "user-"                                           # wie library/art.py USER_PREFIX
 TERMINAL_FONT = (14, 40)                                        # wie terminal/window.py FONT_MIN, FONT_MAX
@@ -112,8 +117,8 @@ class Host:
     import_sessions: Callable[[list], dict]
     known: Callable[[str], bool]                        # gibt es den Eintrag hier (steam:<appid> immer)?
     entry_ids: Callable[[], list]                       # IDs der Bibliothek (für eigene Bilder)
-    read_order: Callable[[], list]
-    write_order: Callable[[list], Any]
+    read_orders: Callable[[], dict]                     # wiring_home.read_orders: {games, apps, media, hidden}
+    write_orders: Callable[[dict], Any]                 # wiring_home.write_orders: nur die genannten Listen
     art_dir: Callable[[], str]                          # <data>/art
     entry_art_dir: Callable[[str], str]                 # <data>/art/<safe_id>
     set_user_art: Callable[[str, str, str], Any] | None = None
@@ -346,9 +351,9 @@ def collect(host: Host) -> tuple[dict[str, bytes], dict]:
     meta = {k: v for k, v in host.export_meta().items() if transferable(k)}
     files["library-meta.json"] = _dumps(meta)
     counts["games"] = len(meta)
-    order = [i for i in host.read_order() if transferable(i)]
-    files["home-order.json"] = _dumps({"games": order})
-    counts["order"] = len(order)
+    orders = order_lists(host.read_orders())
+    files["home-order.json"] = _dumps(orders)
+    counts["order"] = sum(len(ids) for ids in orders.values())
     sessions = [s for s in host.export_sessions() if isinstance(s, dict) and transferable(s.get("id"))]
     files["sessions.json"] = _dumps({"version": 1, "sessions": sessions})
     counts["sessions"] = len(sessions)
@@ -583,7 +588,7 @@ def _parts(backup: Backup) -> dict:
     return {
         "settings": settings if isinstance(settings, dict) else {},
         "meta": meta if isinstance(meta, dict) else {},
-        "order": [i for i in (order.get("games") if isinstance(order, dict) else None) or [] if transferable(i)],
+        "order": order_lists(order),
         "sessions": (sessions.get("sessions") if isinstance(sessions, dict) else None) or [],
         "choices": choices if isinstance(choices, dict) else {},
         "images": [i for i in images if isinstance(i, dict) and i.get("file") in backup.files
@@ -610,9 +615,10 @@ def preview(backup: Backup, host: Host) -> dict:
     art = sum(1 for i, rec in p["choices"].items() if transferable(i) and isinstance(rec, dict) and host.known(i)) \
         + sum(1 for i in p["images"] if host.known(i["id"]))
     prefs = int(isinstance(p["browser"], dict)) + int(isinstance(p["terminal"], dict))
-    apply = {"settings": settings, "games": len(games), "skipped": skipped, "order": len(p["order"]),
+    order = sum(len(ids) for ids in p["order"].values())
+    apply = {"settings": settings, "games": len(games), "skipped": skipped, "order": order,
              "art": art, "sessions": sessions, "prefs": prefs}
-    available = {"settings": settings, "games": len(games), "order": len(p["order"]), "sessions": sessions,
+    available = {"settings": settings, "games": len(games), "order": order, "sessions": sessions,
                  "art": art, "prefs": prefs}
     return {"apply": apply, "parts": [{"id": part, "count": available[part]} for part in PARTS if available[part]]}
 
@@ -742,9 +748,32 @@ def _apply_prefs(p: dict, host: Host) -> tuple[int, int]:
     return applied, skipped
 
 
+def order_id(entry_id: Any) -> bool:
+    """Gehört diese Kennung in die übertragene Reihenfolge? Übertragbare Einträge und die Kacheln der Seite (E141)."""
+    return transferable(entry_id) or entry_id in ORDER_TILES
+
+
+def order_lists(data: Any) -> dict:
+    """{games, apps, media, hidden} aus home-order.json (Sicherung oder dieser Rechner), nur übertragbare Kennungen.
+    Eine Datei von vor E141 nur mit "games" ergibt leere Listen für den Rest. hidden nimmt nur ORDER_TILES."""
+    data = data if isinstance(data, dict) else {}
+    out = {}
+    for row in ORDER_ROWS + (ORDER_HIDDEN,):
+        ids = data.get(row) if isinstance(data.get(row), list) else []
+        seen: set = set()
+        keep = []
+        for i in ids:
+            ok = i in ORDER_TILES if row == ORDER_HIDDEN else (order_id(i) and (row != "games" or transferable(i)))
+            if isinstance(i, str) and ok and i not in seen:
+                seen.add(i)
+                keep.append(i)
+        out[row] = keep
+    return out
+
+
 def merge_order(saved: list, current: list) -> list:
     """Reihenfolge der Sicherung, danach die Kacheln dieses Rechners, die sie nicht kennt (in ihrer Folge)."""
-    first = [i for i in saved if isinstance(i, str) and transferable(i)]
+    first = [i for i in saved if isinstance(i, str) and order_id(i)]
     known = set(first)
     return first + [i for i in current if isinstance(i, str) and i not in known]
 
@@ -775,10 +804,13 @@ def apply(path: str, parts: Any, host: Host, now: float | None = None) -> dict:
             result = host.import_meta(_proton_filtered(p["meta"], host.proton_exists))
             applied["games"] = int(result.get("applied") or 0)
             skipped["games"] = len(result.get("skipped") or [])
-        if "order" in wanted and p["order"]:
-            merged = merge_order(p["order"], host.read_order())
-            host.write_order(merged)
-            applied["order"] = len(p["order"])
+        if "order" in wanted and any(p["order"].values()):
+            # je Reihe (E141): die Folge der Sicherung vorn, was nur hier steht, dahinter; ausgeblendete Kacheln der
+            # Seite kommen dazu. Reihen, die die Sicherung nicht nennt (Sicherung von vor E141), bleiben, wie sie sind
+            here = host.read_orders()
+            changes = {row: merge_order(ids, here.get(row) or []) for row, ids in p["order"].items() if ids}
+            host.write_orders(changes)
+            applied["order"] = sum(len(ids) for ids in p["order"].values())
         if "sessions" in wanted:
             result = host.import_sessions(p["sessions"])
             applied["sessions"] = int(result.get("applied") or 0)

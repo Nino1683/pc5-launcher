@@ -122,6 +122,7 @@ html.is-overlaid .status, html.is-overlaid .home-head { --fx-o: 0; }
 .hub-actions { position: absolute; left: 0; top: var(--hub-actions-top); display: flex; gap: var(--btn-gap); }
 /* Nebenknopf (Spiel schließen, Desktop-Modus): graue Pille, ≈376 breit (07 2.4) */
 .hub-second { min-width: var(--btn-second-w); max-width: none; }
+.hub-about-btn { gap: var(--st-account-gap); }
 .hub-chips { position: absolute; right: 0; top: var(--hub-chips-top); display: flex; gap: var(--chip-gap); }
 .chip { height: var(--chip-h); padding: 0 var(--chip-pad); border-radius: var(--chip-r); background: var(--c-chip); display: flex; align-items: center; gap: var(--chip-in-gap);
   font-size: var(--fs-caption); color: var(--c-text-2); white-space: nowrap; }

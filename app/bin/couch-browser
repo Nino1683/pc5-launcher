@@ -11,6 +11,10 @@ app="$(dirname "$here")"
 export WEBKIT_FORCE_VBLANK_TIMER=1
 export DISABLE_GAMESCOPE_WSI=1
 export GDK_BACKEND=x11
+# E138: Gamescope setzt mesa_glthread=true für Spiele. In WebKit stürzte damit der Seitenprozess ab
+# (Mesa 26.2.4, SIGSEGV in _mesa_release_pending_resource beim Zeichnen mit Skia, dreimal in zwei
+# Minuten auf google.com); ohne GL-Thread rollt es gleich schnell
+export mesa_glthread=false
 # 4K: GTK und Seiten doppelt so groß; die Feinheit regelt der Zoom im Browser
 if [[ -z "${GDK_SCALE:-}" && -n "${COUCH_BROWSER_SCALE:-}" ]]; then
   export GDK_SCALE="$COUCH_BROWSER_SCALE"

@@ -292,8 +292,14 @@ class SteamInfo:
 
     def _cached(self, key: str, fetch: Callable[[], Any], ttl: float) -> Any:
         with self._lock(key):
-            return cache.cached(self.cache_dir, key, fetch, ttl, clock=self._clock, unreachable=MSG_OFFLINE,
-                                on_error=self._throttled)
+            try:
+                return cache.cached(self.cache_dir, key, fetch, ttl, clock=self._clock, unreachable=MSG_OFFLINE,
+                                    on_error=self._throttled)
+            except StoreError as e:
+                # cache.cached macht aus jedem Fehler „nicht erreichbar“; in der Pause nach 403/429 stimmt das nicht
+                if self._mono() < self.paused_until:
+                    raise StoreError(MSG_PAUSE) from e
+                raise
 
     def _raw(self, appid: int, lang: str) -> Any:
         url = "%s/api/appdetails?appids=%d&l=%s&filters=%s" % (self.shop, appid, lang_param(lang), FILTERS)

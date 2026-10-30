@@ -8,7 +8,8 @@ RPC (alles im eigenen Arbeits-Thread „couch-trophies“: Platte und Netz, nie 
                                      steam: {title, items: [{key, unlocked, time, hidden, name, desc, rarity, tier, icon}]}}
     trophies.icons {id, keys}    -> {icons: {key: "couch://art/…" | null}} (lädt fehlende Symbole, höchstens 24)
     ohne Trophäen {ok: false, reason: "no-steam" (kein steam:<appid>, Nicht-Steam-Spiele still weglassen) | "none"}
-    Ereignis trophies.changed {id, appid} an die Home-Seite, sobald neue Trophäen gemeldet sind.
+    Ereignis trophies.changed {id, appid} an die Home-Seite, sobald neue Trophäen gemeldet sind; {id: "", appid: 0},
+    wenn die Seltenheiten der Übersicht im Hintergrund neu geholt wurden (summary antwortet aus dem Zwischenspeicher).
     Was Steam schreibt (Namen, Beschreibungen), steht unter "steam": Die Übersetzung an der Brücke fasst es nicht an.
 
 Mitteilung beim Freischalten: Startet die Konsole ein Steam-Spiel (procs „started“, steam:<appid>), wird sein Stand
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from typing import Any
 
 from . import i18n, log, paths, trophies
@@ -35,6 +37,7 @@ _log = log.get("wiring.trophies")
 WATCH_S = 20.0                  # stat der Nutzerdatei, solange ein Steam-Spiel läuft
 AFTER_S = (5.0, 30.0, 90.0)     # nach dem Ende noch so oft nachsehen
 CACHE_SUB = "trophies"
+REFRESH_GAP_S = 600.0           # Seltenheiten der Übersicht höchstens so oft im Hintergrund nachholen
 _STEAM = re.compile(r"steam:(\d{1,10})")
 MSG_NONE = "Zu diesem Spiel gibt es keine Trophäen."
 MSG_NO_STEAM = "Trophäen gibt es nur für Steam-Spiele."
@@ -83,6 +86,7 @@ class TrophyPart:
         self.watching: dict[int, dict] = {}     # appid -> {"since", "path", "sig"} (Hauptschleife)
         self.timer: Any = None
         self.closed = False
+        self._refresh_at = -1e9
 
     # ------------------------------------------------------------ gemeinsam
     def _lang(self) -> str:
@@ -102,13 +106,40 @@ class TrophyPart:
     def summary(self, params: dict | None = None) -> dict:
         if self.service.root() is None:
             return {"ok": False, "reason": "no-steam", "message": MSG_NO_STEAM}
-        out = self.service.summary(self._title)
+        # Seltenheit nur aus dem Zwischenspeicher: Sie für jedes Spiel nacheinander zu holen dauerte im RPC Sekunden
+        # (beim ersten Öffnen und wenn alle zugleich veralten); das holt _refresh danach
+        out = self.service.summary(self._title, fetch=False)
+        self._refresh_later([g["appid"] for g in out["games"]])
         for game in out["games"]:
             game["id"] = "steam:%d" % game["appid"]
             entry = self._entry(game["appid"])
             if entry is not None and callable(getattr(entry, "view", None)):
                 game["entry"] = entry.view(False)
         return {"ok": True, **out}
+
+    def _refresh_later(self, appids: list[int]) -> None:
+        now = time.monotonic()
+        if not appids or now - self._refresh_at < REFRESH_GAP_S:
+            return
+        self._refresh_at = now
+        self.lane.submit(self._refresh, appids)         # läuft nach dieser Antwort (eine Lane, der Reihe nach)
+
+    def _refresh(self, appids: list[int]) -> None:
+        """Arbeits-Thread: veraltete oder fehlende Seltenheiten holen (frische kommen aus dem Zwischenspeicher)."""
+        changed = False
+        for appid in appids:
+            if self.closed:
+                return
+            try:
+                before = self.service.rarity(appid, fetch=False)
+                changed = self.service.rarity(appid) != before or changed
+            except Exception:  # noqa: BLE001
+                _log.exception("Seltenheit von %d", appid)
+        if changed and not self.closed:
+            try:
+                self.app.rpc.emit("trophies.changed", {"id": "", "appid": 0}, "home")
+            except Exception:  # noqa: BLE001
+                _log.exception("trophies.changed")
 
     def game(self, params: dict | None = None) -> dict:
         entry_id = str((params or {}).get("id") or "")

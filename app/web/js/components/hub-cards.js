@@ -30,7 +30,7 @@ async function trophyCard(entry) {
 async function shotsCard(entry) {
   if (!entry || entry.system || entry.kind !== "game") return [];
   let r = null;
-  try { r = await call("gallery.list", { game: entry.title, limit: SHOTS }); } catch (e) { return []; }
+  try { r = await call("gallery.list", { game: entry.title, id: entry.id, limit: SHOTS }); } catch (e) { return []; }
   const items = (r && r.items) || [];
   const last = items[0];
   if (!last) return [];

@@ -141,9 +141,10 @@ ROWS = (
 )
 
 
-def _app(id_, title, flatpak, size_mb, runtime, hint, default=True, tile=""):
+def _app(id_, title, flatpak, size_mb, runtime, hint, default=True, tile="", switch=""):
+    # switch (E139): Einstellung, ohne die die App im Assistenten nicht erscheint (installieren geht trotzdem nur so)
     return {"id": id_, "title": title, "flatpak": flatpak, "size_mb": size_mb, "runtime": runtime, "hint": hint,
-            "default": default, "tile": tile or "app:" + id_, "kind": "app", "offer": True}
+            "default": default, "tile": tile or "app:" + id_, "kind": "app", "offer": True, "switch": switch}
 
 
 APPS = (
@@ -157,6 +158,11 @@ APPS = (
     _app("chrome", "Google Chrome", "com.google.Chrome", 178, "fdo-25.08",
          "Nur, wenn du lieber Chrome statt des eingebauten Browsers nutzt. Chrome lädt beim Installieren "
          "zusätzlich von Google.", default=False, tile="app:browser"),
+    # E139: nur mit „Discord verwenden“ (Einstellungen › Apps › Discord); Größe von Flathub (2026-10-29: 596 MB
+    # installiert, 252 MB Download), die Electron-Basis steckt im Paket
+    _app("discord", "Discord", "com.discordapp.Discord", 569, "fdo-26.08",
+         "Der offizielle Discord-Client für Nachrichten und Sprachchat mit Freunden.", default=False,
+         switch="discord.enabled"),
 )
 
 # Werkzeuge: kommen nicht von Flathub. Größen geschätzt (Proton: Download und entpackt, E102)
@@ -285,10 +291,12 @@ def flatpak_ids() -> list:
     return [e["flatpak"] for e in EMULATORS + APPS]
 
 
-def view(installed: dict | None = None) -> dict:
+def view(installed: dict | None = None, switches: dict | None = None) -> dict:
     """Für setup.catalog: {emulators, apps, tools, recommended, rows, sections, runtimes, systems}; installed je
-    Eintrag "system" | "user" | "" (aus detect; Werkzeuge über die Schlüssel "tool:<id>")."""
+    Eintrag "system" | "user" | "" (aus detect; Werkzeuge über die Schlüssel "tool:<id>"). switches (E139): {Schlüssel:
+    bool}; Apps mit einem Schalter (Discord) stehen nur darin, wenn er an ist."""
     installed = installed or {}
+    switches = switches or {}
 
     def where(item: dict) -> str:
         return str(installed.get(item.get("flatpak") or "", "") or "")
@@ -303,7 +311,7 @@ def view(installed: dict | None = None) -> dict:
                           "bios": e["bios"], "installed": where(e)})
     apps = [{"id": a["id"], "title": a["title"], "flatpak": a["flatpak"], "size_mb": a["size_mb"],
              "runtime": a["runtime"], "hint": a["hint"], "default": a["default"], "tile": a["tile"],
-             "installed": where(a)} for a in APPS]
+             "installed": where(a)} for a in APPS if not a["switch"] or switches.get(a["switch"]) is True]
     # Werkzeuge wie in S6: umu, legendary und Proton mit seinen Familien (gewählt wird "proton:<familie>")
     tools = [{"id": t["id"], "title": t["title"], "size_mb": t["size_mb"], "kind": t["kind"], "hint": t["hint"],
               "installed": bool(installed.get("tool:" + t["id"]))} for t in TOOLS if t["kind"] == "tool"]

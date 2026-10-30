@@ -148,6 +148,10 @@ def _items_of(source: str, limit: int = MAX_ITEMS) -> tuple[list[dict], bool]:
     for name in names:
         if name.startswith(".") or not name.lower().endswith(EXTS):
             continue
+        try:
+            name.encode("utf-8")
+        except UnicodeEncodeError:
+            continue                    # Name ist kein UTF-8 (altes Archiv): sonst scheiterte die ganze Liste
         path = os.path.join(folder, name)
         try:
             st = os.lstat(path)
@@ -228,11 +232,18 @@ def ui_background(config: Any) -> dict:
             "key": key_of(image) if image else ""}
 
 
-def describe(path: str) -> str:
-    """Kurze Angabe zum gewählten Bild für die Zeile in den Einstellungen."""
+_MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def describe(path: str, lang: str = "de") -> str:
+    """Kurze Angabe zum gewählten Bild für die Zeile in den Einstellungen. Das Datum nach der Sprache: Die
+    Übersetzung an der Brücke erkennt „21.10.2026“ nicht (stand bei Englisch so da)."""
     title, when = parse_name(os.path.basename(path))
     if title and when is not None:
-        return "%s · %s" % (title, time.strftime("%d.%m.%Y", time.localtime(when)))
+        t = time.localtime(when)
+        day = "%s %d, %d" % (_MONTHS_EN[t.tm_mon - 1], t.tm_mday, t.tm_year) if lang == "en" else \
+            time.strftime("%d.%m.%Y", t)
+        return "%s · %s" % (title, day)
     return os.path.splitext(os.path.basename(path))[0]
 
 

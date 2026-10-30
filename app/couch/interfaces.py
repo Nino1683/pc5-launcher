@@ -143,8 +143,10 @@ class InputService(Protocol):
     def pads(self) -> list[dict]: ...                            # [{id, name, battery, charging, type, slot}]
     def idle_seconds(self) -> float: ...
     def rumble(self, kind: str) -> None: ...
+    def release_triggers(self) -> int: ...                      # adaptive Trigger frei (nach einem Spiel)
     def type_text(self, text: str) -> None: ...                  # XTEST in die vordere App
     def press_key(self, name: str) -> None: ...                  # "Return", "BackSpace", "Escape", "Tab", Pfeile
+    def press_combo(self, names: Any) -> None: ...               # E139: gehaltene Kombination, z. B. Strg+Umschalt+Alt+F11
     # Rückrufe, von main gesetzt:
     on_button: Callable[[str, bool], None] | None                # (taste, wiederholung) für route home/overlay
     on_ps: Callable[[str, float], None] | None                   # ("short"|"long"|"options"|"options-done"|"options-cancel", fortschritt)

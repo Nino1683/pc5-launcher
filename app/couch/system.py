@@ -34,15 +34,18 @@ def _result(argv: list[str], code: int, out: str = "", err: str = "") -> subproc
 
 
 def _run(argv: list[str], timeout: float, env: dict | None, cwd: str | None,
-         input: str | None) -> subprocess.CompletedProcess:
+         input: str | None, new_session: bool = False) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(list(argv), capture_output=True, text=True, timeout=timeout,
                               env=env, cwd=cwd, input=input, errors="replace",
-                              stdin=None if input is not None else subprocess.DEVNULL)
+                              stdin=None if input is not None else subprocess.DEVNULL,
+                              start_new_session=new_session)
     except FileNotFoundError:
         return _result(argv, 127, "", "Befehl nicht gefunden: %s" % argv[0])
     except subprocess.TimeoutExpired as e:
-        out = e.stdout if isinstance(e.stdout, str) else ""
+        # Bis dahin Gelesenes behalten. Python liefert es hier trotz text=True als bytes (avahi-browse in E142:
+        # der Fernseher steht nach 1 s da, die fehlschlagende IPv6-Auflösung hält den Befehl aber über 5 s offen)
+        out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
         return _result(argv, 124, out, "Zeitüberschreitung nach %.0f s" % timeout)
     except OSError as e:
         return _result(argv, 126, "", str(e))
@@ -81,8 +84,9 @@ def gamescope_env(argv: list[str], env: dict | None = None) -> dict | None:
 
 def run_write(argv: list[str], timeout: float = 15.0, env: dict | None = None,
               cwd: str | None = None, input: str | None = None,
-              note: str = "") -> subprocess.CompletedProcess:
-    """Verändernder Befehl. Im Prüfmodus nur protokolliert (Rückgabewert 0, leere Ausgabe)."""
+              note: str = "", new_session: bool = False) -> subprocess.CompletedProcess:
+    """Verändernder Befehl. Im Prüfmodus nur protokolliert (Rückgabewert 0, leere Ausgabe).
+    new_session: eigene Sitzung ohne steuerndes Terminal (E140: flatpak uninstall kann so nirgends nachfragen)."""
     for_gamescope = bool(argv) and os.path.basename(str(argv[0])) in GAMESCOPE_TOOLS
     env = gamescope_env(argv, env)
     if paths.test_mode():
@@ -90,7 +94,7 @@ def run_write(argv: list[str], timeout: float = 15.0, env: dict | None = None,
         record_write(argv, note, {GAMESCOPE_SOCKET_VAR: socket_name} if socket_name else None)
         return _result(argv, 0)
     _log.info("run_write %s%s", " ".join(argv), " (%s)" % note if note else "")
-    return _run(argv, timeout, env, cwd, input)
+    return _run(argv, timeout, env, cwd, input, new_session)
 
 
 def record_write(argv: list[str], note: str = "", env: dict | None = None) -> None:

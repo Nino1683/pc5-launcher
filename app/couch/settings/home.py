@@ -30,7 +30,7 @@ import logging
 import os
 import re
 
-from .. import bootvideos, gallery, paths, themes
+from .. import bootvideos, gallery, i18n, paths, themes
 from .rows import AREA_ORDER, Page, SettingsError, action, confirm_action, link, option, select, text, toggle
 
 log = logging.getLogger("couch.settings.home")
@@ -226,7 +226,7 @@ class HomeArea:
         if mode == "image":
             image = gallery.image_of(self.config)
             hit = gallery.checked(image) if image else None
-            note = gallery.describe(hit[0]) if hit else (IMAGE_GONE if image else NO_IMAGE)
+            note = gallery.describe(hit[0], i18n.language(self.config)) if hit else (IMAGE_GONE if image else NO_IMAGE)
             rows.append(action("home.background_pick", "Bild auswählen", note=note, hint=PICK_HINT))
         elif mode == "slideshow":
             slides = gallery.slides_of(self.config)

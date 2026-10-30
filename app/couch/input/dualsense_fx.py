@@ -6,7 +6,8 @@ Wege, vom schonendsten zum direktesten:
      sysfs /sys/class/leds/inputN:white:player-K      -> Spieler-LEDs (nur wenn schreibbar)
      sysfs <HID-Gerät>/power_supply/*                 -> Akku
   3. hidraw-Berichte (nur Auf- und Abbau, hier wird kein hidraw geöffnet): build_output_report,
-     parse_input_report. Layout: drivers/hid/hid-playstation.c (struct dualsense_output_report_*).
+     parse_input_report. Geschrieben wird nur die Freigabe der Trigger nach einem Spiel
+     (padreader.release_triggers, E137). Layout: drivers/hid/hid-playstation.c (struct dualsense_output_report_*).
 
 Alles, was das Pad anfasst, scheitert still: Die Aufrufer bekommen False/None, nie eine Ausnahme.
 UNBESTÄTIGT: Die sysfs-Namen, Rechte und die Vibration stammen aus dem Treiber-Quelltext; am
@@ -26,11 +27,14 @@ BT_TAG = 0x10
 CRC_SEED_OUTPUT, CRC_SEED_INPUT = 0xA2, 0xA1
 
 FLAG0_COMPATIBLE_VIBRATION, FLAG0_HAPTICS_SELECT = 0x01, 0x02
+FLAG0_RIGHT_TRIGGER, FLAG0_LEFT_TRIGGER = 0x04, 0x08
 FLAG1_MIC_MUTE_LED, FLAG1_LIGHTBAR, FLAG1_PLAYER_LEDS = 0x01, 0x04, 0x10
 FLAG2_COMPATIBLE_VIBRATION2 = 0x04
 
 # Offsets im gemeinsamen Teil (47 Bytes)
 O_FLAG0, O_FLAG1, O_MOTOR_RIGHT, O_MOTOR_LEFT, O_MUTE_LED = 0, 1, 2, 3, 8
+O_RIGHT_TRIGGER, O_LEFT_TRIGGER = 10, 21          # je 11 Bytes Trigger-Effekt, das erste ist die Art
+TRIGGER_OFF = 0x05                                # Art „aus“: kein Widerstand, keine Vibration
 O_FLAG2, O_PLAYER_LEDS, O_RED, O_GREEN, O_BLUE = 38, 43, 44, 45, 46
 COMMON_SIZE = 47
 
@@ -48,9 +52,14 @@ def build_output_report(bluetooth: bool, seq: int = 0, *,
                         player_leds: int | None = None,
                         mic_led: bool | None = None,
                         rumble: tuple[int, int] | None = None,
-                        vibration_v2: bool = True) -> bytes:
-    """Baut einen Ausgabebericht. rumble = (stark/links, schwach/rechts), je 0..255."""
+                        vibration_v2: bool = True,
+                        triggers_off: bool = False) -> bytes:
+    """Baut einen Ausgabebericht. rumble = (stark/links, schwach/rechts), je 0..255. triggers_off gibt
+    beide Trigger frei (ein Spiel, das endet, ohne seinen Widerstand zurückzunehmen)."""
     common = bytearray(COMMON_SIZE)
+    if triggers_off:
+        common[O_FLAG0] |= FLAG0_RIGHT_TRIGGER | FLAG0_LEFT_TRIGGER
+        common[O_RIGHT_TRIGGER] = common[O_LEFT_TRIGGER] = TRIGGER_OFF
     if lightbar is not None:
         common[O_FLAG1] |= FLAG1_LIGHTBAR
         common[O_RED], common[O_GREEN], common[O_BLUE] = (max(0, min(255, v)) for v in lightbar)

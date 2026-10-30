@@ -91,8 +91,10 @@ def extend(wiring: Any) -> None:
             _log.exception("Was ist neu: erster Start")
             version = ""
         if version:
+            # Nur in die Liste: Das Home fragt ohnehin mit „Später | Was ist neu“ (update-notes.js), sonst stand derselbe
+            # Satz zweimal da
             app.notify.push("PC5 Launcher %s ist installiert" % version,
-                            "Was neu ist, steht unter Einstellungen › Updates › Was ist neu.", icon="update")
+                            "Was neu ist, steht unter Einstellungen › Updates › Was ist neu.", icon="update", silent=True)
         publish_whatsnew()
 
     wiring.after_ready.append(lambda: wiring._bg(after_start))

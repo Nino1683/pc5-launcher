@@ -6,6 +6,10 @@ Arbeits-Thread und schreiben nichts. Ihr letztes Ergebnis liegt in library-cache
 das Home sofort Kacheln zeigt und damit Einträge einer abgezogenen Platte als "nicht
 verfügbar" stehen bleiben, statt zu verschwinden.
 
+Übernommene Spiele (E134): library.json "imported" hält je Quelle einen Schnappschuss von Einträgen, die eine
+Quelle einmal übernommen hat und danach nur noch daraus liest (die Spiele aus Lutris, library/imported.py).
+Geschrieben wird er nur über keep_imported; die Quelle liest ihn aus der Datei wie "local".
+
 Platte weg: Was eine Quelle nicht mehr meldet, bleibt als available=False stehen, wenn sein
 Ort auf einem fehlenden Datenträger liegt (volume_missing) oder solange ein angemeldeter
 Datenträger (add_volume, z. B. die Spiele-Platte) fehlt. Eine Quelle, die gerade nicht lesen
@@ -58,8 +62,11 @@ _STEAM_APP = re.compile(r"steam:\d+")
 FIRST_LIST_WAIT_S = 1.5
 # E106: Kennungen, die auf einem anderen Rechner dasselbe Spiel meinen (Steam-AppID, Lutris-Slug,
 # feste App-Kachel). local:, emu:, rom:, Verknüpfungen (steam:shortcut:…) und lutris:<slug>~<zeile>
-# (Zeilennummer der Lutris-Datenbank) hängen am Rechner und werden nie übertragen
-TRANSFER_ID = re.compile(r"steam:\d{1,10}|lutris:[A-Za-z0-9][A-Za-z0-9._-]{0,199}|app:[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+# (Zeilennummer der Lutris-Datenbank) hängen am Rechner und werden nie übertragen.
+# E141: dazu erkannte Flatpaks (flatpak:<kennung>, E140): Die Kennung von Flathub meint überall dieselbe App
+# (ausgeblendet, Reihenfolge, Spielzeit reisen mit)
+TRANSFER_ID = re.compile(r"steam:\d{1,10}|lutris:[A-Za-z0-9][A-Za-z0-9._-]{0,199}|app:[A-Za-z0-9][A-Za-z0-9._-]{0,99}"
+                         r"|flatpak:[A-Za-z_][A-Za-z0-9_-]{0,80}(\.[A-Za-z0-9_-]{1,80}){2,8}")
 # E106: Optionen mit Pfaden dieses Rechners (Spielstand-Ordner, Startdatei) reisen nicht mit. Ebenso
 # Umgebungsvariablen und Startargumente: Aus einer fremden Sicherung (ZIP von einem Laufwerk) könnten sie
 # beim nächsten Start Code nachladen (LD_PRELOAD auf eine Datei des Sticks, Nachbesserung E106)
@@ -296,6 +303,7 @@ class LibraryIndex:
         self._observers: list[Callable[[], None]] = []
         self._meta: dict[str, dict] = {}            # id -> {options, playtime, last_played, hidden}
         self._local: dict[str, dict] = {}           # id -> Entry als dict (eigene Einträge)
+        self._imported: dict[str, list[dict]] = {}  # Quelle -> übernommene Einträge als dict (E134)
         self._scanned: dict[str, list[Entry]] = {}  # Quelle -> Einträge des letzten Laufs
         self._entries: dict[str, Entry] = {}
         self._order: dict[str, int] = {}            # id -> Platz in der Reihenfolge der Quellen
@@ -356,6 +364,7 @@ class LibraryIndex:
                 raise ValueError("oberste Ebene ist kein Objekt")
             meta = data.get("meta", {})
             local = data.get("local", {})
+            imported = data.get("imported", {})
             if not isinstance(meta, dict) or not isinstance(local, dict):
                 raise ValueError("meta/local haben die falsche Form")
         except (ValueError, RecursionError) as e:
@@ -385,6 +394,20 @@ class LibraryIndex:
                 self._local[str(key)] = local_form(str(key), record)
             else:
                 damaged = True
+        # E134: übernommene Einträge. Ein unbrauchbarer Datensatz fällt weg (die Urfassung bleibt als Sicherung),
+        # die übrigen bleiben; eine kaputte Form verliert sonst nichts von meta und local
+        self._imported = {}
+        if isinstance(imported, dict):
+            for name, records in imported.items():
+                if not isinstance(records, list):
+                    damaged = True
+                    continue
+                good = [r for r in records if isinstance(r, dict) and isinstance(r.get("id"), str) and r["id"]
+                        and isinstance(r.get("title"), str)]
+                damaged = damaged or len(good) != len(records)
+                self._imported[str(name)] = good
+        else:
+            damaged = True
         if damaged:
             self._keep_broken(blob)
             _log.error("library.json enthält unbrauchbare Werte, sie werden übergangen; "
@@ -407,6 +430,9 @@ class LibraryIndex:
                 _log.error("library.json wird nicht gespeichert: Sie war beim Start nicht lesbar (%s)", self.path)
             return
         data = {"version": 1, "meta": self._meta, "local": self._local}
+        with self._lock:
+            if self._imported:
+                data["imported"] = copy.deepcopy(self._imported)
         if self._seen_since is not None:
             data["seen_since"] = self._seen_since
         if self._seen_sources is not None:
@@ -530,8 +556,13 @@ class LibraryIndex:
 
     def _forgotten(self, entry: Entry) -> bool:
         """Aus der Liste entfernt (E91), solange das Spiel nicht wieder verfügbar ist."""
-        meta = self._meta.get(getattr(entry, "id", None))
-        return isinstance(meta, dict) and meta.get("forgotten") is True and getattr(entry, "available", True) is False
+        return self.is_forgotten(getattr(entry, "id", None), getattr(entry, "available", True))
+
+    def is_forgotten(self, entry_id: Any, available: Any) -> bool:
+        """Wie _forgotten, für eine ID und ihr available (E134: Zahl in der Mitteilung der Übernahme)."""
+        with self._lock:
+            meta = self._meta.get(entry_id)
+            return isinstance(meta, dict) and meta.get("forgotten") is True and available is False
 
     def _mark_seen(self, results: dict[str, list[Entry]] | None = None) -> bool:
         """Nach einem vollständigen Lauf: Wann ist ein Spiel neu installiert aufgetaucht? Merkt die
@@ -700,11 +731,6 @@ class LibraryIndex:
             options.pop(key, None)              # nur Abweichungen speichern
         else:
             options[key] = copy.deepcopy(value)
-        if key == "proton" and options.get("launcher") == "lutris":
-            # Wer eine Proton-Fassung wählt, will mit Proton starten: „wie in Lutris“ (E55, nur von der
-            # Startreparatur gesetzt) überginge die Wahl (Wunsch 2026-10-24: „Selbst wenn ich manuell eine
-            # Proton-Version auswähle, geht es nicht“)
-            options.pop("launcher", None)
         self._changed()
 
     def set_hidden(self, entry_id: str, hidden: bool) -> None:
@@ -712,6 +738,17 @@ class LibraryIndex:
             raise KeyError("unbekannter Eintrag: %s" % entry_id)
         self._meta.setdefault(entry_id, {})["hidden"] = bool(hidden)
         self._changed()
+
+    def hidden_by_user(self, kind: str | None = None) -> list[Entry]:
+        """E141: Einträge, die jemand ausgeblendet hat (meta.hidden), in Namensfolge. Was eine Quelle selbst verbirgt
+        (die Emulator-Einträge app:emu-*, E105), zählt nicht: Das hat niemand ausgeblendet, also gibt es keinen Weg
+        zurück."""
+        out = []
+        for entry in self.entries():
+            meta = self._meta.get(entry.id)
+            if isinstance(meta, dict) and meta.get("hidden") is True and entry.hidden and (kind is None or entry.kind == kind):
+                out.append(entry)
+        return sorted(out, key=lambda e: (e.sort_title or e.title or "").casefold())
 
     def files_gone(self, entry: Entry) -> bool:
         """Spielordner von Hand gelöscht (E91): nicht verfügbar, obwohl sein Datenträger da ist.
@@ -1104,6 +1141,38 @@ class LibraryIndex:
     def local_ids(self) -> list[str]:
         return list(self._local)
 
+    # ------------------------------------------------------------ Übernommene Einträge (E134)
+    def imported(self, name: str) -> list[dict]:
+        """Der Schnappschuss einer Quelle (Kopie; leer, wenn es keinen gibt). Auch aus Threads."""
+        with self._lock:
+            return copy.deepcopy(self._imported.get(name, []))
+
+    def keep_imported(self, name: str, records: list, then: Callable[[bool], None] | None = None) -> None:
+        """Hauptschleife: den Schnappschuss einer Quelle festhalten (library.json "imported", E134). then(geschrieben)
+        kommt, sobald library.json auf der Platte ist (mit writer in einem kurzen eigenen Thread nach dessen
+        flush, ohne sofort): Erst dann vermerkt die Quelle die Übernahme als erledigt. War library.json beim Start
+        nicht lesbar, wird nichts gespeichert; die Quelle prüft die Platte selbst und übernimmt beim nächsten
+        Start noch einmal. Ändert keine Einträge und meldet nichts (das macht der Lauf der Quellen)."""
+        good = [copy.deepcopy(r) for r in records if isinstance(r, dict) and isinstance(r.get("id"), str)
+                and isinstance(r.get("title"), str)]
+        with self._lock:
+            self._imported[str(name)] = good
+        self._save()
+        if then is None:
+            return
+
+        def done(flushed: bool) -> None:
+            try:
+                then(flushed)
+            except Exception:
+                _log.exception("Rückruf nach dem Speichern der übernommenen Einträge (%s)", name)
+        if self._writer is None:
+            done(True)
+            return
+        writer = self._writer
+        threading.Thread(target=lambda: done(bool(writer.flush(30.0))), name="couch-imported",
+                         daemon=True).start()
+
     def _drop_scanned(self, entry_id: str) -> None:
         for name, items in self._scanned.items():
             if any(e.id == entry_id and e.source == "local" for e in items):
@@ -1273,7 +1342,11 @@ def check_option(key: str, value: Any) -> Any:
         if value not in ("auto", "off"):
             raise ValueError("Hier geht nur „Automatisch“ oder „Aus“.")
         return value
-    if key == "optiscaler":
+    if key == "runner":
+        if value not in ("proton", "wine-run"):
+            raise ValueError("Hier geht nur „Proton“ oder „wine-run“.")
+        return value
+    if key in ("optiscaler", "dxvk"):
         if value not in ("off", "on"):
             raise ValueError("Hier geht nur „Aus“ oder „Ein“.")
         return value
@@ -1292,10 +1365,6 @@ def check_option(key: str, value: Any) -> Any:
     if key == "saves":
         if not isinstance(value, str) or (value and (not os.path.isabs(value) or len(value) > 4096)):
             raise ValueError("Das ist kein Ordner.")
-        return value
-    if key == "launcher":
-        if value not in ("auto", "lutris"):
-            raise ValueError("Hier geht nur „Automatisch“ oder „Wie in Lutris“.")
         return value
     if key == "resolution":
         if value not in _RESOLUTIONS:

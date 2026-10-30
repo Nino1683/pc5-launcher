@@ -594,6 +594,7 @@ class ProtonJobs:
                 else:
                     _log.info("Proton %s nicht prüfbar: %s", e["name"], e.get("reason"))
                 continue
+            self._protect_own(e["name"], path, mdir)
             if e["manifest"] or e["method"] != "zeitstempel":
                 continue
             try:
@@ -608,6 +609,18 @@ class ProtonJobs:
                 _log.exception("Proton-Manifest für %s", e["name"])
         if made or self.damaged:
             self._changed()
+
+    def _protect_own(self, name: str, path: str, mdir: str) -> None:
+        """2026-10-28: Eigene, heile Versionen (vom PC5 Launcher installiert oder repariert) schreibgeschützt halten,
+        damit Steam oder ein anderes Proton sie nicht über einen Prefix überschreibt (proton_repair.protect)."""
+        try:
+            if not proton_repair.is_own(path, mdir, proton_repair.backup_dir()):
+                return
+            count = proton_repair.protect(path)
+            if count:
+                _log.info("Proton %s: %d Dateien schreibgeschützt", name, count)
+        except Exception:
+            _log.exception("Schreibschutz für Proton %s", name)
 
     def _damaged_at_start(self, e: dict, path: str, told: bool = False) -> None:
         """told: schon gemeldet (Prüfung nach einem Steam-Spiel); dann nur noch eine neue Reparatur melden."""

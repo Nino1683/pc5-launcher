@@ -274,8 +274,9 @@ def path_issues(entries: list) -> list:
 
 # ---------------------------------------------------------------- Titel und Ordnername
 
-NOISE = r"(?i)\b(gog|repack|fitgirl|dodi|elamigos|ankergames|portable|multi\d*|x64|x86|win64|win32|windows|linux|" \
-        r"steamrip|rip|iso|goty|proper|incl|dlcs?|update|build|unity|unreal|drm[ -]?free|eur|usa|pal|ntsc)\b"
+# E143: ohne Namen von Release-Gruppen
+NOISE = r"(?i)\b(gog|portable|multi\d*|x64|x86|win64|win32|windows|linux|" \
+        r"iso|goty|proper|incl|dlcs?|update|build|unity|unreal|drm[ -]?free|eur|usa|pal|ntsc)\b"
 
 
 def clean_name(raw: str) -> str:
@@ -362,7 +363,7 @@ EXE_SOFT_BAD = re.compile(
     r"(?i)(setup|install|config|settings|server|editor|crash|report|helper|updat|patch|redist|benchmark|"
     r"diag|register|trainer|keygen|language|launcher|modtool|dedicated|test)")
 GENERIC_TOP = {"game", "games", "installer", "install", "setup", "bin", "app", "data", "release", "files",
-               "windows", "win64", "linux", "build", "disc1", "cd1", "dvd", "iso", "crack", "newfolder", "neuerordner"}
+               "windows", "win64", "linux", "build", "disc1", "cd1", "dvd", "iso", "newfolder", "neuerordner"}
 INSTALLER_NAME = re.compile(r"(?i)^(setup.*|install(er)?.*|.*_setup|.*-setup|.*installer)\.(exe|msi)$")
 
 # Beigaben neben dem eigentlichen Spielordner (Lies-mich, Verknüpfung zur Download-Seite, Start-Batch):

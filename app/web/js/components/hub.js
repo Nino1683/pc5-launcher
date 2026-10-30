@@ -15,7 +15,7 @@ import { S, fmt, playtimeText, whenText } from "../core/strings.js";
 import { store } from "../core/store.js";
 import { artBox, updateArt, badge, marks, stateOf } from "./art.js";
 import { mainLabel, canStart, isRunning } from "./entry-actions.js";
-import { createHubSections } from "./hub-sections.js";
+import { createHubSections, showAbout } from "./hub-sections.js";
 import { gameInfo, wantsInfo } from "./gameinfo.js";
 import { createTrailer } from "./trailer.js";
 import { CARD_SOURCES } from "./hub-cards.js";
@@ -80,9 +80,12 @@ export function createHub(handlers = {}) {
   const main = h("div.btn.hub-main", { "data-focus": true }, mainLabelEl);
   const secondLabel = h("span.btn-label");
   const second = h("div.btn.is-secondary.hub-second", { "data-focus": true, hidden: true }, secondLabel);
-  // Rechts vom „…“ ist Schluss (Randton): Nach Lage läge sonst das Zahnrad oben rechts „rechts“
+  // Rechts vom „…“ ist Schluss (Randton): Nach Lage läge sonst das Zahnrad oben rechts „rechts“. Gibt es eine lange
+  // Beschreibung (Steam-Angaben, hub-sections.js), folgt noch „Beschreibung“, dann ist dort Schluss
   const more = h("div.btn.is-secondary.is-round.hub-more", { "data-focus": true, "data-nav-right": "none" }, icon("more"));
-  const actions = h("div.hub-actions", main, second, more);
+  const about = h("div.btn.is-secondary.hub-about-btn", { "data-focus": true, "data-nav-right": "none", hidden: true },
+    icon("info"), h("span.btn-label", { text: S.stMore }));
+  const actions = h("div.hub-actions", main, second, more, about);
   const chipBox = h("div.hub-chips");
   const cards = h("div.hub-cards");
   // Store-Kachel (Wunsch 2026-10-21: „mehr Infos als nur Öffnen“): anwählbare Karten mit Bild
@@ -91,7 +94,13 @@ export function createHub(handlers = {}) {
   let storeCards = [];
   const el = h("div.hub", { "data-focus-group": true }, logo, tagline, sub, note, actions, chipBox, cards, storeBox);
   // E123: Abschnitte unter den Karten (geladen, sobald der Hub offen ist) und der Trailer dahinter
-  const sections = createHubSections(el);
+  let aboutSteam = null;
+  const sections = createHubSections(el, { onAbout: (steam) => {
+    aboutSteam = steam;
+    about.hidden = !steam;
+    if (steam) more.removeAttribute("data-nav-right"); else more.setAttribute("data-nav-right", "none");
+    requestAnimationFrame(fitChips);  // kommt nach den Marken: vordere treten zurück, statt verdeckt zu werden
+  } });
   el.append(sections.el);
   const trailer = createTrailer(el);
   el.addEventListener("nav-focus", () => sections.open());
@@ -116,6 +125,7 @@ export function createHub(handlers = {}) {
 
   main.addEventListener("press", () => { if (entry && handlers.onMain) handlers.onMain(entry); });
   more.addEventListener("press", () => { if (entry && handlers.onMore) handlers.onMore(entry); });
+  about.addEventListener("press", () => showAbout(aboutSteam));
   second.addEventListener("press", () => {
     const def = secondOf(entry);
     if (def && handlers.onSecond) handlers.onSecond(entry, def.kind);
@@ -285,8 +295,11 @@ export function createHub(handlers = {}) {
   function renderCards() {
     const byOrder = (a, b) => (a.order ?? 100) - (b.order ?? 100);
     let all = [];
-    if (extraCards.some((c) => (c.order ?? 100) < 50)) all = [...extraCards].sort(byOrder).slice(0, MAX_USEFUL);
-    else if (!waitingCards()) {
+    // Auch die nützlichen erst, wenn alle Quellen geantwortet haben: Sonst standen Trophäen und Fotos erst breit da
+    // und ordneten sich um, sobald Neuigkeiten und Infos aus dem Netz kamen
+    if (waitingCards()) all = [];
+    else if (extraCards.some((c) => (c.order ?? 100) < 50)) all = [...extraCards].sort(byOrder).slice(0, MAX_USEFUL);
+    else {
       const base = ((detail && detail.info) || []).slice(0, 3).map((it, i) => ({ ...it, order: 50 + i }));
       all = [...base, ...extraCards].sort(byOrder).slice(0, MAX_CARDS);
     }
@@ -343,6 +356,7 @@ export function createHub(handlers = {}) {
       cardsPending = 0;
       cardsWaited = false;
       cardSerial += 1;
+      rested = "";                  // sonst fragte rest() nach A → B → A (B nicht ausgeruht) nie wieder
       clearTimeout(cardsTimer);
       cards.replaceChildren();
       miniArt.replaceChildren(artBox(entry, { withTitle: false }));

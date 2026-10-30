@@ -78,7 +78,7 @@ function paintCard(node, c, lazy = false) {
   flag.textContent = kind === "installed" ? S.stInstalled : kind === "loading" ? S.stDownloading : kind ? S.stOwned : "";
   if (kind) flag.dataset.kind = kind; else delete flag.dataset.kind;
   node.querySelector(".st-price-row").replaceChildren(...(c.discount
-    ? [h("span.st-disc", { text: "−" + c.discount + " %" }), h("span.st-old", { text: c.original }), h("span.st-price", { text: c.price })]
+    ? [h("span.st-disc", { text: "−" + fmt(S.dlPercent, { n: c.discount }) }), h("span.st-old", { text: c.original }), h("span.st-price", { text: c.price })]
     : [h("span.st-price", { text: c.price })]));
 }
 

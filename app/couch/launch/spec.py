@@ -86,6 +86,9 @@ class LaunchSpec:
     # E109: Tastenbelegung im Spiel-Modus {taste: ziel} (Option pad_keys, nur mouse == "game"; {} = E64). Beim
     # Start festgehalten (apply_pad_keys): wirkt ab dem nächsten Start und kommt mit running.json mit
     pad_keys: dict = field(default_factory=dict)
+    # E139: im Hintergrund gestartet (Shell.launch_background, Discord mit der Sitzung): kein Ladebild, kommt nicht von
+    # selbst nach vorn, keine Spielzeit, bis es einmal vorn war. Steht mit running.json mit, ändert sonst nichts am Lauf
+    background: bool = False
 
 
 # Spiele, die man nur mit der Maus spielt (E97): Mit „Controller › Automatisch“ wird das Pad zum Zeiger

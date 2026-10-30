@@ -1110,10 +1110,15 @@ class GogDownloads(_FolderQueue):
             json.dump(data, fh, indent=1)
         os.replace(tmp, self.registry_file())
 
+    def _langs(self) -> tuple:
+        """Sprachen der Spielfassung nach der Oberfläche: Englisch zuerst, wenn sie englisch ist."""
+        from . import i18n
+        return ("en", "de") if i18n.language(getattr(self.app, "config", None)) == "en" else ("de", "en")
+
     def _install(self, job: dict) -> str:
         cancel = job["cancel"]
         product = self.account.get(gog_install.DOWNLOADS % job["id"])
-        pick = gog_install.pick_installer(product)
+        pick = gog_install.pick_installer(product, self._langs())
         if pick is None:
             raise gog_install.InstallError("Zu diesem Spiel gibt es keinen Installer für Windows oder Linux.")
         root = store_root(self.app, self.LEVEL)
@@ -1198,7 +1203,8 @@ class GogDownloads(_FolderQueue):
         tool = gog_extract.find_tool()
         if tool is None:
             raise gog_install.InstallError("Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s). Zum Auspacken "
-                                           "ohne Wine fehlt innoextract (kommt mit Lutris)." % rc)
+                                           "ohne Wine fehlt innoextract; installieren lässt es sich am Desktop "
+                                           "im Terminal mit „brew install innoextract“." % rc)
         _log.info("GOG: Installer endete mit %s, %s wird mit %s ausgepackt", rc, job["title"], tool)
         import subprocess
         from . import files
@@ -1208,7 +1214,7 @@ class GogDownloads(_FolderQueue):
         with open(log.capped(paths.app_log(self.LOG_NAME)), "a") as log_fh:
             try:
                 lang = gog_extract.extract(tool, installer, target, log_fh, job["cancel"], on_proc=track,
-                                           trash=files.gio_trash)
+                                           trash=files.gio_trash, wanted=self._langs())
             except (RuntimeError, OSError, subprocess.SubprocessError) as e:
                 raise gog_install.InstallError(str(e) if isinstance(e, RuntimeError)
                                                else "Das Auspacken des GOG-Installers ist gescheitert.") from None

@@ -1,5 +1,89 @@
 # Änderungen
 
+## Nächste Fassung
+
+- **Fernseher steuern:** Hat dein Fernseher Google TV oder Android TV, steuert der PC5 Launcher ihn über das Heimnetz,
+  auch ohne HDMI-CEC am PC: im Control Center unter „Fernseher“ Leiser, Lauter, Stumm, Eingang wechseln und
+  Ausschalten. Einschalten und koppeln unter Einstellungen › Bildschirm und Video › Fernseher steuern (aus ist
+  Vorgabe): Der PC5 Launcher sucht den Fernseher im Netz (oder du gibst seine Adresse ein), der Fernseher zeigt einen
+  Code, den du mit dem Controller eintippst. Wahlweise schaltet er den Fernseher beim Ruhemodus und Ausschalten aus
+  (immer oder nur, wenn er gerade den PC zeigt) und beim Aufwachen wieder ein, gleich auf den Eingang des PCs. Mit
+  „Eingänge genauer erkennen“ (Netzwerk-Debugging am Fernseher) kennt er die Eingänge samt den Namen der Geräte
+  daran und schaltet zuverlässig um; ohne geht es über die Tasten HDMI 1 bis 4 und das Eingangsmenü. Damit der
+  Fernseher aus dem Standby aufwacht, muss in seinen Einstellungen „Netzwerk-Standby“ (je nach Hersteller „Wake on
+  LAN“) an sein.
+- **Neuer Reiter „Apps“:** Das Home hat jetzt drei Reiter, „Spiele“, „Apps“ und „Medien“ (L1/R1 wechseln der Reihe
+  nach). Unter „Apps“ stehen der App Store (Bazaar, wenn es auf dem Rechner ist, zum Installieren von Apps und Spielen aus Flathub),
+  Browser, Dateien, Desktop, Claude Code, Discord und EmuDeck, unter „Medien“ YouTube, Kodi, Jellyfin, Moonlight und
+  die Mediengalerie. Was du in Bazaar (oder sonst wie) als Flatpak installierst, erscheint von selbst als Kachel, auch
+  während Bazaar noch offen ist: Spiele unter „Spiele“, Video- und Musik-Apps unter „Medien“, alles andere unter
+  „Apps“; Deinstalliertes verschwindet wieder. Kacheln lassen sich jetzt in jeder Reihe verschieben (Optionsmenü ›
+  „Kachel verschieben“, je Reihe „Reihenfolge zurücksetzen“), und Flatpak-Apps wie YouTube oder Kodi lassen sich dort
+  auch deinstallieren; deine Daten der App bleiben dabei erhalten.
+- **Apps ausblenden:** Jede Kachel unter „Apps“ und „Medien“ hat im Optionsmenü „Ausblenden“ (auch Browser, Desktop,
+  Dateien oder die Mediengalerie; nur Steam nicht). Die App bleibt installiert, sie verschwindet nur aus dem Home.
+  Zurück holst du sie unter Einstellungen › Apps › Ausgeblendete Apps mit „Wieder anzeigen“.
+- **App Store schließt sich richtig:** Machst du den App Store zu (sein Fenster oder „Schließen“ im PC5 Launcher), wird
+  er ganz beendet. Läuft gerade ein Download oder Update, fragt der PC5 Launcher vorher nach; geht nur das Fenster zu,
+  läuft er unsichtbar weiter, bis die Übertragung fertig ist, und beendet sich dann selbst. Ausschalten und Neustart
+  sagen dazu, wenn im App Store noch etwas lädt.
+- **Claude Code mitstarten:** Unter Einstellungen › Apps lässt sich einschalten, dass Claude Code mit dem PC5 Launcher
+  im Hintergrund startet und gleich die letzte Unterhaltung lädt (aus ist Vorgabe). Beim Einschalten startet es sofort.
+  Die Kachel oder die Karte im Control Center holt es nach vorn.
+- **Sicherung mit allen Reihen:** „Einstellungen sichern und übernehmen“ nimmt jetzt auch die Reihenfolge unter
+  „Apps“ und „Medien“ und die ausgeblendeten Kacheln mit. Ältere Sicherungen lassen sich weiter übernehmen.
+- **Discord, wenn du willst:** Unter Einstellungen › Apps › Discord lässt sich der offizielle Discord-Client
+  einschalten (aus ist Vorgabe) und von dort aus Flathub installieren. Er startet dann mit dem PC5 Launcher
+  unsichtbar im Hintergrund und läuft auch während eines Spiels weiter, für Nachrichten und Sprachchat. Seine
+  Nachrichten erscheinen als Mitteilung, im Control Center gibt es ein Symbol „Discord“ mit „Mikrofon in Discord
+  stumm/an“, „Ton in Discord aus/an“ und „Discord öffnen“ (dafür trägst du in Discord zwei Tastenbelegungen ein, die
+  Seite nennt sie), und mit einer eigenen, kostenlosen Application ID sehen deine Freunde, was du gerade spielst.
+  Damit Discord im Spielmodus überhaupt Mitteilungen schicken darf, gibt der PC5 Launcher seinem Flatpak vor dem
+  Start die Freigabe dafür (dieselbe wie mit Flatseal). Ausgeschaltet läuft und erscheint davon nichts.
+- **Lutris wird nicht mehr gebraucht:** Deine Lutris-Spiele werden beim ersten Start dieser Fassung einmal
+  übernommen, mit Spielzeit, Einstellungen, Favoriten, Spielständen und Bildern, und starten danach ohne Lutris.
+  Was später noch in Lutris dazukommt, erscheint nicht mehr in der Bibliothek. Den Startweg „wie in Lutris“ gibt es
+  nicht mehr: Solche Spiele starten wieder mit Proton. Für GOG-Installer, die sich nur auspacken lassen, sucht der
+  PC5 Launcher innoextract jetzt auch in Homebrew (`brew install innoextract`) statt bei Lutris.
+- **Control Center:** Alle laufenden Spiele und Apps haben jetzt eine Karte (bisher nur zwei), die vorn laufende
+  zuerst; sind es mehr, als nebeneinander passen, rückt die Reihe mit. Die große Karte „Zum Home-Bildschirm“ ist
+  weg, dafür gibt es das Home-Symbol in der Leiste.
+- **Starten mit wine-run:** Gibt es auf dem Rechner das Skript `~/.local/bin/wine-run`, lässt sich ein eigenes
+  Windows-Spiel in den Spieleinstellungen unter „Starten mit“ auf wine-run stellen. Es startet dann wie ein
+  Doppelklick im Desktop statt mit Proton.
+- **DXVK je Spiel:** In den Spieleinstellungen unter „Bild“ lässt sich DXVK für ein Spiel ausschalten. Es startet
+  dann mit Wines eigenem Direct3D (WineD3D), das ist langsamer, hilft aber manchen Spielen, die mit DXVK abstürzen
+  oder falsch aussehen.
+- **Proton bleibt heil:** Steam am Desktop ließ beim Start mehrere Proton-Versionen gleichzeitig auf einem Prefix
+  laufen, und eine überschrieb dabei Dateien einer anderen. Danach starteten Spiele mit der betroffenen Version
+  nicht mehr, bis der PC5 Launcher sie neu geladen hatte. Proton-Versionen, die der PC5 Launcher installiert oder
+  repariert hat, sind jetzt schreibgeschützt und lassen sich so nicht mehr überschreiben.
+- **Controller-Mitteilungen:** „Akku des Controllers fast leer“ kommt nicht mehr bei jedem Wiederverbinden, sondern
+  erst wieder, nachdem der Controller geladen wurde; nach einem Neustart des PC5 Launchers meldet sich ein schon
+  verbundener Controller nicht mehr mit „Controller verbunden“.
+- **Leistung im Home:** Nach dem Weg aus der Spielansicht zurück in die Kachelreihe lief der Schimmer des Fokusrings
+  ohne Ende weiter, und das Home zeichnete auch in Ruhe 60 Bilder in der Sekunde neu (seit 0.4.0). Jetzt steht er
+  nach einigen Sekunden wieder still.
+- **Home:** Nach kurzem Hin und Her zwischen zwei Spielen fehlten Kurzbeschreibung und Karten; die Karten unter dem
+  Spiel springen nicht mehr um, wenn Neuigkeiten nachkommen; in der Widget-Leiste geht der Fokus nicht mehr verloren,
+  wenn „Zuletzt gespielt“ neu gezeichnet wird. „Beschreibung“ steht in der Spielansicht jetzt oben rechts neben „…“
+  statt dicht unter den Steam-Bildern.
+- **Trophäen:** Die Übersicht öffnet sofort, die Seltenheiten kommen im Hintergrund nach (vorher mehrere Sekunden
+  Warten beim ersten Öffnen).
+- **Nach einem Update** kommt der Hinweis nur noch einmal (als Frage im Home); „Was ist neu“ erscheint nach dem
+  Ansehen nicht wieder, auch wenn gerade nach Updates gesucht wurde.
+- **Englische Oberfläche:** Spieltitel mit Tausender-Komma („Warhammer 40,000“) bleiben, wie sie sind, und die
+  Galerie findet ihre Bildschirmfotos; bei GOG kommt zuerst die englische Spielfassung; Datum, Uhrzeit (nach der
+  24-Stunden-Einstellung), Zahlen und Rabatte im Format der Sprache.
+- **Trailer:** Ein Trailer, den niemand mehr abspielt, belegt nach seiner Laufzeit keinen Platz im Trailer-Dienst
+  mehr; klappt das Ablegen im Spielordner nicht, wird der Rest nicht mehr umsonst geladen.
+- **Startvideos:** Bei Netzfehlern bleibt die zuletzt geladene Liste stehen, und nach einem Aussetzer lädt sie beim
+  Weiterblättern nach; eine volle Platte gibt einen klaren Satz.
+- **Kleinigkeiten:** Eine Bilddatei mit kaputtem Namen legt die Galerie nicht mehr lahm; bremst Steam die Anfragen,
+  steht das so da statt „nicht erreichbar“.
+- **Ton auf jedem Fernseher:** Der PC5 Launcher erkennt den Ton-Ausgang des Fernsehers jetzt an dessen Namen aus dem
+  Bildsignal, egal welcher Fernseher es ist. Bisher fand er ihn nur bei einem bestimmten Modell.
+
 ## 0.4.0 (2026-10-27)
 
 - **Mediengalerie:** Alle Bildschirmfotos nach Spiel sortiert, Vollbild mit L1/R1, Löschen in den Papierkorb, „Als

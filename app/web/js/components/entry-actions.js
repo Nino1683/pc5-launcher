@@ -2,6 +2,9 @@
 // Optionsmenü, Informationen, ausblenden, Startdatei wählen, Bilder, löschen. Home, Hub und
 // Bibliothek benutzen dasselbe. Dazu der Fehlerdialog eines Starts und das Ein/Aus-Menü des Home.
 // E127: „Logo anpassen“ (Optionsmenü, Spieleinstellungen) mit Live-Vorschau im Hub; E128: Start-Effekt am Fokusring.
+// E140: „Deinstallieren“ für Kacheln mit einem Flatpak dahinter (apps.uninstall).
+// E141: „Ausblenden“ für Apps mit dem Weg zurück (Einstellungen › Apps › Ausgeblendete Apps); Schließen fragt mit dem
+// Satz des Kerns nach, wenn es etwas abbräche (app.closeNote, z. B. ein Download im App Store).
 import { call, on, role } from "../core/bridge.js";
 import { h, icon, cssMs, cssPx, settledRect, reducedMotion } from "../core/dom.js";
 import { nav } from "../core/nav.js";
@@ -252,24 +255,49 @@ export async function chooseExe(entry, { ref, candidates } = {}) {
   } catch (e) { fail(e, entry.title); return false; }
 }
 
-// Rückfrage „… schließen?“ und Schließen
-export async function closeEntry(entry) {
+// Rückfrage „… schließen?“. E141: Bräche das Schließen etwas ab (app.closeNote, z. B. ein Download im App Store),
+// nennt sie das und heißt „… trotzdem schließen?“; der Fokus liegt wie immer auf „Abbrechen“.
+// Für Home und Control Center (overlay/panels.js). Liefert false (abgebrochen), "busy" (der Satz wurde bestätigt) oder
+// "plain" (die gewohnte Rückfrage).
+export async function askClose({ id, title, kind }) {
+  let note = "";
+  try { note = ((await call("app.closeNote", { id })) || {}).note || ""; } catch (e) { note = ""; }
+  if (note) return (await confirm({ title: fmt(S.closeBusyTitle, { title }), text: note, ok: S.closeBusyOk })) ? "busy" : false;
   const yes = await confirm({
-    title: entry.kind === "app" ? fmt(S.closeAppTitle, { title: entry.title }) : S.closeGameTitle,
-    text: fmt(S.closeGameText, { title: entry.title }),
+    title: kind === "app" ? fmt(S.closeAppTitle, { title }) : S.closeGameTitle,
+    text: fmt(S.closeGameText, { title }),
     ok: S.close,
   });
-  if (!yes) return false;
+  return yes ? "plain" : false;
+}
+
+// Schließen nach askClose. confirmed nur, wenn der Satz des Kerns schon bestätigt ist; begann seit der Rückfrage etwas
+// (needsConfirm, E141), fragt die Seite noch einmal
+export async function closeConfirmed(id, asked = "plain") {
+  const r = await call("app.close", asked === "busy" ? { id, confirmed: true } : { id });
+  if (r && r.needsConfirm) {
+    if (!await confirm({ title: r.title || "", text: r.text || "", ok: r.ok || S.closeBusyOk })) return false;
+    await call("app.close", { id, confirmed: true });
+  }
+  return true;
+}
+
+// Rückfrage „… schließen?“ und Schließen
+export async function closeEntry(entry) {
+  const asked = await askClose({ id: entry.id, title: entry.title, kind: entry.kind });
+  if (!asked) return false;
   try {
-    await call("app.close", { id: entry.id });
-    return true;
+    return await closeConfirmed(entry.id, asked);
   } catch (e) { fail(e); return false; }
 }
 
 async function setHidden(entry, hidden) {
   try {
     await call("lib.hide", { id: entry.id, hidden });
-    toast({ title: S.library, body: fmt(hidden ? S.hiddenToast : S.unhiddenToast, { title: entry.title }), icon: hidden ? "eye-off" : "eye", sound: false });
+    // E141: Apps verschwinden aus dem Home; die Einblendung nennt den Weg zurück
+    const app = entry.kind === "app";
+    toast({ title: app ? entry.title : S.library, body: fmt(hidden ? (app ? S.hiddenAppToast : S.hiddenToast) : S.unhiddenToast, { title: entry.title }),
+      icon: hidden ? "eye-off" : "eye", sound: false, ...(app && hidden ? { stay: 5000 } : {}) });
   } catch (e) { fail(e); }
 }
 
@@ -525,16 +553,44 @@ async function uninstallStore(entry, launcher = "") {
   } catch (e) { fail(e, entry.title); return false; }
 }
 
-// extra: zusätzliche Punkte des Aufrufers (Home: „Kachel verschieben“), vor „Ausblenden“; ihre
-// Wahl geht an onExtra(id)
+// Flatpak-App deinstallieren (E140): Rückfrage, dann der Kern (flatpak uninstall genau dieser Kennung, ihre Daten unter
+// ~/.var/app bleiben). Läuft die App, nur der Satz „erst schließen“
+async function uninstallFlatpak(entry, appId) {
+  if (isRunning(entry)) {
+    toast({ title: entry.title, body: fmt(S.uninstallAppRunning, { title: entry.title }), icon: "warn", sound: "error" });
+    return false;
+  }
+  const yes = await confirm({ title: fmt(S.uninstallTitle, { title: entry.title }), text: fmt(S.uninstallAppText, { title: entry.title, id: appId }), ok: S.uninstallOk });
+  if (!yes) return false;
+  toast({ title: entry.title, body: fmt(S.uninstallAppBusy, { title: entry.title }), icon: "trash", sound: false, stay: 4000 });
+  try {
+    const r = await call("apps.uninstall", { id: entry.id });
+    toast({ title: entry.title, body: (r && r.message) || S.errorGeneric, icon: r && r.ok ? "trash" : "warn", sound: r && r.ok ? false : "error" });
+    return !!(r && r.ok);
+  } catch (e) { fail(e, entry.title); return false; }
+}
+
+// extra: zusätzliche Punkte des Aufrufers (Home: „Kachel verschieben“), vor „Ausblenden“ bzw. vor „Deinstallieren“;
+// ihre Wahl geht an onExtra(id). Systemkacheln (Dateien, Mediengalerie, E140) zeigen nur diese Punkte
 export async function openEntryMenu(entry, { anchor = null, extra = [], onExtra = null } = {}) {
-  if (!entry || entry.system) return;
+  if (!entry) return;
+  if (entry.system) {
+    if (!extra.length) return;
+    const pick = await openMenu(extra, {
+      cls: "menu-entry", title: entry.title,
+      onOpen: (layer) => { if (anchor && anchor.isConnected) placeAt(layer.el.querySelector(".menu"), anchor); },
+    });
+    if (pick && onExtra && extra.some((i) => i.id === pick)) onExtra(pick);
+    return;
+  }
   let detail = null;
   try { detail = await call("lib.get", { id: entry.id }); } catch (e) { detail = null; }
   const current = (detail && detail.entry) || entry;
   const items = menuItems(current, detail);
   if (extra.length) {
-    const at = items.findIndex((i) => i.id === "hide" || i.id === "unhide");
+    // vor „Ausblenden“; ohne das vor dem Trennstrich zu „Deinstallieren“ (E140: Apps)
+    let at = items.findIndex((i) => i.id === "hide" || i.id === "unhide");
+    if (at < 0) at = items.findIndex((i) => i.sep);
     items.splice(at < 0 ? items.length : at, 0, ...extra);
   }
   // E127: „Logo anpassen“ hinter „Bild ändern“ (sonst vor „Informationen“), nur für Spiele mit Logo
@@ -570,7 +626,12 @@ export async function openEntryMenu(entry, { anchor = null, extra = [], onExtra 
     case "unhide": await setHidden(current, false); break;
     case "forget": await forgetEntry(current); break;
     case "delete": await deleteEntry(current); break;
-    case "uninstall": await uninstallStore(current, ((detail && detail.actions) || []).find((a) => a.id === "uninstall")?.store || ""); break;
+    case "uninstall": {
+      const action = ((detail && detail.actions) || []).find((a) => a.id === "uninstall") || {};
+      if (action.flatpak) await uninstallFlatpak(current, String(action.flatpak));
+      else await uninstallStore(current, action.store || "");
+      break;
+    }
     default:
       if (choice && onExtra && extra.some((i) => i.id === choice)) onExtra(choice);
   }

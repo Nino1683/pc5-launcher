@@ -25,8 +25,9 @@
 
 /* Karten über der Leiste: unten bündig, die fokussierte ist größer */
 .cc-cards { position: absolute; left: var(--cc-cards-left); bottom: var(--cc-cards-bottom); display: flex; align-items: flex-end; gap: var(--cc-card-gap);
-  opacity: var(--fx-o); transform: translate(0, var(--fx-y));
-  transition: --fx-y var(--t-overlay-in) var(--ease-out) var(--t-cards-delay), --fx-o var(--t-menu-in) var(--ease-out); }
+  opacity: var(--fx-o); transform: translate(var(--fx-x), var(--fx-y));
+  transition: --fx-y var(--t-overlay-in) var(--ease-out) var(--t-cards-delay), --fx-o var(--t-menu-in) var(--ease-out),
+    --fx-x var(--t-focus) var(--ease-out); }
 .cc.is-enter .cc-cards { --fx-y: var(--cc-in-cards); }
 .cc.has-panel .cc-cards { --fx-o: 0; }
 .cc-card { position: relative; flex: none; width: var(--cc-card-w); height: var(--cc-card-h); padding: var(--cc-card-pad); border-radius: var(--cc-card-r); --r: var(--cc-card-r);

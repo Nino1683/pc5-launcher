@@ -371,6 +371,10 @@ def safe_extract(archive: str, dest: str, version: str) -> str:
 
 # ================================================================ Dienst
 
+# Was check() in den Zustand schreibt; alles andere (whatsnew, started, installed …) gehört anderen Schreibern
+CHECK_KEYS = ("release", "notes", "etag", "checked_at", "error", "error_at", "announced")
+
+
 class SelfUpdate:
     """Suche, Laden und Installieren (siehe Modulkopf). check(), download(), install() blockieren; status()
     und busy_text() sind schnell und dürfen aus jedem Thread kommen. start_update() lädt im Hintergrund.
@@ -528,8 +532,19 @@ class SelfUpdate:
                     _log.exception("Suche nach einer neuen Fassung")
                 _log.warning("Suche nach einer neuen Fassung: %s (%s)", err.message, err.code)
                 st["error"], st["error_at"] = err.message, now
-            self._announce(st, quiet)
-            self._save(st)
+            with self.lock:
+                # Neu laden und nur die eigenen Schlüssel übernehmen: Während der Abfrage können update.seen
+                # (whatsnew), first_start (started) oder install() (installed) geschrieben haben
+                fresh = self._load()
+                for key in CHECK_KEYS:
+                    if key in st:
+                        fresh[key] = st[key]
+                    else:
+                        fresh.pop(key, None)
+                tell = self._announce(fresh, quiet)
+                self._save(fresh)
+            if tell:
+                self._tell(tell)
         finally:
             with self.lock:
                 self.checking = False
@@ -574,13 +589,15 @@ class SelfUpdate:
         st["etag"] = new_tag[:200]
         _log.info("Selbst-Update: neueste Fassung bei GitHub %s, laufend %s", rel["version"] if rel else "keine", self.own)
 
-    def _announce(self, st: dict, quiet: bool) -> None:
+    def _announce(self, st: dict, quiet: bool) -> str:
+        """Merkt eine neue Fassung als gemeldet; Rückgabe: die Fassung, die _tell melden soll ("" sonst)."""
         avail = self.available(st)
         if not avail or st.get("announced") == avail:
-            return
+            return ""
         st["announced"] = avail
-        if quiet or self.notify is None:
-            return
+        return "" if quiet or self.notify is None else avail
+
+    def _tell(self, avail: str) -> None:
         kind, _why = self.kind()
         body = ("Aktualisieren unter Einstellungen › Updates." if kind == "package" else
                 "Diese Installation stammt nicht aus dem Paket und wird nicht selbst aktualisiert.")

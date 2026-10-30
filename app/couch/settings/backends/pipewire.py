@@ -11,7 +11,7 @@ import re
 from ... import APP_ID
 
 EMPTY = {"default_sink": None, "default_source": None, "configured_sink": None,
-         "sinks": [], "sources": [], "hdmi_ports": [], "error": ""}
+         "sinks": [], "sources": [], "hdmi_ports": [], "app_streams": [], "error": ""}
 
 # USB-Audio der Controller (DualSense, DualShock 4): nie anbieten, nie von selbst wählen
 _PAD_NAME = re.compile(r"wireless controller|dualsense|dualshock", re.I)
@@ -73,7 +73,8 @@ def parse_pw_dump(text: str) -> dict:
                 defaults[m["key"]] = v.get("name") if isinstance(v, dict) else v
 
     devices = {o.get("id"): o for o in objs if o["type"].endswith(":Device")}
-    sinks, sources, own = [], [], []
+    clients = {o.get("id"): _dict(_dict(o.get("info")).get("props")) for o in objs if o["type"].endswith(":Client")}
+    sinks, sources, own, others = [], [], [], []
     for o in objs:
         if not o["type"].endswith(":Node"):
             continue
@@ -85,6 +86,14 @@ def parse_pw_dump(text: str) -> dict:
             own.append({"id": o.get("id"), "serial": str(p.get("object.serial") or ""),
                         "target": p.get("target.object") or "", "volume": _level(pr.get("channelVolumes")),
                         "mute": bool(pr.get("mute"))})
+            continue
+        if cls == "Stream/Output/Audio":
+            # Tonströme der Apps mit dem Prozess dahinter (E137: Ton eines angehaltenen Spiels stumm)
+            pr = _dict((_list(_dict(info.get("params")).get("Props")) or [{}])[0])
+            client = clients.get(p.get("client.id"), {})
+            pid = client.get("pipewire.sec.pid") or client.get("application.process.id")
+            others.append({"serial": str(p.get("object.serial") or ""),
+                           "pid": pid if isinstance(pid, int) else None, "mute": bool(pr.get("mute"))})
             continue
         if cls not in ("Audio/Sink", "Audio/Source") or not p.get("node.name"):
             continue
@@ -141,7 +150,8 @@ def parse_pw_dump(text: str) -> dict:
     return {"default_sink": defaults.get("default.audio.sink"),
             "default_source": defaults.get("default.audio.source"),
             "configured_sink": defaults.get("default.configured.audio.sink"),
-            "sinks": sinks, "sources": sources, "hdmi_ports": hdmi, "own_streams": own, "error": ""}
+            "sinks": sinks, "sources": sources, "hdmi_ports": hdmi, "own_streams": own,
+            "app_streams": others, "error": ""}
 
 
 # E104: die App-Kennung aus couch.APP_ID (eigene Tonströme)

@@ -13,6 +13,8 @@ und hängt sich am Ende von Wiring.run() ein, wieder jedes für sich. Für sie g
   wiring.busy_checks     Funktionen ohne Parameter, die None liefern oder einen deutschen Satz,
                          warum jetzt nicht ausgeschaltet, abgemeldet oder an Steam übergeben
                          werden sollte; wiring.busy() sammelt die Sätze
+  wiring.resume_hooks    E142: Funktionen ohne Parameter, die nach dem Aufwachen aus dem Ruhemodus
+                         laufen (ResumeWatch, Hauptschleife; Langsames in einen eigenen Thread)
 
 Zwei Dinge gleicht dieses Modul aus:
 - Die Bausteine rechnen mit (rc, stdout, stderr) und dürfen in Arbeits-Threads laufen. Die
@@ -49,10 +51,13 @@ SLOW_STEP_MS = 50.0             # ab hier steht die Dauer eines Bausteins als Wa
 # E122/E123: "wishlist" (Angebote der Wunschliste, braucht store_steam_account) und "gameinfo" (Spielinfos,
 # Neuigkeiten, Trailer; braucht art und store_open_url) ans Ende
 # E124/E126: "trophies" (Steam-Trophäen, nimmt die Attrappe von gameinfo) und "widgets" (Widget-Leiste im Home) dahinter
-# E130: "videos" (Start- und Ruhemodus-Videos von steamdeckrepo.com; hängt sich an power) als letzter
+# E130: "videos" (Start- und Ruhemodus-Videos von steamdeckrepo.com; hängt sich an power)
+# E140: "apps" (erkannte Flatpaks live, Deinstallieren, Bazaar) davor: braucht Bibliothek, Shell und Process-Manager
+# E139: "discord" (Discord im Hintergrund, Vorgabe aus) als letzter: braucht Shell, Process-Manager und Bibliothek
+# E142: "tv" (Fernseher steuern, Vorgabe aus) dahinter: hängt sich an power (before_system) und resume_hooks
 PARTS = ("library", "art", "launch", "settings", "install", "files", "saves", "store", "itch", "launchers", "proton",
          "home", "setup", "backup", "sleeptimer", "stats", "cleanup", "selfupdate", "gallery", "wishlist", "gameinfo",
-         "trophies", "widgets", "videos")
+         "trophies", "widgets", "videos", "apps", "discord", "tv")
 
 UNAVAILABLE = "Das ist gerade nicht verfügbar."
 # RPC-Methoden je Baustein von Wiring.run(): Fällt er aus, antworten sie mit UNAVAILABLE
@@ -203,6 +208,7 @@ class Wiring:
         self.after_ready: list[Callable[[], Any]] = []
         self.shutdown_hooks: list[Callable[[], Any]] = []
         self.busy_checks: list[Callable[[], str | None]] = []
+        self.resume_hooks: list[Callable[[], Any]] = []     # E142: nach dem Aufwachen (Hauptschleife)
         self.failed: list[str] = []         # Teile, die sich nicht einhängen ließen
         self.timings: dict[str, float] = {} # Dauer des Einhängens je Baustein in ms
         self._ready_done = False

@@ -1,0 +1,92 @@
+#!/usr/bin/python3
+"""couch-discord-prep: erlaubt Discords Flatpak den Mitteilungsdienst der Sitzung (E139, Mitteilungen).
+
+In der Spielmodus-Sitzung hat das Portal keine Schnittstelle org.freedesktop.portal.Notification (kein Backend
+für XDG_CURRENT_DESKTOP=gamescope). libnotify in der Sandbox fällt dann auf org.freedesktop.Notifications zurück,
+und das sperrt der D-Bus-Stellvertreter des Flatpaks, weil Discords finish-args es nicht erlauben (am 2026-10-29
+mit notify-send aus der Discord-Sandbox geprüft: „ServiceUnknown“, auf dem Bus kam nichts an). Ohne diese
+Freigabe verschickt Discord also gar keine Mitteilung, und der PC5 Launcher hätte nichts mitzulesen.
+
+Trägt deshalb in Discords Flatpak-Overrides des Nutzers ein, was `flatpak override --user
+--talk-name=org.freedesktop.Notifications com.discordapp.Discord` (bzw. Flatseal) eintragen würde:
+
+    [Session Bus Policy]
+    org.freedesktop.Notifications=talk
+
+Alle anderen Zeilen bleiben, wie sie sind. Steht der Schlüssel schon da, auch mit einem anderen Wert (z. B. „none“
+von Hand), bleibt er unverändert. Wirkt ab dem Start, vor dem es läuft (die Sandbox liest die Overrides beim Start).
+
+Läuft als prelaunch vor jedem Discord-Start, wenn „Nachrichten als Mitteilung“ an ist. Datei zum Prüfen:
+COUCH_DISCORD_OVERRIDES; im Prüfmodus (COUCH_TEST_ROOT) ohne diese Angabe tut es nichts.
+Rückgabe immer 0: Ein Vorab-Befehl darf den Start nicht verhindern.
+"""
+import os
+import sys
+
+FLATPAK = "com.discordapp.Discord"
+SECTION = "[Session Bus Policy]"
+KEY = "org.freedesktop.Notifications"
+
+
+def overrides_path() -> str | None:
+    given = os.environ.get("COUCH_DISCORD_OVERRIDES")
+    if given:
+        return given
+    if os.environ.get("COUCH_TEST_ROOT"):
+        return None
+    base = os.environ.get("FLATPAK_USER_DIR") or os.path.join(
+        os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "flatpak")
+    return os.path.join(base, "overrides", FLATPAK)
+
+
+def with_permission(text: str) -> str | None:
+    """Der Inhalt mit der Freigabe, oder None, wenn der Schlüssel schon in seinem Abschnitt steht."""
+    lines = text.splitlines()
+    section = None
+    for line in lines:
+        s = line.strip()
+        if s.startswith("["):
+            section = s
+        elif section == SECTION and s.split("=", 1)[0].strip() == KEY:
+            return None
+    entry = "%s=talk" % KEY
+    if SECTION in (line.strip() for line in lines):
+        at = [line.strip() for line in lines].index(SECTION)
+        lines.insert(at + 1, entry)
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines += [SECTION, entry]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    path = overrides_path()
+    if not path:
+        print("couch-discord-prep: Prüfmodus, nichts geändert")
+        return 0
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    except (OSError, UnicodeDecodeError) as e:
+        print("couch-discord-prep: %s nicht lesbar (%s), bleibt unverändert" % (path, e))
+        return 0
+    new = with_permission(text)
+    if new is None:
+        return 0
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".couch-neu"
+        with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644), "w", encoding="utf-8") as f:
+            f.write(new)
+        os.replace(tmp, path)
+        print("couch-discord-prep: Discord darf jetzt Mitteilungen schicken (%s=talk)" % KEY)
+    except OSError as e:
+        print("couch-discord-prep: %s nicht schreibbar (%s)" % (path, e))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

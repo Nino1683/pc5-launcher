@@ -1,9 +1,10 @@
 """Mediengalerie (E120) und eigener Hintergrund des Home (E121): Verdrahtung, eingehängt über wiring.PARTS.
 
-  gallery.list {sources?: ["screenshots", "wallpapers"], game?, all?, limit?}
+  gallery.list {sources?: ["screenshots", "wallpapers"], game?, id?, all?, limit?}
                                                            -> {ok, items, truncated, folders, current, game?}
                game: nur die Bildschirmfotos dieses Spiels (Titel des Eintrags; mit all: true bleiben alle, die
-               Antwort nennt nur den Titel wie im Dateinamen); limit: die neuesten n (1..500)
+               Antwort nennt nur den Titel wie im Dateinamen); id: statt game die Kennung eines Eintrags (der Titel
+               kommt dann aus der Bibliothek, nicht übersetzt); limit: die neuesten n (1..500)
   gallery.thumbs {paths: [...]}                            -> {thumbs: {pfad: couch://art/… | null}}
   gallery.delete {path}                                    -> {ok, message}   (Papierkorb, nach Rückfrage der Seite)
   gallery.setBackground {path}                             -> {ok, message}   (setzt „Eigenes Bild“)
@@ -55,7 +56,19 @@ def extend(wiring: Any) -> None:
         if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500):
             raise RpcError("limit ist eine Zahl von 1 bis 500.", "BadValue")
         keep_all = params.get("all") is True
-        return wiring._bg(lambda: service.list(wanted, game, limit, keep_all))
+        entry_id = params.get("id")
+
+        def run() -> Any:
+            title = game
+            if isinstance(entry_id, str) and entry_id:
+                # Der Titel an der Seite ging durch die Übersetzung; der Dateiname trägt den echten
+                try:
+                    entry = wiring.app.library.get(entry_id)
+                except Exception:  # noqa: BLE001
+                    entry = None
+                title = str(getattr(entry, "title", "") or "") or game
+            return service.list(wanted, title, limit, keep_all)
+        return wiring._bg(run)
 
     def thumbs(params: dict) -> Any:
         return lane.submit(service.thumbs, (params or {}).get("paths"))

@@ -51,6 +51,14 @@ POLITE_PATIENCE = 0.75      # Anteil der Schonfrist, den ein noch laufender poli
 POLITE_NOTHING = 3          # Rückgabewert "nichts zu beenden gefunden" (couch-flatpak-stop, couch-desktop --logout)
 LAST_RESORT = 1.7           # nach SIGKILL an die Nachkommen: dann trifft es auch den reaper
 FREEZE_RECHECKS = (0.25, 1.0)
+# Herzschlag (E137): Spiele, die den DualSense selbst ansprechen, melden ihn ab, wenn sie länger als etwa
+# 8 s nichts von ihm gehört haben (Alan Wake 2, The Last of Us; gemessen 2026-10-28: bis 7,6 s nie, ab
+# 8–9 s immer). Angehalten sehen sie nach dem Fortsetzen genau diese Lücke. Solange sie angehalten sind,
+# laufen sie deshalb alle HEARTBEAT_EVERY Sekunden für HEARTBEAT_RUN Sekunden (rund 0,6 % der Zeit);
+# ihr Ton ist so lange stumm (wiring_settings.freeze_audio).
+HEARTBEAT_EVERY = 5.0
+HEARTBEAT_RUN = 0.03
+HEARTBEAT_VENDOR = "054C"   # Sony: DualSense, DualSense Edge, DualShock 4
 
 # Aus der Sitzungsumgebung entfernen, bevor eine App startet (03 Abschnitt 5.3, 01 8.2 d):
 # Reste eines Steam- oder Lutris-Elternprozesses (dieselbe Liste wie in den Startern, spec.py)
@@ -165,6 +173,7 @@ class RunningApp:
     frozen_total: float = 0.0           # Sekunden, die die App bisher angehalten war
     frozen_since: float = 0.0           # Uhrzeit des laufenden Anhaltens, 0 = läuft
     adopted: bool = False               # aus running.json übernommen
+    heartbeat: bool = False             # angehalten, aber mit Herzschlag (E137)
     log_path: str = ""
     _popen: Any = field(default=None, repr=False)
     _pidfd: int = field(default=-1, repr=False)
@@ -172,6 +181,7 @@ class RunningApp:
     _timers: set = field(default_factory=set, repr=False)
     _polite: Any = field(default=None, repr=False)
     _announced: bool = field(default=False, repr=False)
+    _beats: int = field(default=0, repr=False)     # Lauf des Herzschlags; jedes Anhalten beginnt einen neuen
 
 
 class AppManager:
@@ -449,18 +459,42 @@ class AppManager:
             return
         self._tree(app, signal.SIGSTOP)
         if not app.frozen:
-            _log.info("angehalten: %s", app.entry_id)
+            pads = tree.open_hidraw(tree.descendants(app.reaper_pid), HEARTBEAT_VENDOR)
+            app.heartbeat = bool(pads)
+            if pads:
+                _log.info("angehalten: %s (Herzschlag alle %.0f s, hält %s offen)",
+                          app.entry_id, HEARTBEAT_EVERY, ", ".join(pads))
+            else:
+                _log.info("angehalten: %s", app.entry_id)
             app.frozen = True
             app.frozen_since = time.time()
             self._save()
             # Nachzügler: ein Kind, das im Moment des Anhaltens gerade entstand
             for delay in FREEZE_RECHECKS:
                 self._later(app, delay, self._refreeze)
+            app._beats += 1                     # ein älterer Herzschlag endet hier, auch ohne neuen
+            if app.heartbeat:
+                self._later(app, HEARTBEAT_EVERY, self._beat_fn(app._beats, True))
             self._emit(app, "frozen")
 
     def _refreeze(self, app: RunningApp) -> None:
         if app.frozen and not app.closing:
             self._tree(app, signal.SIGSTOP)
+
+    def _beat_fn(self, run: int, start: bool) -> Callable[[RunningApp], None]:
+        """Ein Schritt des Herzschlags: start lässt die App laufen, sonst hält er sie wieder an. Nur
+        solange sie noch angehalten ist und kein neueres Anhalten den Lauf abgelöst hat; thaw() setzt
+        frozen zuerst zurück, ein Schritt danach tut nichts."""
+        def step(app: RunningApp) -> None:
+            if not app.frozen or app.closing or app._beats != run:
+                return
+            if start:
+                self._tree(app, signal.SIGCONT)
+                self._later(app, HEARTBEAT_RUN, self._beat_fn(run, False))
+            else:
+                self._tree(app, signal.SIGSTOP)
+                self._later(app, HEARTBEAT_EVERY - HEARTBEAT_RUN, self._beat_fn(run, True))
+        return step
 
     def thaw(self, app: RunningApp) -> None:
         if app.exited or not app.frozen:

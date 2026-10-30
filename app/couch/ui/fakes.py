@@ -426,6 +426,10 @@ class FakeInput:
     def rumble(self, kind: str) -> None:
         self.rumbles.append(kind)
 
+    def release_triggers(self) -> int:
+        self.released = getattr(self, "released", 0) + 1
+        return 0
+
     def type_text(self, text: str) -> None:
         self.typed.append(text)
 
@@ -436,6 +440,13 @@ class FakeInput:
         from ..input.xtest import keycode_for
         keycode_for(name)               # wie InputService.press_key: unbekannter Name ist ein Fehler
         self.keys.append(name)
+
+    def press_combo(self, names) -> None:
+        """E139: wie InputService.press_combo; steht als "Control_L+Shift_L+Alt_L+F11" in keys."""
+        from ..input.xtest import keycode_for
+        for name in names:
+            keycode_for(name)
+        self.keys.append("+".join(names))
 
 
 def make(config: Any, session_env: dict | None, scheduler: Any = None, use_x: bool = False) -> tuple:

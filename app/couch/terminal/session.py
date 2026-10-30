@@ -65,6 +65,13 @@ def child_env(env: dict, home: str, app_dir: str = "") -> dict:
     return out
 
 
+def autorun(env: dict) -> str:
+    """Startart aus COUCH_TERM_RUN (eine Kennung aus ACTIONS), sonst "". E141: „continue“, wenn Claude Code mit dem
+    PC5 Launcher startet; das Kind erbt die Variable nicht (DROP_PREFIX)."""
+    action = str(env.get("COUCH_TERM_RUN") or "")
+    return action if action in ACTIONS else ""
+
+
 def argv_for(action: str, env: dict) -> list[str] | None:
     """Befehl zu einer Kennung; None, wenn es die Kennung oder das Programm nicht gibt."""
     if action not in ACTIONS:

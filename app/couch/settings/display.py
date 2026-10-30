@@ -22,6 +22,9 @@ Für den Verdrahter, zusätzlich zum Vertrag in rows.py:
 deps.extra: "apply_display" (Rückruf: gespeicherte Spielauflösung anwenden), "perf" (PerfService),
 "connector" (Anschluss des Fernsehers; fehlt er, drm_modes.tv_connector(), E104; "" = kein Fernseher
 erkannt), "drm_summary" (Rückruf statt drm_modes.summary, für Tests).
+
+E142: Am Ende der Seite die Zeile „Fernseher steuern“ (Unterseite display.tvctl, nur mit dem Teil tv); alle Seiten und
+Zeilen darunter stehen in settings/tvctl.py, dieser Bereich reicht sie nur weiter.
 """
 from __future__ import annotations
 
@@ -32,7 +35,7 @@ import threading
 import time
 
 from .. import perf as perf_mod
-from . import drm_modes
+from . import drm_modes, tvctl
 from .rows import (AREA_ORDER, TRIAL_KEEP, TRIAL_REVERT, Page, SettingsError, action, info, option,
                    select, slider, toggle)
 
@@ -129,14 +132,17 @@ class DisplayArea:
         self._pending: dict[str, object] = {}     # Zeile -> Griff der laufenden Probezeit
         self._drm: dict | None = None
         self._drm_at = 0.0
+        self._tv = tvctl.TvRows(deps)             # E142: Fernseher steuern
 
     # --- Vertrag --------------------------------------------------------------------------
 
     def pages(self) -> list[str]:
-        return [AREA_ID]
+        return [AREA_ID] + (list(tvctl.PAGES) if self._tv.part() is not None else [])
 
     def page(self, page_id: str) -> Page:
         """Blockiert beim ersten Aufruf einige Millisekunden (Fernseher-Daten), danach aus dem Zwischenspeicher."""
+        if tvctl.owns(page_id):
+            return self._tv.page(page_id)
         if page_id != AREA_ID:
             raise KeyError(page_id)
         s = self._summary()
@@ -174,9 +180,14 @@ class DisplayArea:
             hint="Zeigt vier Marken in den Ecken. Siehst du nicht alle vollständig, schalte am "
                  "Fernseher den Overscan aus (Bildformat „Original“ oder „Punkt für Punkt“) oder "
                  "verkleinere hier die Oberfläche der Konsole."))
+        tv_row = self._tv.link_row()             # E142: immer am Ende (abgezählte Fotos bleiben gültig)
+        if tv_row is not None:
+            rows.append(tv_row)
         return Page(AREA_ID, self.label, rows)
 
     def set(self, row_id: str, value):
+        if tvctl.owns(row_id):
+            return self._tv.set(row_id, value)
         if row_id in _TRIALS:
             return self._set_trial_row(row_id, bool(value))
         if row_id == "display.sdr_brightness":
@@ -214,6 +225,8 @@ class DisplayArea:
         raise SettingsError("Diese Einstellung lässt sich nicht ändern.")
 
     def action(self, row_id: str, value=None):
+        if tvctl.owns(row_id):
+            return self._tv.action(row_id, value)
         if row_id == "display.area":
             return {"ui": "display-area"}
         # Antwort auf eine Probezeit: action(zeile, TRIAL_KEEP|TRIAL_REVERT) oder zeile.confirm/.revert

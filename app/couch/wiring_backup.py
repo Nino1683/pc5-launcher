@@ -79,7 +79,7 @@ def make_host(wiring: Any) -> backup.Host:
         export_sessions=lambda: main.call(library.export_sessions),
         import_sessions=lambda items: main.call(library.import_sessions, items),
         known=known, entry_ids=entry_ids,
-        read_order=wiring_home.read_order, write_order=wiring_home.write_order,
+        read_orders=wiring_home.read_orders, write_orders=wiring_home.write_orders,
         art_dir=art_dir, entry_art_dir=entry_art_dir, set_user_art=set_user_art,
         proton_exists=proton_exists, running_apps=running_apps, after_apply=after_apply,
         browser_prefs=os.path.join(paths.data_dir(), "browser", "prefs.json"),

@@ -1,5 +1,5 @@
-"""Die festen Apps: YouTube, Kodi, Jellyfin, Moonlight, Browser, Desktop, EmuDeck, Claude Code und die
-Emulatoren selbst (Bauplan 4.8, E14, E15, E72, E105; 06).
+"""Die festen Apps: YouTube, Kodi, Jellyfin, Moonlight, Browser, Desktop, EmuDeck, Claude Code, Discord (E139), Bazaar
+(E140), die Emulatoren selbst (Bauplan 4.8, E14, E15, E72, E105; 06) und die erkannten Flatpaks (flatpak:<id>, E140).
 
 app:steam gehört nicht hierher: Steam ist eine Übergabe, die der Kern selbst behandelt.
 
@@ -12,14 +12,16 @@ import os
 import time
 
 from . import flatpak
-from .spec import LaunchError, LaunchSpec
+from .spec import LaunchError, LaunchSpec, pad_mode
 
 YOUTUBE = "rocks.shy.VacuumTube"
 KODI = "tv.kodi.Kodi"
 CHROME = "com.google.Chrome"
 JELLYFIN = "org.jellyfin.JellyfinDesktop"
 MOONLIGHT = "com.moonlight_stream.Moonlight"
+DISCORD = "com.discordapp.Discord"      # E139 (= discord.FLATPAK)
 EMU_PREFIX = "app:emu-"
+FLATPAK_PREFIX = "flatpak:"            # E140: = library.flatpaks.PREFIX
 
 TEXT_CHROME_RUNNING = ("Chrome läuft schon an anderer Stelle, zum Beispiel im Desktop. "
                        "Schließe es dort und öffne den Browser dann noch einmal.")
@@ -215,6 +217,56 @@ def _moonlight(entry, ctx, check: bool) -> LaunchSpec:
     return flatpak.build(entry, ctx, MOONLIGHT, (), kind="media", label="Moonlight", mouse=True, check=check)
 
 
+def _discord(entry, ctx, check: bool) -> LaunchSpec:
+    """E139: der offizielle Discord-Client (Flatpak), mit dem Pad als Maus, nie angehalten: Sprachchat läuft weiter,
+    während ein Spiel vorn ist. Im Hintergrund startet ihn wiring_discord über Shell.launch_background
+    (discord.BACKGROUND_ARGS); über die Kachel ohne Zusatz. Mit „Nachrichten als Mitteilung“ erlaubt
+    couch-discord-prep vorher seiner Sandbox den Mitteilungsdienst (sonst verschickt es in dieser Sitzung keine)."""
+    from .. import discord
+    spec = flatpak.build(entry, ctx, DISCORD, (), kind="tool", label="Discord", mouse=True, check=check)
+    if discord.flag(ctx.config, "discord.notify"):
+        spec.prelaunch = [[ctx.bin("couch-discord-prep")]]
+    return spec
+
+
+def _bazaar(entry, ctx, check: bool) -> LaunchSpec:
+    """E140: Bazaar, der Flathub-Store des Systems (Wunsch 2026-10-29: „Bazaar möchte ich auch im pc5 Launcher“). Wie
+    die Desktop-Datei bazaar-daemon (öffnet das Fenster als Kind; so gehört beides zum eigenen reaper), sonst bazaar.
+    Pad als Maus, nie angehalten: Eine Installation liefe sonst nicht weiter, solange das Home vorn ist. GTK 4 soll
+    X11 nehmen (das Xwayland der Spiele); WAYLAND_DISPLAY nimmt der AppManager ohnehin weg."""
+    from ..library import apps as lib_apps
+    exe = lib_apps.bazaar_program(ctx)
+    if exe is None:
+        if check:
+            raise LaunchError("Der App Store (Bazaar) ist nicht installiert.", "weder bazaar-daemon noch bazaar im PATH",
+                              reason="not-installed")
+        exe = lib_apps.BAZAAR[0]
+    return LaunchSpec(entry_id=entry.id, argv=[exe], env={"GDK_BACKEND": "x11"}, cwd=ctx.home, kind="tool",
+                      freeze=False, mouse=True, title=entry.title)
+
+
+def _detected(entry, ctx, check: bool) -> LaunchSpec:
+    """E140: ein erkanntes Flatpak (library/flatpaks.py) mit --command und Argumenten aus seiner Desktop-Datei.
+    Spiele wie andere Linux-Spiele (angehalten, das Pad als Controller bzw. nach „Controller“ der Spieleinstellungen),
+    Apps mit dem Pad als Maus und nie angehalten wie die festen Apps. Chrome bekommt die Schalter des Browsers."""
+    from ..library import flatpaks
+    d = entry.detail if isinstance(entry.detail, dict) else {}
+    app_id = str(d.get("flatpak") or "")
+    if not flatpaks.valid_id(app_id) or str(entry.id) != FLATPAK_PREFIX + app_id:
+        raise LaunchError(TEXT_UNKNOWN_APP, "keine Flatpak-Kennung für %s" % entry.id, reason="no-launcher")
+    if app_id == CHROME:
+        return _chrome(entry, ctx, check)
+    command = d.get("command") if isinstance(d.get("command"), str) else ""
+    args = [str(a) for a in d.get("args") or () if isinstance(a, str)] if isinstance(d.get("args"), list) else []
+    extra = ("--command=" + command,) if command and not command.startswith("-") else ()
+    if entry.kind == "game":
+        return flatpak.build(entry, ctx, app_id, args, kind="game", label=entry.title, freeze=True,
+                             mouse=pad_mode(entry), check=check, flatpak_args=extra)
+    kind = "media" if d.get("row") == "media" else "tool"
+    return flatpak.build(entry, ctx, app_id, args, kind=kind, label=entry.title, mouse=True, check=check,
+                         flatpak_args=extra)
+
+
 def _emulator_app(entry, ctx, check: bool) -> LaunchSpec:
     """E105: ein Emulator selbst (Einstellungen › Spiele › Emulatoren › „<Name> öffnen“): für Kerne, BIOS und
     Einstellungen, mit dem Pad als Maus, nie angehalten. Nur Flatpaks aus dem Katalog des Assistenten."""
@@ -234,13 +286,16 @@ _APPS = {
     "app:desktop": _desktop,
     "app:emudeck": _emudeck,
     "app:claude": _claude,
+    "app:discord": _discord,
+    "app:bazaar": _bazaar,
 }
 
 
 def build(entry, ctx, *, check: bool = True) -> LaunchSpec:
-    """Entry der Quelle "app" -> LaunchSpec. Medien, Browser, Desktop und EmuDeck werden nie
-    angehalten (freeze=False)."""
-    fn = _APPS.get(str(entry.id)) or (_emulator_app if str(entry.id).startswith(EMU_PREFIX) else None)
+    """Entry der Quelle "app" bzw. "flatpak" -> LaunchSpec. Medien, Browser, Desktop, EmuDeck und Bazaar werden nie
+    angehalten (freeze=False), erkannte Flatpak-Spiele schon."""
+    fn = _APPS.get(str(entry.id)) or (_emulator_app if str(entry.id).startswith(EMU_PREFIX) else None) \
+        or (_detected if str(entry.id).startswith(FLATPAK_PREFIX) else None)
     if fn is None:
         raise LaunchError(TEXT_UNKNOWN_APP, "kein Starter für %s" % entry.id, reason="no-launcher")
     return fn(entry, ctx, check)

@@ -21,10 +21,11 @@ const DE = {
 
   // Home
   tabGames: "Spiele",
+  tabApps: "Apps",                 // E140
   tabMedia: "Medien",
   settings: "Einstellungen",
   library: "Spielebibliothek",
-  libraryHint: "Alle Spiele aus Steam, Lutris und den Emulatoren.",
+  libraryHint: "Alle Spiele aus Steam, den Stores und den Emulatoren.",
   play: "Spielen",
   resume: "Fortsetzen",
   closing: "Wird beendet …",
@@ -295,6 +296,16 @@ const DE = {
   gsOpti: "OptiScaler",
   gsOptiHint: "Ersetzt DLSS, FSR 2/3 oder XeSS im Spiel, etwa durch FSR 4. Proton lädt OptiScaler beim ersten Start selbst, der Spielordner bleibt unverändert. Nicht jedes Spiel verträgt es; sein Menü öffnest du im Control Center unter Leistung (oder mit der Einfg-Taste). Gilt ab dem nächsten Start.",
   gsSteamOptiHint: "Wie bei eigenen Spielen, wenn Steam das Spiel mit Proton-CachyOS oder GE-Proton startet. Gilt ab dem nächsten Start.",
+  gsRunner: "Starten mit",
+  gsRunnerProton: "Proton (Standard)",
+  gsRunnerWine: "wine-run",
+  gsRunnerHint: "Proton startet das Spiel in seinem eigenen Prefix. wine-run startet es wie ein Doppelklick im Desktop: mit Wine-Staging, DXVK und VKD3D im gemeinsamen Prefix von wine-run. Gilt ab dem nächsten Start.",
+  gsRunnerWineHint: "Startet wie ein Doppelklick im Desktop: mit Wine-Staging, DXVK und VKD3D im gemeinsamen Prefix von wine-run. Proton-Version, FSR 4, HDR, OptiScaler und DXVK-Schalter gelten dann nicht, Spielstände liegen im Prefix von wine-run. Gilt ab dem nächsten Start.",
+  gsDxvk: "DXVK",
+  gsDxvkOn: "Ein (Standard)",
+  gsDxvkOff: "Aus (WineD3D)",
+  gsDxvkHint: "DXVK übersetzt Direct3D in Vulkan und ist meist am schnellsten. Aus nimmt Wines eigenes Direct3D (WineD3D), das ist langsamer, hilft aber manchen Spielen, die mit DXVK abstürzen oder falsch aussehen. Gilt ab dem nächsten Start.",
+  gsSteamDxvkHint: "Wie bei eigenen Spielen, wenn Steam das Spiel mit Proton startet. Startoptionen in Steam gehen vor. Gilt ab dem nächsten Start.",
   gsFreeze: "Im Hintergrund anhalten",
   gsFreezeHint: "Hält das Spiel an, solange das Control Center oder das Home vorn ist.",
   gsResolution: "Auflösung",
@@ -336,8 +347,6 @@ const DE = {
   ccCardResume: "Fortsetzen",
   ccCardSwitch: "Wechseln",
   ccCardInstall: "Installation",
-  ccCardHome: "Zum Home-Bildschirm",
-  ccCardHomeSub: "Home",
   ccPaused: "Angehalten",
   ccRunning: "Läuft",
   ccSwitcherEmpty: "Gerade läuft nichts.",
@@ -486,17 +495,28 @@ const DE = {
   stTrailer: "Trailer",
   stTrailerOf: "{name} · {n} von {total}",
   stTrailerFailed: "Der Trailer lässt sich gerade nicht abspielen.",
-  // Kacheln verschieben (E69)
+  // Kacheln verschieben (E69, je Reihe seit E140)
   tileMove: "Kachel verschieben",
   tileMoveHint: "Links/Rechts verschiebt die Kachel. Kreuz übernimmt, Kreis bricht ab.",
   tileOrderReset: "Reihenfolge zurücksetzen",
   tileOrderResetDone: "Die Spiele stehen wieder nach „zuletzt gespielt“.",
+  tileOrderResetDoneRow: "Die Kacheln stehen wieder in der vorgegebenen Reihenfolge.",
   uninstallTitle: "„{title}“ deinstallieren?",
   uninstallText: "Steam wird dafür kurz beendet. Die Spieldateien kommen in den Papierkorb der Platte, Spielstände bleiben erhalten.",
   uninstallTextLauncher: "Deinstalliert wird in {store}: Er öffnet sich gleich, wähle dort beim Spiel „Deinstallieren“. Die Kachel verschwindet danach von selbst.",
   uninstallOkLauncher: "Öffnen",
   uninstallTextEpic: "Die Spieldateien werden gelöscht. Spielstände im Prefix und in der Epic-Cloud bleiben erhalten.",
   uninstallOk: "Deinstallieren",
+  // Flatpak-Apps deinstallieren (E140)
+  uninstallAppText: "„{title}“ wird deinstalliert. Deine Daten in ~/.var/app/{id} bleiben.",
+  uninstallAppBusy: "„{title}“ wird deinstalliert …",
+  uninstallAppRunning: "Schließe „{title}“ zuerst, dann lässt es sich deinstallieren.",
+  // Apps ausblenden mit Weg zurück (E141): Kacheln der Seite („Dateien“, Mediengalerie) über home.setHidden
+  menuHideApp: "Ausblenden",
+  hiddenAppToast: "Ausgeblendet. Zurück holst du es unter Einstellungen › Apps.",     // Titel der Einblendung: die App
+  // App Store schließen, während er etwas überträgt (E141, app.closeNote)
+  closeBusyTitle: "„{title}“ trotzdem schließen?",
+  closeBusyOk: "Trotzdem schließen",
   stOwnedEmpty: "Melde dich oben rechts an, dann stehen hier die Spiele, die dir gehören.",
   stOwnedNone: "Zu diesem Konto sind keine Spiele bekannt.",
   // Spielstände (E63)
@@ -707,8 +727,39 @@ const DE = {
   padBackTitle: "Controller wieder verbunden",
   ccMic: "Mikrofon",
   ccMicNone: "Das Mikrofon ist gerade nicht verfügbar.",
+  // E139: Discord im Control Center (nur mit „Discord verwenden“); den echten Zustand kennt der PC5 Launcher nicht
+  ccDiscord: "Discord",
+  ccDiscordMute: "Mikrofon in Discord stumm/an",
+  ccDiscordMuteHint: "Schickt {keys}.",
+  ccDiscordDeafen: "Ton in Discord aus/an",
+  ccDiscordDeafenHint: "Schickt {keys}: Du hörst nichts mehr und bist stumm, oder wieder alles.",
+  ccDiscordOpen: "Discord öffnen",
+  ccDiscordOpenHint: "Mit der PS-Taste kommst du zurück, Discord läuft weiter.",
+  ccDiscordNoApp: "Mikrofon und Ton schaltest du hier, solange ein Spiel oder eine App vorn ist. Im Home geht das in Discord selbst.",
+  ccDiscordMissing: "Discord ist nicht installiert. Installieren unter Einstellungen › Apps › Discord.",
+  ccDiscordStart: "Discord starten",
+  // E142: Fernseher im Control Center (nur mit „Fernseher übers Netz steuern“ und gekoppelt). Lautstärke und Stumm
+  // schalten um; den Pegel bzw. ob er stumm ist, kennt der PC5 Launcher nicht (Ton oft über einen Verstärker)
+  ccTv: "Fernseher",
+  ccTvVolDown: "Leiser",
+  ccTvVolUp: "Lauter",
+  ccTvMute: "Stumm an/aus",
+  ccTvVolumeHint: "Läuft der Ton über einen Verstärker, gibt der Fernseher es dorthin weiter.",
+  ccTvInputs: "Eingang",
+  ccTvPick: "Wählen",
+  ccTvHdmi: "HDMI {n}",
+  ccTvThisPc: "Dieser PC",
+  ccTvActive: "Aktiv",
+  ccTvUnplugged: "Nicht verbunden",
+  ccTvKeysHint: "Ohne „Eingänge genauer erkennen“ (Einstellungen › Bildschirm und Video › Fernseher steuern) schaltet der PC5 Launcher mit den Tasten HDMI 1 bis 4, die manche Fernseher übergehen. Dann hilft das Eingangsmenü.",
+  ccTvMenu: "Eingangsmenü",
+  ccTvMenuHint: "Öffnet am Fernseher die Auswahl der Eingänge.",
+  ccTvOff: "Fernseher ausschalten",
+  ccTvOn: "Fernseher einschalten",
+  ccTvUnreachable: "Der Fernseher antwortet nicht",
   ccCardRecent: "Zuletzt gespielt",
   ccCardMedia: "Medien",
+  ccCardApps: "Apps",              // E140: zuletzt geöffnete App aus der Reihe „Apps“
   ccPerfOverlayHint: "Gilt für alle Spiele.",
   // Bild ändern
   artNowTile: "Kachel",
@@ -737,8 +788,9 @@ const DE = {
   libSortPlaytime: "Spielzeit",
   libSortAdded: "Zuletzt hinzugefügt",
   libSortLetter: "Sortieren nach: {value} · {letter}",
-  libOriginLutrisWin: "Lutris (Windows)",
-  libOriginLutrisLinux: "Lutris (Linux)",
+  // E134: einmal aus Lutris übernommen (source proton bzw. native), starten ohne Lutris
+  libOriginImportedWin: "Übernommene Windows-Spiele",
+  libOriginImportedLinux: "Übernommene Linux-Spiele",
   libOriginEpic: "Epic Games",
   libOriginGog: "GOG",
   libOriginBattlenet: "Battle.net",
@@ -747,6 +799,7 @@ const DE = {
   libOriginOwnWin: "Eigene Windows-Spiele",
   libOriginOwnLinux: "Eigene Linux-Spiele",
   libOriginRom: "Emulator-Spiele (ROM-Ordner)",          // Quelle rom (E105)
+  libOriginFlatpak: "Flatpak",                           // erkannte Flatpak-Spiele (E140)
   // Optionsmenü (lib.setFavorite, components/entry-actions.js)
   favAddedToast: "„{title}“ steht jetzt bei den Favoriten.",
   favRemovedToast: "„{title}“ steht nicht mehr bei den Favoriten.",
@@ -986,7 +1039,7 @@ const DE = {
   setupEpicPrep: "Epic Games vorbereiten",
   setupEpicPrepHint: "Lädt das kleine Werkzeug „legendary“ (Open Source), damit Epic-Spiele später sofort gehen.",
   setupLutris: "Lutris",
-  setupLutrisNote: "Deine Lutris-Spiele erscheinen in der Bibliothek.",
+  setupLutrisNote: "Deine Lutris-Spiele werden einmal übernommen und starten danach ohne Lutris.",
   // S4 Konsolen
   setupEmusTitle: "Welche Konsolen möchtest du spielen?",
   setupEmusText: "Die Emulatoren kommen von Flathub. Spiele, BIOS-Dateien und Schlüssel bringst du selbst mit – von deinen eigenen Konsolen und Spielen. Der PC5 Launcher lädt nichts davon herunter.",
@@ -1006,7 +1059,7 @@ const DE = {
   setupSelectedNone: "Noch kein Emulator ausgewählt.",
   // S5 Apps
   setupAppsTitle: "Apps für den Fernseher",
-  setupAppsText: "Diese Apps erscheinen auf dem Startbildschirm unter Medien.",
+  setupAppsText: "Diese Apps erscheinen auf dem Startbildschirm unter Apps bzw. Medien.",
   setupAppHints: {
     youtube: "YouTube in der Ansicht für den Fernseher (VacuumTube).", kodi: "Mediacenter für Filme, Serien und Musik.",
     jellyfin: "Filme und Serien von deinem eigenen Jellyfin-Server.", moonlight: "Spiele von einem anderen PC auf diesen Fernseher streamen.",
@@ -1084,7 +1137,7 @@ const DE = {
   setupDoneTitle: "Alles bereit",
   setupDonePartial: "Fast fertig",
   setupDoneText: "Lege deine Spiele in diese Ordner. Sie erscheinen dann von selbst in der Bibliothek.",
-  setupDoneNoSystems: "Neue Apps findest du auf dem Startbildschirm unter Medien.",
+  setupDoneNoSystems: "Neue Apps findest du auf dem Startbildschirm unter Apps und Medien.",
   setupDoneNoEmus: "Es ist kein Emulator dazugekommen.",
   setupDoneExts: "Dateien: {exts}",
   setupDoneBios: "Das BIOS richtest du in {emu} ein (Einstellungen › Spiele › Emulatoren › {emu} öffnen).",
@@ -1093,7 +1146,7 @@ const DE = {
   setupWhy: { "no-network": "keine Verbindung", "no-space": "zu wenig Platz", "not-found": "gibt es bei Flathub nicht mehr",
     eol: "eingestellt", locked: "ein anderer Flatpak-Vorgang lief", cancelled: "abgebrochen", failed: "Fehler" },
   setupTips: "Tipps",
-  setupTipUsb: "Dateien von einem USB-Stick kopierst du mit dem Datei-Explorer (Medien › Dateien).",
+  setupTipUsb: "Dateien von einem USB-Stick kopierst du mit dem Datei-Explorer (Apps › Dateien).",
   setupTipUmu: "Beim ersten Windows-Spiel lädt umu einmalig die Steam-Laufzeit.",
   setupTipCores: "RetroArch braucht Kerne: Einstellungen › Spiele › Emulatoren › RetroArch öffnen › Online-Aktualisierung.",
   setupToHome: "Zum Home",

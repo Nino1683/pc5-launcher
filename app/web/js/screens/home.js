@@ -1,7 +1,12 @@
-// Home (07 Abschnitt 2 und 11.2/11.3): Reiter „Spiele“ und „Medien“, Kachelreihe, bewegter
+// Home (07 Abschnitt 2 und 11.2/11.3): Reiter „Spiele“, „Apps“ und „Medien“ (E140), Kachelreihe, bewegter
 // Hintergrund des fokussierten Eintrags (E33), Hub darunter, Statusleiste oben rechts.
-//   Spiele  Steam · die zwölf zuletzt gespielten (liefert der Kern) · Spiel installieren · Spielebibliothek
-//   Medien  die Apps des Kerns in seiner Reihenfolge (YouTube, Kodi, Browser, Desktop, EmuDeck) · Dateien · Mediengalerie
+//   Spiele  Store · Steam · die zuletzt gespielten (liefert der Kern) · Spiel installieren · Spielebibliothek
+//   Apps    die Apps des Kerns mit der Marke apps-row in seiner Reihenfolge (Bazaar, Browser, …, erkannte Flatpaks),
+//           „Dateien“ hinter dem Browser
+//   Medien  die mit media-row (YouTube, Kodi, …, erkannte Flatpaks) · Mediengalerie
+// Jede Reihe hat ihre eigene Reihenfolge („Kachel verschieben“, E69/E140; home.order).
+// E141: Jede Kachel unter „Apps“ und „Medien“ lässt sich ausblenden: Apps über lib.hide (Optionsmenü des Kerns),
+// „Dateien“ und die Mediengalerie über home.setHidden (home.order.hidden); zurück über Einstellungen › Apps.
 // Eigenes Bild bzw. Diashow als Hintergrund (E121) setzt der Hintergrund selbst um (components/backdrop.js, custom).
 // E126: Ganz unten im Hub, für jeden Eintrag, die Widget-Leiste (components/widgets.js; Runter bis unter die Abschnitte).
 // Der Fokus hängt am Eintrag: Listen kommen beim Start mehrmals neu (Quellen, Bilder), er bleibt
@@ -25,7 +30,7 @@ import { createWidgetBar } from "../components/widgets.js";
 import { ensureTrophyScreens, forgetTrophies } from "../components/trophies.js";
 
 const JUMP = 5;                   // L2/R2 springen um fünf Einträge
-const AREAS = ["games", "media"];
+const AREAS = ["games", "apps", "media"];   // L1/R1 der Reihe nach (E140)
 const RETRY_MS = 2500;            // antwortet der Kern nicht, fragt das Home noch ein paarmal nach
 const RETRIES = 6;
 // Danach seltener, mit wachsendem Abstand (E99): Vorher endete die Suche nach 15 s stumm
@@ -53,8 +58,8 @@ function installTile() {
 }
 
 function create() {
-  const state = { area: "games", hubOpen: false, loaded: false, shown: null, failed: 0, failCode: "", order: [], moving: null,
-    focusPending: false };
+  const state = { area: "games", hubOpen: false, loaded: false, shown: null, failed: 0, failCode: "",
+    orders: { games: [], apps: [], media: [] }, hiddenTiles: new Set(), moving: null, focusPending: false };
   const rows = {};
   let labelTimer = null;
   let detailTimer = null;
@@ -64,11 +69,12 @@ function create() {
   const artIds = new Set();
 
   // data-label: der Reiter reserviert die Breite seines fetten Schnitts (home.css .tab::before)
-  const tabs = {
-    games: h("div.tab#tab-games", { "data-focus": true, "data-nav-down": "#row-current", "data-label": S.tabGames, text: S.tabGames }),
-    media: h("div.tab#tab-media", { "data-focus": true, "data-nav-down": "#row-current", "data-label": S.tabMedia, text: S.tabMedia }),
-  };
-  const head = h("div.home-head", { "data-focus-group": true }, tabs.games, tabs.media);
+  const tabLabels = { games: S.tabGames, apps: S.tabApps, media: S.tabMedia };
+  const tabs = {};
+  for (const area of AREAS) {
+    tabs[area] = h("div.tab#tab-" + area, { "data-focus": true, "data-nav-down": "#row-current", "data-label": tabLabels[area], text: tabLabels[area] });
+  }
+  const head = h("div.home-head", { "data-focus-group": true }, ...AREAS.map((a) => tabs[a]));
   // Ein/Aus rechts neben dem Zahnrad (am Platz des Profils): in zwei Schritten aus der Kopfzeile erreichbar
   const power = h("div.status-power#status-power", { "data-focus": true, "data-nav-down": "#row-current" }, icon("power"));
   power.addEventListener("press", () => openPowerMenu(power));
@@ -128,26 +134,32 @@ function create() {
 
   // ---------------------------------------------------------------- Daten
   async function fetchLists() {
-    const [games, apps, order] = await Promise.all([
+    const [games, apps, orders] = await Promise.all([
       call("lib.list", { kind: "game", filter: "recent" }).then((r) => (r && r.entries) || []),
       call("lib.list", { kind: "app" }).then((r) => (r && r.entries) || []),
-      call("home.order").then((r) => (r && Array.isArray(r.games) ? r.games : [])).catch(() => []),
+      call("home.order").then((r) => r || {}).catch(() => ({})),
     ]);
-    state.order = order;
+    for (const area of AREAS) state.orders[area] = Array.isArray(orders[area]) ? orders[area] : [];
+    state.hiddenTiles = new Set(Array.isArray(orders.hidden) ? orders.hidden : []);       // E141
     return { games, apps };
   }
 
   // Eigene Reihenfolge (E69, „Kachel verschieben“): Spiele, die nicht in der Liste stehen (neu),
   // vorn nach zuletzt gespielt, dahinter die Liste. Ohne Liste wie bisher nach zuletzt gespielt.
-  function ordered(games) {
-    if (!state.order.length) return games;
-    const pos = new Map(state.order.map((id, i) => [id, i]));
-    const fresh = games.filter((g) => !pos.has(g.id));
-    const known = games.filter((g) => pos.has(g.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
-    return [...fresh, ...known];
+  // E140: unter „Apps“ und „Medien“ kommt Neues hinten an (frisch installiert sucht man am Ende der Reihe, und die
+  // Reihenfolge, die der Nutzer gelegt hat, bleibt vorn stehen)
+  function ordered(list, order, freshFirst) {
+    if (!order.length) return list;
+    const pos = new Map(order.map((id, i) => [id, i]));
+    const fresh = list.filter((g) => !pos.has(g.id));
+    const known = list.filter((g) => pos.has(g.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+    return freshFirst ? [...fresh, ...known] : [...known, ...fresh];
   }
-  // Steam steht am Anfang der Spiele-Reihe (07 11.2), alle anderen Apps unter „Medien“
-  const inGames = (a) => a.id === "app:steam" || (a.tags || []).includes("games-row");
+  // E140: Die Reihe einer App nennt der Kern (Marke games-row, apps-row oder media-row); Steam steht am Anfang der
+  // Spiele-Reihe (07 11.2), was keine Marke trägt, unter „Apps“
+  const rowOf = (a) => a.id === "app:steam" || (a.tags || []).includes("games-row") ? "games"
+    : (a.tags || []).includes("media-row") ? "media" : "apps";
+  const inGames = (a) => rowOf(a) === "games";
 
   async function load() {
     const serial = ++loadSerial;
@@ -188,13 +200,21 @@ function create() {
 
   function setRows(games, apps) {
     // Store ganz links (Wunsch 2026-10-19), Installieren und Bibliothek am Ende
-    const list = [STORE_TILE, ...apps.filter(inGames), ...ordered(games), installTile(), LIBRARY_TILE];
+    const list = [STORE_TILE, ...apps.filter(inGames), ...ordered(games, state.orders.games, true), installTile(), LIBRARY_TILE];
     const first = list.findIndex((e) => e.kind === "game");
     let last = -1;
     list.forEach((e, i) => { if (e.kind === "game") last = i; });
     rows.games.setEntries(list, { first: Math.max(0, first), last: last < 0 ? undefined : last });
-    // E120: Mediengalerie hinter „Dateien“ (wie der Explorer ein eigener Bildschirm der Konsole)
-    rows.media.setEntries([...apps.filter((a) => !inGames(a)), FILES_TILE, GALLERY_TILE]);
+    // E140: „Dateien“ (E62) hinter dem Browser, die Mediengalerie (E120) ans Ende der Medien; beide sind eigene
+    // Bildschirme der Konsole und lassen sich wie jede Kachel dieser Reihen verschieben
+    // E141: ausgeblendet (home.order.hidden) stehen sie nicht in der Reihe
+    const appRow = apps.filter((a) => rowOf(a) === "apps");
+    const at = appRow.findIndex((a) => a.id === "app:browser");
+    if (!state.hiddenTiles.has(FILES_TILE.id)) appRow.splice(at >= 0 ? at + 1 : appRow.findIndex((a) => a.id === "app:bazaar") + 1, 0, FILES_TILE);
+    rows.apps.setEntries(ordered(appRow, state.orders.apps, false));
+    const mediaRow = apps.filter((a) => rowOf(a) === "media");
+    if (!state.hiddenTiles.has(GALLERY_TILE.id)) mediaRow.push(GALLERY_TILE);
+    rows.media.setEntries(ordered(mediaRow, state.orders.media, false));
     const initial = !state.loaded;
     state.loaded = true;
     // Die Startanimation (components/intro.js) geht erst ins Home, wenn die Reihen stehen
@@ -220,7 +240,7 @@ function create() {
       let lists;
       try { lists = await fetchLists(); } catch (e) { return; }
       const changed = [...lists.games, ...lists.apps].filter((e) => ids2.has(e.id));
-      const hit = [...rows.games.patch(changed), ...rows.media.patch(changed)];
+      const hit = AREAS.flatMap((a) => rows[a].patch(changed));
       const current = row().current;
       if (current && hit.some((e) => e.id === current.id)) refreshEntry(row().current);
     }, 120);
@@ -240,8 +260,8 @@ function create() {
       tile.id = "row-current";
       tile.setAttribute("data-nav-up", "#tab-" + state.area);
     }
-    // Leer ist eine Reihe nur, bis die Listen das erste Mal da sind: Store, Installieren, Bibliothek
-    // und Dateien stehen immer darin (der Hinweis bei einem Fehler steht in note)
+    // Leer ist eine Reihe nur, bis die Listen das erste Mal da sind: Store, Installieren, Bibliothek,
+    // Dateien und Galerie stehen immer darin (der Hinweis bei einem Fehler steht in note)
     const none = !row().current;
     hub.el.hidden = none;
     label.hidden = none;
@@ -327,6 +347,8 @@ function create() {
   // Der Hub rückt nach oben, solange der Fokus in ihm liegt (Zustand B)
   el.addEventListener("nav-focus", (e) => {
     const open = hub.el.contains(e.target);
+    // Verschwand das fokussierte Element (neu gezeichnet), kam kein nav-blur: der Hub bliebe nach unten verschoben
+    if (!hub.sections.el.contains(e.target)) hub.sections.undeep();
     if (open === state.hubOpen) return;
     state.hubOpen = open;
     el.classList.toggle("is-hub", open);
@@ -339,57 +361,79 @@ function create() {
     if (dir === "left" || dir === "right") { e.preventDefault(); row().move(dir === "right" ? 1 : -1, repeat); }
   });
 
-  // ---------------------------------------------------------------- Kachel verschieben (E69)
-  function gameRange() {
-    const list = rows.games.entries;
+  // ---------------------------------------------------------------- Kachel verschieben (E69, E140)
+  // Spiele: nur zwischen den Spielen (Store und Steam vorn, Installieren und Bibliothek hinten bleiben fest).
+  // Apps und Medien: die ganze Reihe, auch Bazaar, „Dateien“ und die Mediengalerie
+  function moveRange(area) {
+    const list = rows[area].entries;
+    if (area !== "games") return [0, list.length - 1];
     let lo = -1;
     let hi = -1;
     list.forEach((e, i) => { if (e.kind === "game" && !e.system) { if (lo < 0) lo = i; hi = i; } });
     return [lo, hi];
   }
+  const movable = (area, entry) => !!entry && (area !== "games" || (entry.kind === "game" && !entry.system));
+  // Was gespeichert wird: in den Spielen nur die Spiele, sonst die ganze Reihe
+  const rowIds = (area) => rows[area].entries.filter((e) => area !== "games" || (e.kind === "game" && !e.system)).map((e) => e.id);
 
   function startMove() {
+    const area = state.area;
     const entry = row().current;
-    if (!entry || state.area !== "games" || entry.kind !== "game") return;
-    state.moving = { id: entry.id, before: rows.games.entries.map((e) => e.id) };
-    rows.games.setMoving(true);
-    rows.games.focusCurrent();
+    if (!movable(area, entry)) return;
+    state.moving = { id: entry.id, area };
+    rows[area].setMoving(true);
+    rows[area].focusCurrent();
     toast({ title: S.tileMove, body: S.tileMoveHint, icon: "info", sound: false });
   }
 
   function shiftTile(delta, repeat) {
-    const [lo, hi] = gameRange();
-    rows.games.shift(delta, lo, hi, repeat);
+    const area = state.moving.area;
+    const [lo, hi] = moveRange(area);
+    rows[area].shift(delta, lo, hi, repeat);
   }
 
   async function endMove(save) {
     const moving = state.moving;
     state.moving = null;
-    rows.games.setMoving(false);
     if (!moving) return;
+    rows[moving.area].setMoving(false);
     if (!save) { load(); return; }
-    const games = rows.games.entries.filter((e) => e.kind === "game" && !e.system).map((e) => e.id);
-    state.order = games;
+    const ids = rowIds(moving.area);
+    state.orders[moving.area] = ids;
     try {
-      const r = await call("home.setOrder", { games });
+      const r = await call("home.setOrder", { [moving.area]: ids });
       if (r && r.ok === false) toast({ title: S.tileMove, body: r.message || S.errorGeneric, icon: "warn" });
       else sound.play("select");
     } catch (e) { toast({ title: S.tileMove, body: (e && e.message) || S.errorGeneric, icon: "warn" }); }
   }
 
   function tileExtras(entry) {
-    if (state.area !== "games" || !entry || entry.kind !== "game") return [];
+    if (!movable(state.area, entry)) return [];
     const extra = [{ id: "move", label: S.tileMove }];
-    if (state.order.length) extra.push({ id: "order-reset", label: S.tileOrderReset });
+    if (state.orders[state.area].length) extra.push({ id: "order-reset", label: S.tileOrderReset });
+    // E141: die eigenen Bildschirme unter „Apps“ und „Medien“ (die Apps bringen „Ausblenden“ vom Kern mit)
+    if (entry.id === FILES_TILE.id || entry.id === GALLERY_TILE.id) extra.push({ id: "hide-tile", label: S.menuHideApp });
     return extra;
+  }
+
+  // E141: „Dateien“ bzw. Mediengalerie ausblenden; zurück über Einstellungen › Apps › Ausgeblendete Apps
+  async function hideTile(entry) {
+    try {
+      const r = await call("home.setHidden", { id: entry.id, hidden: true });
+      if (r && r.ok === false) { toast({ title: entry.title, body: r.message || S.errorGeneric, icon: "warn" }); return; }
+    } catch (e) { toast({ title: entry.title, body: (e && e.message) || S.errorGeneric, icon: "warn" }); return; }
+    toast({ title: entry.title, body: fmt(S.hiddenAppToast, { title: entry.title }), icon: "eye-off", sound: false, stay: 5000 });
+    load();
   }
 
   async function onTileExtra(id) {
     if (id === "move") startMove();
+    else if (id === "hide-tile" && row().current) await hideTile(row().current);
     else if (id === "order-reset") {
-      state.order = [];
-      try { await call("home.setOrder", { games: [] }); } catch (e) { /* bleibt bis zum Neustart */ }
-      toast({ title: S.tileOrderReset, body: S.tileOrderResetDone, icon: "check", sound: false });
+      const area = state.area;
+      state.orders[area] = [];
+      try { await call("home.setOrder", { [area]: [] }); } catch (e) { /* bleibt bis zum Neustart */ }
+      toast({ title: S.tileOrderReset, body: area === "games" ? S.tileOrderResetDone : S.tileOrderResetDoneRow, icon: "check", sound: false });
       load();
     }
   }
@@ -415,8 +459,9 @@ function create() {
           return true;
         }
         return false;
-      case "l1": switchArea("games"); return true;
-      case "r1": switchArea("media"); return true;
+      // E140: drei Reiter der Reihe nach; am Rand bleibt es stehen (switchArea stößt an)
+      case "l1": switchArea(AREAS[AREAS.indexOf(state.area) - 1]); return true;
+      case "r1": switchArea(AREAS[AREAS.indexOf(state.area) + 1]); return true;
       case "l2": if (inRow) row().move(-JUMP, ev.repeat); return true;
       case "r2": if (inRow) row().move(JUMP, ev.repeat); return true;
       // Optionsmenü an der Fokuskachel bzw. am „…“ des offenen Hub (07 6.7)
@@ -479,6 +524,7 @@ function create() {
       if (payload && payload.reason === "art" && Array.isArray(payload.ids)) queueArt(payload.ids);
       else load();
     } else if (event === "app.changed") refreshRunning();
+    else if (event === "home.changed") load();               // E141: Kachel aus- bzw. wieder eingeblendet
     else if (event === "state" && payload && ("running" in payload || "foreground" in payload)) {
       refreshRunning();
       if ("foreground" in payload) onForeground(payload.foreground);

@@ -1,4 +1,4 @@
-"""Terminal der Konsole für Claude Code (Bauplan E72): Kachel „Claude Code“ unter Medien.
+"""Terminal der Konsole für Claude Code (Bauplan E72): Kachel „Claude Code“ unter Apps (bis E140 unter Medien).
 
 Wunsch 2026-10-19: „Ich möchte unter Medien eine neue Kachel Claude Code, hier soll das Terminal,
 in dem du gerade läufst, ausführbar sein. Damit ich nicht immer in den Desktop muss … Angepasst an

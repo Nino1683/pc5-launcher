@@ -1,4 +1,4 @@
-// Abschnitte unter dem Hub (E123): „Über das Spiel“ (Kurzbeschreibung, Fakten, Steam-Bilder, Beschreibung) und
+// Abschnitte unter dem Hub (E123): „Über das Spiel“ (Kurzbeschreibung, Fakten, Steam-Bilder) und
 // „Neuigkeiten“ (offizielle Meldungen und Patch-Notizen) für Spiele mit Steam-Seite (game.info, game.news).
 // Geladen wird erst, wenn der Hub offen ist (open(): Fokus im Hub bzw. Spielseite), nie beim Durchblättern der Reihe.
 // Ohne Angaben (kein Steam-Treffer, kein Netz, Prüfmodus) bleibt der Platz leer.
@@ -10,7 +10,9 @@
 // E124: „Trophäen“ (components/trophies.js) steht als erster Abschnitt. always: true (E126, Widget-Leiste des Home)
 // lädt bei jedem Eintrag, auch bei Apps und Systemkacheln, und bleibt beim Wechsel stehen.
 // Die Karten unter dem Hub (hub-cards.js, E125) zeigen dieselbe Meldung bzw. Beschreibung: showNews, showAbout.
-import { h, icon, cssPx } from "../core/dom.js";
+// Den Knopf „Beschreibung“ trägt der Hub selbst rechts neben „…“ (2026-10-28: unter den Bildern stand er zu dicht
+// daran); onAbout(steam oder null) sagt ihm, ob es eine lange Beschreibung gibt.
+import { h, cssPx } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { S, fmt, whenText } from "../core/strings.js";
 import { confirm, dialog, imageViewer, messageDialog, scrollTextDialog } from "./dialog.js";
@@ -41,15 +43,14 @@ async function openNews(entry, item) {
 }
 
 // ---------------------------------------------------------------- Über das Spiel
-function aboutSection() {
+function aboutSection(onAbout) {
   const short = h("div.st-short.hub-about-text");
   const facts = h("div.st-facts.hub-facts");
   const track = h("div.hub-shots-track");
   // Keine eigene Fokus-Gruppe: Der Hub ist eine; eine Gruppe darin schickte Runter aus den Bildern zurück auf
   // den zuletzt fokussierten Knopf des Hub (nav.js: „dorthin, wo man sie zuletzt verlassen hat“)
   const shots = h("div.hub-shots", track);
-  const more = h("div.btn.is-secondary.st-more.hub-about-more", { "data-focus": true }, icon("info"), h("span.btn-label", { text: S.stMore }));
-  const el = h("div.hub-sec.hub-about", { hidden: true }, h("div.hub-sec-title", { text: S.hiAbout }), short, facts, shots, more);
+  const el = h("div.hub-sec.hub-about", { hidden: true }, h("div.hub-sec-title", { text: S.hiAbout }), short, facts, shots);
   let steam = null;
   let first = 0;                  // erstes sichtbares Bild der Reihe
 
@@ -76,7 +77,7 @@ function aboutSection() {
     track.replaceChildren(...list.map((s, i) => h("div.st-shot.hub-shot", { "data-focus": true, dataset: { i } },
       h("img", { alt: "", src: s.thumb, decoding: "async", loading: "lazy" }))));
     shots.hidden = !list.length;
-    more.hidden = !(d.about && d.about.length > (d.short || "").length + 40);
+    onAbout(d.about && d.about.length > (d.short || "").length + 40 ? d : null);
     el.hidden = short.hidden && facts.hidden && shots.hidden;
   }
 
@@ -98,15 +99,13 @@ function aboutSection() {
     imageViewer({ fill: true, count: list.length, start: Number(t.dataset.i) || 0, src: (i) => list[i].full,
       caption: (i) => fmt(S.stImageOf, { n: i + 1, total: list.length }) });
   });
-  more.addEventListener("press", () => showAbout(steam));
-
   return {
     el,
-    setEntry() { steam = null; el.hidden = true; track.replaceChildren(); },
+    setEntry() { steam = null; el.hidden = true; track.replaceChildren(); onAbout(null); },
     async load(entry, current) {
       const r = await gameInfo(entry.id);
       if (!current()) return;
-      if (r && r.ok && r.steam) render(r.steam); else el.hidden = true;
+      if (r && r.ok && r.steam) render(r.steam); else { el.hidden = true; onAbout(null); }
     },
   };
 }
@@ -163,8 +162,9 @@ export async function showNews(entry, n) {
 }
 
 // ---------------------------------------------------------------- Gerüst
-// hubEl: der Hub (.hub); ihm setzt deepTo die Verschiebung (--fx-y), solange der Fokus in einem Abschnitt liegt
-export function createHubSections(hubEl) {
+// hubEl: der Hub (.hub); ihm setzt deepTo die Verschiebung (--fx-y), solange der Fokus in einem Abschnitt liegt.
+// onAbout(steam oder null): Gibt es zum Eintrag eine lange Beschreibung (Knopf „Beschreibung“ im Hub)?
+export function createHubSections(hubEl, { onAbout = () => {} } = {}) {
   ensureStyle();
   const el = h("div.hub-extra", { hidden: true });
   const sections = [];
@@ -243,7 +243,7 @@ export function createHubSections(hubEl) {
   });
 
   add(trophySection());           // E124
-  add(aboutSection());
+  add(aboutSection(onAbout));
   add(newsSection());
   return { el, add, setEntry, open, undeep, get sections() { return sections; } };
 }

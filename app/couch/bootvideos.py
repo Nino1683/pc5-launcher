@@ -27,6 +27,7 @@ Prüfmodus: kein echtes Netz. Mit COUCH_BOOTVIDEO_FAKE=http://127.0.0.1:<port> g
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -85,6 +86,7 @@ MSG_NOT_WEBM = "Die geladene Datei ist kein WebM-Video. Sie wurde verworfen."
 MSG_FOREIGN = "Die Sammlung nannte eine fremde Adresse; es wird nichts geladen."
 MSG_STOPPED = "Das Laden wurde abgebrochen."
 MSG_FOLDER = "Der Ordner für die Videos ist kein echter Ordner."
+MSG_DISK = "Das Video ließ sich nicht speichern. Ist auf der Platte noch Platz?"
 
 
 class VideoError(Exception):
@@ -289,6 +291,11 @@ class Repo:
                 if cached is None:
                     raise
                 raw_posts, more, stale = cached["posts"], bool(cached.get("more")), True
+            except (OSError, http.client.HTTPException) as e:
+                # Abbruch beim Lesen der Antwort (Zeitüberlauf, Verbindung weg): wie offline, alter Stand bleibt
+                if cached is None:
+                    raise VideoError(MSG_NET, "offline") from e
+                raw_posts, more, stale = cached["posts"], bool(cached.get("more")), True
             else:
                 more = len(raw_posts) >= 12 and page < MAX_PAGE
                 try:
@@ -427,7 +434,7 @@ class Repo:
                             raise VideoError(MSG_STOPPED, "stopped")
                         try:
                             chunk = resp.read(CHUNK)
-                        except OSError as e:
+                        except (OSError, http.client.HTTPException) as e:
                             raise VideoError("Das Laden brach ab. Versuch es noch einmal.", "interrupted") from e
                         if not chunk:
                             break
@@ -436,11 +443,17 @@ class Repo:
                         done += len(chunk)
                         if done > MAX_VIDEO:
                             raise VideoError(MSG_BIG, "too-big")
-                        out.write(chunk)
+                        try:
+                            out.write(chunk)
+                        except OSError as e:
+                            raise VideoError(MSG_DISK, "disk") from e
                         if progress:
                             progress(done, total)
-                    out.flush()
-                    os.fsync(out.fileno())
+                    try:
+                        out.flush()
+                        os.fsync(out.fileno())
+                    except OSError as e:
+                        raise VideoError(MSG_DISK, "disk") from e
             if head != WEBM_MAGIC:
                 raise VideoError(MSG_NOT_WEBM, "not-webm")
             if total and done != total:

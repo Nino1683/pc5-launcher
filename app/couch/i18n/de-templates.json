@@ -72,6 +72,12 @@
   ]
  },
  {
+  "text": " (rund %d MB)",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": " (unbekannt: „%s“)",
   "files": [
    "app/couch/backup.py"
@@ -211,6 +217,18 @@
   ]
  },
  {
+  "text": "%d Eingänge erkannt.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "%d Eingänge erkannt. Der PC hängt an %s.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "%d Installationen warten noch.",
   "files": [
    "app/couch/wiring_install.py"
@@ -221,6 +239,12 @@
   "files": [
    "app/couch/settings/games.py",
    "app/couch/wiring_proton.py"
+  ]
+ },
+ {
+  "text": "%d Spiele aus Lutris übernommen",
+  "files": [
+   "app/couch/wiring_library.py"
   ]
  },
  {
@@ -290,7 +314,7 @@
   ]
  },
  {
-  "text": "%s (gemeinsam mit Lutris)",
+  "text": "%s (bisheriger Prefix des Spiels)",
   "files": [
    "app/couch/library/describe.py"
   ]
@@ -849,6 +873,12 @@
   ]
  },
  {
+  "text": "1 Spiel aus Lutris übernommen",
+  "files": [
+   "app/couch/wiring_library.py"
+  ]
+ },
+ {
   "text": "1 Update",
   "files": [
    "app/couch/settings/system.py"
@@ -867,9 +897,21 @@
   ]
  },
  {
+  "text": "3. Am Fernseher bestätigen",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "416 ohne passende Größe, beginne von vorn",
   "files": [
    "app/couch/fetcher.py"
+  ]
+ },
+ {
+  "text": "6 Zeichen aus Ziffern und den Buchstaben A bis F. Gib sie unten ein.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -1068,6 +1110,12 @@
   ]
  },
  {
+  "text": "Adresse eingeben",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Adresse nicht erlaubt",
   "files": [
    "app/couch/trailerfeed.py"
@@ -1194,6 +1242,12 @@
   ]
  },
  {
+  "text": "Am Fernseher unter Einstellungen › System › Info siebenmal auf „Build“ (Android-TV-Betriebssystem-Build) drücken.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Am Gerät ausgeschaltet",
   "files": [
    "app/couch/settings/network.py"
@@ -1209,6 +1263,18 @@
   "text": "Amsterdam",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "An",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Anderen Fernseher koppeln",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -1332,6 +1398,12 @@
   ]
  },
  {
+  "text": "App Store",
+  "files": [
+   "app/couch/library/apps.py"
+  ]
+ },
+ {
   "text": "App name",
   "files": [
    "app/couch/store/epic_account.py"
@@ -1357,6 +1429,30 @@
   ]
  },
  {
+  "text": "Application",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
+  "text": "Application ID",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Application ID entfernt.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Application ID übernommen.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Applications",
   "files": [
    "app/couch/launch/apps.py"
@@ -1365,6 +1461,7 @@
  {
   "text": "Apps",
   "files": [
+   "app/couch/settings/apps.py",
    "app/couch/settings/system.py"
   ]
  },
@@ -1388,6 +1485,12 @@
   ]
  },
  {
+  "text": "Apps und Spiele von Flathub installieren und aktualisieren (Bazaar).",
+  "files": [
+   "app/couch/library/apps.py"
+  ]
+ },
+ {
   "text": "Apps werden aktualisiert …",
   "files": [
    "app/couch/settings/system.py"
@@ -1397,6 +1500,18 @@
   "text": "Apps werden gerade aktualisiert.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Apps, die du im Optionsmenü einer Kachel unter Apps oder Medien ausgeblendet hast. Hier holst du sie zurück.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Apr",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -1476,6 +1591,12 @@
   "text": "Attributes",
   "files": [
    "app/couch/installer/probe.py"
+  ]
+ },
+ {
+  "text": "Audio",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -1619,6 +1740,12 @@
   ]
  },
  {
+  "text": "Aufwachen",
+  "files": [
+   "app/couch/wiring_tv.py"
+  ]
+ },
+ {
   "text": "Aufwecken mit dem Einschaltknopf am PC",
   "files": [
    "app/couch/power.py"
@@ -1634,6 +1761,12 @@
   "text": "Aufwecken mit der PS-Taste am Controller oder dem Einschaltknopf am PC.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Aug",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -1655,10 +1788,24 @@
    "app/couch/perf.py",
    "app/couch/power.py",
    "app/couch/settings/accessories.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/home.py",
    "app/couch/settings/performance.py",
    "app/couch/settings/system.py",
-   "app/couch/settings/tree.py"
+   "app/couch/settings/tree.py",
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Aus Lutris übernommen (Linux)",
+  "files": [
+   "app/couch/library/describe.py"
+  ]
+ },
+ {
+  "text": "Aus Lutris übernommen (Windows)",
+  "files": [
+   "app/couch/library/describe.py"
   ]
  },
  {
@@ -1692,6 +1839,12 @@
   ]
  },
  {
+  "text": "Aus der EDID",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Aus der Liste entfernen",
   "files": [
    "app/couch/library/describe.py"
@@ -1707,6 +1860,18 @@
   "text": "Aus: Solange ein Spiel oder eine App vorn ist, stehen Mitteilungen nur in der Liste. Die Akkuwarnung kommt trotzdem.",
   "files": [
    "app/couch/settings/notifications.py"
+  ]
+ },
+ {
+  "text": "Ausblenden",
+  "files": [
+   "app/couch/library/describe.py"
+  ]
+ },
+ {
+  "text": "Ausblenden geht im Optionsmenü (Options-Taste) jeder Kachel unter Apps und Medien.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -1728,9 +1893,21 @@
   ]
  },
  {
+  "text": "Ausgabe zu groß",
+  "files": [
+   "app/couch/tv/adb.py"
+  ]
+ },
+ {
   "text": "Ausgabegerät",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Ausgeblendete Apps",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -1756,7 +1933,8 @@
  {
   "text": "Auswählen, um zu koppeln.",
   "files": [
-   "app/couch/settings/accessories.py"
+   "app/couch/settings/accessories.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -1890,6 +2068,12 @@
   ]
  },
  {
+  "text": "Beim Aufwachen Fernseher einschalten und auf den PC umschalten",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Beim Ausschalten werden kabellose Controller getrennt. Ohne Bestätigung schaltet sich Bluetooth nach {0} Sekunden wieder ein.",
   "files": [
    "app/couch/settings/accessories.py"
@@ -1905,6 +2089,12 @@
   "text": "Beim Einschalten und nach einem Neustart des PC5 Launchers erscheint das Logo mit Ton. Jede Taste überspringt es.",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Beim Ruhemodus und Ausschalten Fernseher ausschalten",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -1968,6 +2158,12 @@
   ]
  },
  {
+  "text": "Bereit",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Bericht ausgeben",
   "files": [
    "app/couch/library/art.py"
@@ -1996,6 +2192,12 @@
   "files": [
    "app/couch/store/gog.py",
    "app/couch/store/ubisoft.py"
+  ]
+ },
+ {
+  "text": "Bestätige am Fernseher „Debugging zulassen?“, am besten mit „Immer von diesem Computer zulassen“.",
+  "files": [
+   "app/couch/wiring_tv.py"
   ]
  },
  {
@@ -2344,6 +2546,12 @@
   ]
  },
  {
+  "text": "Braucht „Eingänge genauer erkennen“",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Bronze-Trophäe freigeschaltet",
   "files": [
    "app/couch/trophies.py"
@@ -2472,6 +2680,12 @@
   ]
  },
  {
+  "text": "Categories",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
   "text": "Cemu",
   "files": [
    "app/couch/launch/emulator.py",
@@ -2518,6 +2732,30 @@
   ]
  },
  {
+  "text": "Claude Code ist nicht installiert.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Claude Code läuft schon. Ab dem nächsten Start startet es mit.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Claude Code mit dem PC5 Launcher starten",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Claude Code startet im Hintergrund und lädt die letzte Unterhaltung.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Closing",
   "files": [
    "app/couch/shell.py"
@@ -2530,9 +2768,21 @@
   ]
  },
  {
+  "text": "Code eingeben",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Colorspace",
   "files": [
    "app/couch/settings/drm_modes.py"
+  ]
+ },
+ {
+  "text": "Comment",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -2628,6 +2878,12 @@
   ]
  },
  {
+  "text": "Controller-Verbindung beim Fortsetzen (alt)",
+  "files": [
+   "app/couch/sysadmin.py"
+  ]
+ },
+ {
   "text": "Controllers cannot be paired from the console.",
   "files": [
    "app/couch/depcheck.py"
@@ -2701,9 +2957,33 @@
   ]
  },
  {
+  "text": "Dafür fehlt auf diesem System das Python-Paket „cryptography“ (meist python3-cryptography). Ohne es lässt sich kein Fernseher koppeln.",
+  "files": [
+   "app/couch/tv/keys.py"
+  ]
+ },
+ {
   "text": "Damit das Touchpad von DualSense und DualShock 4 in Spielen nicht zugleich die Maus bewegt und klickt. Legt eine udev-Regel an; danach den Controller einmal neu verbinden.",
   "files": [
    "app/couch/sysadmin.py"
+  ]
+ },
+ {
+  "text": "Damit der PC5 Launcher den Fernseher im Standby erreicht und wecken kann, muss in dessen Einstellungen „Netzwerk-Standby“ an sein (je nach Hersteller auch „Wake on LAN“, „Über Netzwerk einschalten“ oder „Schnellstart“).",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Danach steuert der PC5 Launcher den Fernseher nicht mehr, bis du ihn neu koppelst.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Dann hier „Jetzt erkennen“ wählen und am Fernseher „Debugging zulassen?“ bestätigen, am besten mit „Immer von diesem Computer zulassen“.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -2884,6 +3164,12 @@
   ]
  },
  {
+  "text": "Das Deinstallieren von „%s“ hat zu lange gedauert und wurde abgebrochen.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "Das Epic-Werkzeug (legendary) fehlt.",
   "files": [
    "app/couch/launch/proton.py"
@@ -2937,6 +3223,7 @@
   "text": "Das Home endet gerade.",
   "files": [
    "app/couch/setup/jobs.py",
+   "app/couch/tv/service.py",
    "app/couch/wiring_proton.py"
   ]
  },
@@ -3376,6 +3663,12 @@
   ]
  },
  {
+  "text": "Das Video ließ sich nicht speichern. Ist auf der Platte noch Platz?",
+  "files": [
+   "app/couch/bootvideos.py"
+  ]
+ },
+ {
   "text": "Das Wurzelverzeichnis „/“ wird nie angefasst.",
   "files": [
    "app/couch/installer/trash.py"
@@ -3403,6 +3696,12 @@
   "text": "Das geht hier nicht.",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Das geht, solange ein Spiel oder eine App vorn ist. Im Home schaltest du in Discord selbst stumm (Discord öffnen).",
+  "files": [
+   "app/couch/wiring_discord.py"
   ]
  },
  {
@@ -3443,6 +3742,7 @@
    "app/couch/rpc.py",
    "app/couch/settings/system.py",
    "app/couch/settings/tree.py",
+   "app/couch/settings/tvctl.py",
    "app/couch/setup/jobs.py",
    "app/couch/ui/host.py",
    "app/couch/wiring_files.py",
@@ -3481,10 +3781,12 @@
   "text": "Das ist gerade nicht verfügbar.",
   "files": [
    "app/couch/selfupdate.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/games.py",
    "app/couch/settings/home.py",
    "app/couch/settings/session.py",
    "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py",
    "app/couch/settings/updates.py",
    "app/couch/updates.py",
    "app/couch/wiring.py",
@@ -3514,6 +3816,18 @@
   "text": "Das ist keine gewöhnliche Datei.",
   "files": [
    "app/couch/textedit.py"
+  ]
+ },
+ {
+  "text": "Das ist keine gültige Adresse. Gib die IP-Adresse aus den Netzwerk-Einstellungen des Fernsehers ein (vier Zahlen mit Punkten) oder seinen Namen im Netz.",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
+  "text": "Das ließ sich nicht speichern: %s",
+  "files": [
+   "app/couch/wiring_home.py"
   ]
  },
  {
@@ -3553,6 +3867,12 @@
   ]
  },
  {
+  "text": "Das wirkt erst, wenn „Eingänge genauer erkennen“ eingerichtet ist. Bis dahin bleibt der Fernseher an.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Das Übernehmen hat mittendrin nicht geklappt (%s). Dein vorheriger Stand ist gesichert: %s",
   "files": [
    "app/couch/backup.py"
@@ -3586,6 +3906,12 @@
   "text": "Datei nicht lesbar: %s",
   "files": [
    "app/couch/files.py"
+  ]
+ },
+ {
+  "text": "Dateien",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -3643,6 +3969,12 @@
   ]
  },
  {
+  "text": "Dec",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Dein Benutzer darf auf diesem System keine Systemänderungen vornehmen (sudo).",
   "files": [
    "app/couch/sysadmin.py"
@@ -3665,6 +3997,12 @@
   "text": "Deine Epic-Spiele ließen sich nicht abrufen%s.",
   "files": [
    "app/couch/store/epic_account.py"
+  ]
+ },
+ {
+  "text": "Deine Freunde sehen in Discord, welches Spiel du gerade spielst und seit wann. Braucht die Application ID darunter.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -3700,7 +4038,8 @@
  {
   "text": "Deinstallieren",
   "files": [
-   "app/couch/library/describe.py"
+   "app/couch/library/describe.py",
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -3740,10 +4079,17 @@
   ]
  },
  {
+  "text": "Der App Store (Bazaar) ist nicht installiert.",
+  "files": [
+   "app/couch/launch/apps.py"
+  ]
+ },
+ {
   "text": "Der Arbeitsordner fehlt (%s); gestartet wird im Ordner der Startdatei.",
   "files": [
    "app/couch/launch/native.py",
-   "app/couch/launch/proton.py"
+   "app/couch/launch/proton.py",
+   "app/couch/launch/winerun.py"
   ]
  },
  {
@@ -3804,6 +4150,18 @@
   "text": "Der Browser lässt sich gerade nicht ansteuern: %s",
   "files": [
    "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Der Code hat 6 Zeichen: Ziffern 0 bis 9 und Buchstaben A bis F.",
+  "files": [
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
+  "text": "Der Code passt nicht. Vertippt? Vergleiche ihn noch einmal mit dem Code am Fernseher.",
+  "files": [
+   "app/couch/tv/__init__.py"
   ]
  },
  {
@@ -3922,9 +4280,51 @@
   ]
  },
  {
+  "text": "Der Fernseher antwortet nicht auf Debugging. Schalte in seinen Entwickleroptionen „Netzwerk-Debugging“ (auch „ADB-Debugging“ oder „USB-Debugging“) ein.",
+  "files": [
+   "app/couch/tv/adb.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher antwortet nicht. Ist er im Standby, muss in seinen Einstellungen „Netzwerk-Standby“ (je nach Hersteller „Wake on LAN“ oder „Über Netzwerk einschalten“) an sein.",
+  "files": [
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
   "text": "Der Fernseher erscheint hier, sobald sein HDMI-Anschluss aktiv ist.",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher hat das Debugging nicht zugelassen. Wähle „Jetzt erkennen“ noch einmal und bestätige am Fernseher „Debugging zulassen?“ (am besten mit „Immer von diesem Computer zulassen“).",
+  "files": [
+   "app/couch/tv/adb.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher hat den Code nicht angenommen. Fordere einen neuen Code an.",
+  "files": [
+   "app/couch/tv/remote.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher hat die Kopplung abgelehnt (Status %s).",
+  "files": [
+   "app/couch/tv/remote.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher ist nicht gekoppelt. Koppeln unter Einstellungen › Bildschirm und Video › Fernseher steuern.",
+  "files": [
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher ist schon aus.",
+  "files": [
+   "app/couch/tv/service.py"
   ]
  },
  {
@@ -3934,9 +4334,45 @@
   ]
  },
  {
+  "text": "Der Fernseher kennt diesen PC nicht mehr (Kopplung aufgehoben oder Fernseher neu eingerichtet). Koppel ihn neu unter Einstellungen › Bildschirm und Video › Fernseher steuern.",
+  "files": [
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher meldet nicht, ob er an ist. Damit er nicht versehentlich angeht, schickt der PC5 Launcher nichts.",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher muss an sein und im selben Heimnetz wie der PC. Kennt er diesen PC noch nicht, zeigt er einen Code, den du dann hier eingibst.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher nennt keine HDMI-Eingänge. Der PC5 Launcher schaltet weiter mit den Tasten HDMI 1 bis 4.",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
   "text": "Der Fernseher nimmt unkomprimierten Ton nur in Stereo an.",
   "files": [
    "app/couch/settings/audio.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher zeigt einen neuen Code.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Der Fernseher zeigt jetzt einen Code",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -3946,7 +4382,7 @@
   ]
  },
  {
-  "text": "Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s). Zum Auspacken ohne Wine fehlt innoextract (kommt mit Lutris).",
+  "text": "Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s). Zum Auspacken ohne Wine fehlt innoextract; installieren lässt es sich am Desktop im Terminal mit „brew install innoextract“.",
   "files": [
    "app/couch/wiring_store.py"
   ]
@@ -4120,6 +4556,12 @@
   ]
  },
  {
+  "text": "Der Ordner für die Schlüssel des Fernsehers ist kein Ordner.",
+  "files": [
+   "app/couch/tv/keys.py"
+  ]
+ },
+ {
   "text": "Der Ordner für die Videos ist kein echter Ordner.",
   "files": [
    "app/couch/bootvideos.py"
@@ -4213,6 +4655,24 @@
   "text": "Der PC5 Launcher ist schon aktuell.",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Der PC5 Launcher kennt den Eingang des PCs nicht. „Eingänge genauer erkennen“ findet ihn; bis dahin schaltet er nach dem Aufwachen nicht um.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Der PC5 Launcher liest dann nur die Liste der Eingänge, die Namen der Geräte daran und welcher Eingang gerade läuft (der ist der des PCs), und schaltet die Eingänge um. Sonst nichts.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Der PC5 Launcher vergisst „%s“. %s",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -4514,12 +4974,6 @@
   ]
  },
  {
-  "text": "Der Vorab-Befehl aus Lutris fehlt und wird ausgelassen: %s",
-  "files": [
-   "app/couch/launch/proton.py"
-  ]
- },
- {
   "text": "Der Wechsel zum Desktop hat nicht geklappt.",
   "files": [
    "app/couch/power.py"
@@ -4658,6 +5112,24 @@
   ]
  },
  {
+  "text": "Der offizielle Discord-Client für Nachrichten und Sprachchat mit Freunden.",
+  "files": [
+   "app/couch/setup/catalog.py"
+  ]
+ },
+ {
+  "text": "Der offizielle Discord-Client läuft im PC5 Launcher: als Kachel unter Apps, mit einem Symbol im Control Center und seinen Nachrichten als Mitteilung. Aus: Nichts davon läuft oder erscheint; ein Discord, das der PC5 Launcher gestartet hat, wird sauber beendet.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Der übernommene Vorab-Befehl des Spiels fehlt und wird ausgelassen: %s",
+  "files": [
+   "app/couch/launch/proton.py"
+  ]
+ },
+ {
   "text": "Design",
   "files": [
    "app/couch/settings/home.py"
@@ -4673,6 +5145,18 @@
   "text": "Desktop Applications",
   "files": [
    "app/couch/library/emulators.py"
+  ]
+ },
+ {
+  "text": "Desktop Entry",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
+  "text": "Development",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -4773,6 +5257,12 @@
   ]
  },
  {
+  "text": "Die App ließ sich nicht wieder anzeigen.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Die App-Kennung hat 32 Zeichen aus 0–9 und a–f.",
   "files": [
    "app/couch/settings/games.py",
@@ -4791,6 +5281,12 @@
   "files": [
    "app/couch/settings/games.py",
    "app/couch/wiring_settings.py"
+  ]
+ },
+ {
+  "text": "Die Application ID besteht aus 17 bis 20 Ziffern.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -5146,6 +5642,24 @@
   ]
  },
  {
+  "text": "Die Kopplung ist abgelaufen. Wähle den Fernseher noch einmal aus.",
+  "files": [
+   "app/couch/tv/remote.py"
+  ]
+ },
+ {
+  "text": "Die Kopplung ist vergessen.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Die Kopplung mit dem Fernseher brach ab. Versuch es bitte noch einmal.",
+  "files": [
+   "app/couch/tv/remote.py"
+  ]
+ },
+ {
   "text": "Die Kopplung wurde abgebrochen.",
   "files": [
    "app/couch/settings/backends/bluez.py"
@@ -5354,6 +5868,12 @@
   "text": "Die Spieldateien ließen sich nicht entfernen. Ist die Platte mit dem Spiel angeschlossen?",
   "files": [
    "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Die Spiele starten jetzt ohne Lutris; Lutris wird nicht mehr gebraucht.",
+  "files": [
+   "app/couch/wiring_library.py"
   ]
  },
  {
@@ -5667,6 +6187,7 @@
    "app/couch/power.py",
    "app/couch/settings/accessibility.py",
    "app/couch/settings/accessories.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/audio.py",
    "app/couch/settings/display.py",
    "app/couch/settings/games.py",
@@ -5677,7 +6198,21 @@
    "app/couch/settings/session.py",
    "app/couch/settings/storage.py",
    "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py",
    "app/couch/settings/updates.py"
+  ]
+ },
+ {
+  "text": "Diese App gibt es nicht mehr.",
+  "files": [
+   "app/couch/settings/apps.py",
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "Diese App lässt sich hier nicht deinstallieren.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -5705,6 +6240,7 @@
   "files": [
    "app/couch/bootvideos.py",
    "app/couch/settings/home.py",
+   "app/couch/settings/tvctl.py",
    "app/couch/wiring_videos.py"
   ]
  },
@@ -5812,11 +6348,13 @@
   "text": "Diese Einstellung lässt sich nicht ändern.",
   "files": [
    "app/couch/settings/accessibility.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/display.py",
    "app/couch/settings/games.py",
    "app/couch/settings/home.py",
    "app/couch/settings/notifications.py",
-   "app/couch/settings/performance.py"
+   "app/couch/settings/performance.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -5847,6 +6385,12 @@
   "text": "Diese Installation stammt nicht aus dem Paket von GitHub. Der PC5 Launcher aktualisiert sie deshalb nicht selbst.",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Kachel lässt sich hier nicht ausblenden.",
+  "files": [
+   "app/couch/wiring_home.py"
   ]
  },
  {
@@ -6025,6 +6569,12 @@
   ]
  },
  {
+  "text": "Diesen Eingang kann der PC5 Launcher nicht wählen.",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
   "text": "Diesen Eintrag gibt es im Papierkorb nicht mehr.",
   "files": [
    "app/couch/xdgtrash.py"
@@ -6174,6 +6724,12 @@
   "text": "Dieser Emulator ist nicht installiert.",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Dieser Fernseher ist nicht mehr in der Liste. Such noch einmal.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -6449,6 +7005,12 @@
   ]
  },
  {
+  "text": "Dieses Spiel ist auf „Starten mit: wine-run“ gestellt, aber ~/.local/bin/wine-run fehlt. Stell es in den Spieleinstellungen auf Proton.",
+  "files": [
+   "app/couch/launch/winerun.py"
+  ]
+ },
+ {
   "text": "Dieses Spiel ist kein Windows-Spiel.",
   "files": [
    "app/couch/launch/proton.py"
@@ -6464,12 +7026,6 @@
   "text": "Dieses Spiel ist nicht über den Store installiert.",
   "files": [
    "app/couch/wiring_store.py"
-  ]
- },
- {
-  "text": "Dieses Spiel lässt sich nicht „wie in Lutris“ starten.",
-  "files": [
-   "app/couch/launch/lutris_way.py"
   ]
  },
  {
@@ -6524,6 +7080,88 @@
   "text": "Disconnect",
   "files": [
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "Discord",
+  "files": [
+   "app/couch/discord/__init__.py",
+   "app/couch/launch/apps.py",
+   "app/couch/library/apps.py",
+   "app/couch/settings/apps.py",
+   "app/couch/setup/catalog.py"
+  ]
+ },
+ {
+  "text": "Discord installieren",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord ist ausgeschaltet. Einschalten unter Einstellungen › Apps › Discord.",
+  "files": [
+   "app/couch/wiring_discord.py"
+  ]
+ },
+ {
+  "text": "Discord ist nicht installiert.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord ist nicht installiert. Installieren unter Einstellungen › Apps › Discord.",
+  "files": [
+   "app/couch/wiring_discord.py"
+  ]
+ },
+ {
+  "text": "Discord ist noch nicht installiert. „Discord installieren“ lädt es von Flathub.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord ist schon installiert.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord lässt sich gerade nicht öffnen.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord läuft gerade nicht. Öffne es zuerst.",
+  "files": [
+   "app/couch/wiring_discord.py"
+  ]
+ },
+ {
+  "text": "Discord startet nach dem PC5 Launcher unsichtbar und bleibt für Nachrichten und Sprachchat an, auch während ein Spiel läuft. Es wird nie angehalten.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord verwenden",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord wird beendet.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Discord öffnen",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -6695,6 +7333,24 @@
   ]
  },
  {
+  "text": "E140 deinstallieren",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "E140 deinstallieren (keine Attrappe)",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "Ebenso in Discord eintragen. Das Control Center schickt sie mit „Ton in Discord aus/an“, solange ein Spiel oder eine App vorn ist.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Echtzeitstrategie",
   "files": [
    "app/couch/store/battlenet.py"
@@ -6814,6 +7470,12 @@
   ]
  },
  {
+  "text": "Ein Schlüssel für den Fernseher ist unlesbar (%s).",
+  "files": [
+   "app/couch/tv/keys.py"
+  ]
+ },
+ {
   "text": "Ein System-Update wird gerade installiert%s.",
   "files": [
    "app/couch/settings/system.py"
@@ -6928,9 +7590,16 @@
   ]
  },
  {
+  "text": "Eingang des PCs",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Eingerichtet",
   "files": [
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -6943,6 +7612,18 @@
   "text": "Eingetragen · Pause, noch %s",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Eingänge genauer erkennen",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Eingänge genauer erkennen (optional)",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -7166,6 +7847,12 @@
   ]
  },
  {
+  "text": "Emulator",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
   "text": "Emulator für Kerne, BIOS und Einstellungen, bedient mit dem Controller als Maus.",
   "files": [
    "app/couch/library/apps.py"
@@ -7252,7 +7939,7 @@
  {
   "text": "Engine",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/imported.py"
   ]
  },
  {
@@ -7327,9 +8014,21 @@
   ]
  },
  {
+  "text": "Erkannt",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Erkannt.",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Erneut suchen",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -7369,6 +8068,12 @@
   ]
  },
  {
+  "text": "Es fehlt die Reihe, deren Reihenfolge gespeichert werden soll.",
+  "files": [
+   "app/couch/wiring_home.py"
+  ]
+ },
+ {
   "text": "Es gab nichts zu speichern.",
   "files": [
    "app/couch/textedit.py"
@@ -7396,6 +8101,12 @@
   "text": "Es gibt nichts zu aktualisieren.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Es ist danach noch installiert.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -7470,6 +8181,12 @@
   ]
  },
  {
+  "text": "Es wird gerade schon eine App deinstalliert. Warte, bis das fertig ist.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "Es wird nach Updates gesucht.",
   "files": [
    "app/couch/settings/system.py"
@@ -7500,9 +8217,22 @@
   ]
  },
  {
+  "text": "Exec",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
   "text": "Experimentell, Schwerpunkt FSR 4 und HDR. Seit April 2026 keine neue Fassung; nur auf Wunsch.",
   "files": [
    "app/couch/proton_repair.py"
+  ]
+ },
+ {
+  "text": "Expired",
+  "files": [
+   "app/couch/tv/remote.py",
+   "app/couch/tv/service.py"
   ]
  },
  {
@@ -7561,6 +8291,12 @@
   ]
  },
  {
+  "text": "Feb",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Feb.",
   "files": [
    "app/couch/library/index.py"
@@ -7595,6 +8331,7 @@
   "text": "Fehler",
   "files": [
    "app/couch/launch/builders.py",
+   "app/couch/library/flatpaks.py",
    "app/couch/store/epic.py",
    "app/couch/store/ubisoft.py",
    "app/couch/textedit.py"
@@ -7641,6 +8378,7 @@
  {
   "text": "Fehlt",
   "files": [
+   "app/couch/settings/apps.py",
    "app/couch/settings/games.py"
   ]
  },
@@ -7659,7 +8397,39 @@
  {
   "text": "Fernseher",
   "files": [
-   "app/couch/settings/display.py"
+   "app/couch/settings/display.py",
+   "app/couch/settings/tvctl.py",
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
+  "text": "Fernseher im Standby",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Fernseher koppeln",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Fernseher steuern",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Fernseher steuern ist ausgeschaltet. Einschalten unter Einstellungen › Bildschirm und Video › Fernseher steuern.",
+  "files": [
+   "app/couch/tv/__init__.py"
+  ]
+ },
+ {
+  "text": "Fernseher übers Netz steuern",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -7844,6 +8614,12 @@
   ]
  },
  {
+  "text": "Für die Suche im Heimnetz fehlt avahi-browse (Paket avahi-tools bzw. avahi). Gib die Adresse des Fernsehers stattdessen ein: Du findest sie in seinen Netzwerk-Einstellungen.",
+  "files": [
+   "app/couch/tv/net.py"
+  ]
+ },
+ {
   "text": "Für die Übernahme der Spielstände fehlt Speicherplatz.",
   "files": [
    "app/couch/launch/prefix.py"
@@ -7966,6 +8742,12 @@
   ]
  },
  {
+  "text": "Für „%s“ fehlt die Freigabe zum Deinstallieren aus der System-Installation, und nach einem Kennwort fragt der PC5 Launcher nie. Deinstalliere es im Desktop-Modus, zum Beispiel in Bazaar.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "Für „%s“ ist kein Startbefehl hinterlegt.",
   "files": [
    "app/couch/proc/manager.py"
@@ -8048,7 +8830,8 @@
  {
   "text": "Game",
   "files": [
-   "app/couch/library/artsources/msstore.py"
+   "app/couch/library/artsources/msstore.py",
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -8182,6 +8965,12 @@
   ]
  },
  {
+  "text": "Gekoppelt",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Gelb",
   "files": [
    "app/couch/settings/accessories.py"
@@ -8243,6 +9032,18 @@
   ]
  },
  {
+  "text": "Gerade läuft keine Kopplung.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Gerade läuft keine Kopplung. Wähle den Fernseher noch einmal aus.",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
   "text": "Gerade nicht lesbar",
   "files": [
    "app/couch/settings/games.py",
@@ -8259,6 +9060,12 @@
   "text": "Gerade wird schon gesichert oder wiederhergestellt.",
   "files": [
    "app/couch/wiring_saves.py"
+  ]
+ },
+ {
+  "text": "Gerade wird „%s“ deinstalliert.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -8366,6 +9173,7 @@
  {
   "text": "Gio",
   "files": [
+   "app/couch/discord/notes.py",
    "app/couch/files.py",
    "app/couch/ui/testctl.py"
   ]
@@ -8700,6 +9508,12 @@
   ]
  },
  {
+  "text": "Hidden",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
   "text": "Hier erscheinen Spiele, die du aus einem Archiv installiert hast.",
   "files": [
    "app/couch/settings/storage.py"
@@ -8724,7 +9538,7 @@
   ]
  },
  {
-  "text": "Hier geht nur „Automatisch“ oder „Wie in Lutris“.",
+  "text": "Hier geht nur „Proton“ oder „wine-run“.",
   "files": [
    "app/couch/library/index.py"
   ]
@@ -8769,6 +9583,12 @@
   "text": "Hintergründe und Bildschirmfotos",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Holt Discord nach vorn. Der Controller ist dort die Maus; mit der PS-Taste kommst du zurück, Discord läuft weiter.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -8867,6 +9687,7 @@
   "text": "Icon",
   "files": [
    "app/couch/library/artsources/msstore.py",
+   "app/couch/library/flatpaks.py",
    "app/couch/settings/backends/bluez.py"
   ]
  },
@@ -8874,6 +9695,18 @@
   "text": "If-None-Match",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Im App Store läuft gerade ein Download oder Update.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "Im App Store läuft gerade ein Download oder Update. Beim Schließen wird er abgebrochen.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -8981,7 +9814,8 @@
  {
   "text": "Im Prüfmodus fehlt die Flatpak-Attrappe.",
   "files": [
-   "app/couch/setup/jobs.py"
+   "app/couch/setup/jobs.py",
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -9016,6 +9850,12 @@
    "app/couch/bootvideos.py",
    "app/couch/settings/backends/speedtest.py",
    "app/couch/wiring_gameinfo.py"
+  ]
+ },
+ {
+  "text": "Im Prüfmodus spricht der PC5 Launcher nur mit 127.0.0.1.",
+  "files": [
+   "app/couch/tv/__init__.py"
   ]
  },
  {
@@ -9105,9 +9945,33 @@
   ]
  },
  {
+  "text": "Immer",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "In %s wurde die Installation nicht bestätigt.",
   "files": [
    "app/couch/wiring_launchers.py"
+  ]
+ },
+ {
+  "text": "In Discord die Aufnahme der Tastenbelegung starten, PS drücken und im Control Center unter „Discord“ die passende Zeile wählen.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "In Discord unter Einstellungen › System › Benutzerdefinierte Hotkeys › „Hotkey hinzufügen“ eintragen. Das Control Center schickt sie mit „Mikrofon in Discord stumm/an“.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "In Einstellungen › System › Entwickleroptionen „Netzwerk-Debugging“ einschalten (je nach Gerät auch „ADB-Debugging“ oder „USB-Debugging“).",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -9321,6 +10185,12 @@
   ]
  },
  {
+  "text": "Ist er an und im selben Heimnetz? Manche Router lassen die Suche nicht durch; dann gib seine Adresse ein.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Istanbul",
   "files": [
    "app/couch/settings/system.py"
@@ -9332,6 +10202,12 @@
    "app/couch/settings/display.py",
    "app/couch/settings/drm_modes.py",
    "app/couch/shell.py"
+  ]
+ },
+ {
+  "text": "Jan",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -9368,6 +10244,12 @@
   ]
  },
  {
+  "text": "Jetzt erkennen",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Jetzt nach Updates suchen",
   "files": [
    "app/couch/settings/system.py",
@@ -9381,10 +10263,22 @@
   ]
  },
  {
+  "text": "Jul",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Juli",
   "files": [
    "app/couch/library/index.py",
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Jun",
+  "files": [
+   "app/couch/gallery.py"
   ]
  },
  {
@@ -9484,6 +10378,12 @@
   ]
  },
  {
+  "text": "Kein Fernseher gefunden.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Kein Gerät gefunden",
   "files": [
    "app/couch/settings/audio.py"
@@ -9558,9 +10458,16 @@
  {
   "text": "Keine",
   "files": [
+   "app/couch/settings/apps.py",
    "app/couch/settings/network.py",
    "app/couch/settings/session.py",
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Keine Apps ausgeblendet.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -9832,6 +10739,12 @@
   ]
  },
  {
+  "text": "Koppel zuerst den Fernseher.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Kopplung fehlgeschlagen.",
   "files": [
    "app/couch/settings/backends/bluez.py"
@@ -9841,6 +10754,18 @@
   "text": "Kopplung fehlgeschlagen. Versetze den Controller erneut in den Kopplungsmodus.",
   "files": [
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "Kopplung vergessen",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Kopplung vergessen?",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -9952,9 +10877,27 @@
   ]
  },
  {
+  "text": "Lautstärke, Eingang und Ausschalten des Fernsehers über das Heimnetz, im Control Center unter „Fernseher“. Geht nur mit Fernsehern mit Google TV oder Android TV. Aus: Der PC5 Launcher spricht nie mit dem Fernseher und sucht auch nicht nach ihm.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Lautstärke, Eingang und Ausschalten über das Heimnetz (Google TV und Android TV).",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Leert sich %d Tage nach dem Löschen von selbst.",
   "files": [
    "app/couch/cleanup.py"
+  ]
+ },
+ {
+  "text": "Lege im Discord Developer Portal (%s) kostenlos eine Application „PC5 Launcher“ an und trage ihre Application ID ein: 17 bis 20 Ziffern, kein Geheimnis. Leer: keine Anzeige.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -10069,18 +11012,6 @@
   ]
  },
  {
-  "text": "Lutris hat keinen Startbefehl für „%s“ geliefert.",
-  "files": [
-   "app/couch/launch/lutris_way.py"
-  ]
- },
- {
-  "text": "Lutris ist nicht installiert; „wie in Lutris“ lässt sich nicht starten.",
-  "files": [
-   "app/couch/launch/lutris_way.py"
-  ]
- },
- {
   "text": "Lutris-Prefix im Zustand „%s“",
   "files": [
    "app/couch/launch/prefix.py"
@@ -10174,9 +11105,27 @@
   ]
  },
  {
+  "text": "Länge zu groß",
+  "files": [
+   "app/couch/tv/proto.py"
+  ]
+ },
+ {
+  "text": "Läuft",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Läuft aus dem Entwicklungsordner",
   "files": [
    "app/couch/settings/session.py"
+  ]
+ },
+ {
+  "text": "Läuft im Hintergrund",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -10231,6 +11180,12 @@
   ]
  },
  {
+  "text": "Mar",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Marke",
   "files": [
    "app/couch/library/sources.py"
@@ -10261,6 +11216,12 @@
   ]
  },
  {
+  "text": "May",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Mediacenter für Filme, Serien und Musik.",
   "files": [
    "app/couch/library/apps.py",
@@ -10268,9 +11229,21 @@
   ]
  },
  {
+  "text": "Medien",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Medien › Mediengalerie · ",
   "files": [
    "app/couch/capture.py"
+  ]
+ },
+ {
+  "text": "Mediengalerie",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -10384,6 +11357,12 @@
   ]
  },
  {
+  "text": "Mikrofon umgeschaltet",
+  "files": [
+   "app/couch/wiring_discord.py"
+  ]
+ },
+ {
   "text": "Mikrofonpegel",
   "files": [
    "app/couch/settings/audio.py"
@@ -10411,6 +11390,12 @@
   "text": "Mit dem Netzwerk verbunden, aber das Internet ist nicht erreichbar.",
   "files": [
    "app/couch/settings/network.py"
+  ]
+ },
+ {
+  "text": "Mit der Sitzung im Hintergrund starten",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -10509,15 +11494,21 @@
   ]
  },
  {
-  "text": "Nach dem Fortsetzen von „%s“ hat sich der Controller mehrmals getrennt. Es läuft deshalb unter dem Overlay weiter (Spieleinstellungen › Im Hintergrund anhalten).",
+  "text": "Nach dem Ruhemodus und nach dem Einschalten des PCs (nicht bei jedem Neustart des PC5 Launchers): weckt den Fernseher über das Netz und schaltet auf den Eingang des PCs.",
   "files": [
-   "app/couch/shell.py"
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
   "text": "Nach jedem Spielen ab etwa 2 Minuten packt der PC5 Launcher den Spielstand als ZIP nach ~/Games/backups/couch, wenn er sich geändert hat. Eine Mitteilung kommt nur, wenn das nicht klappt.",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Nach jedem Start des PC5 Launchers, auch nach einem Neustart des Rechners, startet Claude Code im Hintergrund und lädt die letzte Unterhaltung wie „Weitermachen“. Beim Einschalten startet es gleich. Die Kachel Claude Code oder ihre Karte im Control Center holt es nach vorn.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -10533,9 +11524,28 @@
   ]
  },
  {
+  "text": "Nachricht zu groß (%d Bytes)",
+  "files": [
+   "app/couch/tv/proto.py"
+  ]
+ },
+ {
+  "text": "Nachrichten als Mitteilung",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Nachrichten und Sprachchat mit Freunden; läuft auf Wunsch im Hintergrund weiter.",
+  "files": [
+   "app/couch/library/apps.py"
+  ]
+ },
+ {
   "text": "Name",
   "files": [
    "app/couch/installer/probe.py",
+   "app/couch/library/flatpaks.py",
    "app/couch/settings/backends/bluez.py"
   ]
  },
@@ -10628,6 +11638,12 @@
   ]
  },
  {
+  "text": "Neu erkennen",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Neu im PC5 Launcher %s",
   "files": [
    "app/couch/changelog.py"
@@ -10679,6 +11695,12 @@
   ]
  },
  {
+  "text": "Neuen Code anfordern",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Neuen Controller koppeln",
   "files": [
    "app/couch/settings/accessories.py"
@@ -10719,7 +11741,8 @@
   "text": "Nicht eingerichtet",
   "files": [
    "app/couch/settings/games.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -10748,6 +11771,12 @@
   ]
  },
  {
+  "text": "Nicht gekoppelt",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Nicht in den Papierkorb: %s",
   "files": [
    "app/couch/files.py",
@@ -10758,6 +11787,7 @@
   "text": "Nicht installiert",
   "files": [
    "app/couch/library/describe.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/session.py"
   ]
  },
@@ -10765,6 +11795,12 @@
   "text": "Nicht installiert: %s. Nachholen unter Einstellungen › PC5 Launcher › Einrichtung.",
   "files": [
    "app/couch/setup/jobs.py"
+  ]
+ },
+ {
+  "text": "Nicht mehr nötig",
+  "files": [
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -10794,18 +11830,21 @@
    "app/couch/settings/accessories.py",
    "app/couch/settings/display.py",
    "app/couch/settings/network.py",
-   "app/couch/settings/storage.py"
+   "app/couch/settings/storage.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
   "text": "Nicht verfügbar",
   "files": [
    "app/couch/power.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/home.py",
    "app/couch/settings/performance.py",
    "app/couch/settings/session.py",
    "app/couch/settings/storage.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -10818,7 +11857,8 @@
   "text": "Nie",
   "files": [
    "app/couch/settings/accessories.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -10935,6 +11975,12 @@
   ]
  },
  {
+  "text": "Nov",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Nov.",
   "files": [
    "app/couch/library/index.py"
@@ -11039,6 +12085,12 @@
   ]
  },
  {
+  "text": "Nur wenn er den PC zeigt",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Nur, wenn du lieber Chrome statt des eingebauten Browsers nutzt. Chrome lädt beim Installieren zusätzlich von Google.",
   "files": [
    "app/couch/setup/catalog.py"
@@ -11075,6 +12127,12 @@
   ]
  },
  {
+  "text": "Oct",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Offen · {0}",
   "files": [
    "app/couch/settings/network.py"
@@ -11084,6 +12142,12 @@
   "text": "Offene Welt",
   "files": [
    "app/couch/store/epic.py"
+  ]
+ },
+ {
+  "text": "Ohne Application ID",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -11132,6 +12196,12 @@
   "text": "Ohne Zufallswert wird kein Marker geschrieben.",
   "files": [
    "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "Ohne das schaltet der PC5 Launcher mit den Tasten HDMI 1 bis 4, die manche Fernseher übergehen, und weiß nicht, welcher Eingang gerade läuft. Mit Netzwerk-Debugging am Fernseher kennt er die Eingänge samt den Namen der Geräte daran und schaltet zuverlässig um.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -11464,6 +12534,12 @@
   "text": "Platz schaffen",
   "files": [
    "app/couch/settings/storage.py"
+  ]
+ },
+ {
+  "text": "Player",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -11898,6 +12974,12 @@
   ]
  },
  {
+  "text": "Rahmen zu groß (%d Bytes)",
+  "files": [
+   "app/couch/discord/ipc.py"
+  ]
+ },
+ {
   "text": "Range",
   "files": [
    "app/couch/fetcher.py",
@@ -11957,6 +13039,12 @@
   "text": "Reines Proton-Prefix aus Lutris, wird an Ort und Stelle benutzt.",
   "files": [
    "app/couch/launch/prefix.py"
+  ]
+ },
+ {
+  "text": "Rejected",
+  "files": [
+   "app/couch/tv/remote.py"
   ]
  },
  {
@@ -12218,6 +13306,18 @@
   ]
  },
  {
+  "text": "Schalte zuerst „Discord verwenden“ ein.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "Schalte zuerst „Fernseher übers Netz steuern“ ein.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Schaltet den Controller aus. Mit der PS-Taste verbindet er sich wieder.",
   "files": [
    "app/couch/settings/accessories.py"
@@ -12277,6 +13377,12 @@
   "text": "Schließe zuerst: ",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Schließe „%s“ zuerst, dann lässt es sich deinstallieren.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -12397,6 +13503,12 @@
   ]
  },
  {
+  "text": "Sep",
+  "files": [
+   "app/couch/gallery.py"
+  ]
+ },
+ {
   "text": "Sept.",
   "files": [
    "app/couch/library/index.py"
@@ -12413,6 +13525,12 @@
   "text": "Set",
   "files": [
    "app/couch/settings/backends/bluez.py"
+  ]
+ },
+ {
+  "text": "Settings",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -12522,6 +13640,12 @@
   ]
  },
  {
+  "text": "So geht es",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "So viele Sicherungen lassen sich nicht wählen.",
   "files": [
    "app/couch/settings/games.py"
@@ -12592,6 +13716,7 @@
  {
   "text": "Spiel",
   "files": [
+   "app/couch/discord/ipc.py",
    "app/couch/installer/jobs.py",
    "app/couch/installer/probe.py",
    "app/couch/installer/setupexe.py",
@@ -12636,12 +13761,6 @@
   ]
  },
  {
-  "text": "Spiel wird nicht mehr angehalten",
-  "files": [
-   "app/couch/shell.py"
-  ]
- },
- {
   "text": "Spiel „%s“ ist installiert.",
   "files": [
    "app/couch/cleanup.py"
@@ -12669,6 +13788,7 @@
   "text": "Spiele",
   "files": [
    "app/couch/paths.py",
+   "app/couch/settings/apps.py",
    "app/couch/settings/games.py",
    "app/couch/settings/system.py",
    "app/couch/settings/updates.py",
@@ -12822,6 +13942,12 @@
   ]
  },
  {
+  "text": "Spielt gerade anzeigen",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Spielzeit",
   "files": [
    "app/couch/library/describe.py"
@@ -12898,6 +14024,12 @@
   "text": "Start der Sitzung",
   "files": [
    "session/supervisor.py"
+  ]
+ },
+ {
+  "text": "Start des PCs",
+  "files": [
+   "app/couch/wiring_tv.py"
   ]
  },
  {
@@ -13001,12 +14133,6 @@
   "text": "Startpage",
   "files": [
    "app/couch/browser/prefs.py"
-  ]
- },
- {
-  "text": "Startreparatur",
-  "files": [
-   "app/couch/shell.py"
   ]
  },
  {
@@ -13244,6 +14370,12 @@
   ]
  },
  {
+  "text": "Steht der PC an diesem Eingang? Erkannt wird er über das Bildsignal (CEC-Adresse) bzw. beim Erkennen der Eingänge.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Stereo",
   "files": [
    "app/couch/settings/audio.py"
@@ -13323,6 +14455,12 @@
   ]
  },
  {
+  "text": "Suche nicht verfügbar",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Suche starten",
   "files": [
    "app/couch/settings/accessories.py"
@@ -13385,6 +14523,8 @@
  {
   "text": "System",
   "files": [
+   "app/couch/library/describe.py",
+   "app/couch/library/flatpaks.py",
    "app/couch/settings/system.py"
   ]
  },
@@ -13444,6 +14584,12 @@
   ]
  },
  {
+  "text": "Tasten ohne Tastatur belegen",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Teambasiertes Actionspiel",
   "files": [
    "app/couch/store/battlenet.py"
@@ -13459,6 +14605,12 @@
   "text": "Temperatur Prozessor",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Terminal",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -13613,6 +14765,12 @@
   ]
  },
  {
+  "text": "Ton umgeschaltet",
+  "files": [
+   "app/couch/wiring_discord.py"
+  ]
+ },
+ {
   "text": "Ton und Vibration über den Controller",
   "files": [
    "app/couch/settings/audio.py"
@@ -13715,6 +14873,12 @@
   ]
  },
  {
+  "text": "Trotzdem schließen",
+  "files": [
+   "app/couch/shell.py"
+  ]
+ },
+ {
   "text": "Trusted",
   "files": [
    "app/couch/settings/backends/bluez.py"
@@ -13735,7 +14899,8 @@
  {
   "text": "Type",
   "files": [
-   "app/couch/installer/probe.py"
+   "app/couch/installer/probe.py",
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -13821,8 +14986,11 @@
  {
   "text": "Unavailable",
   "files": [
+   "app/couch/tv/keys.py",
+   "app/couch/tv/service.py",
    "app/couch/wiring.py",
-   "app/couch/wiring_sleeptimer.py"
+   "app/couch/wiring_sleeptimer.py",
+   "app/couch/wiring_tv.py"
   ]
  },
  {
@@ -13833,7 +15001,8 @@
    "app/couch/settings/display.py",
    "app/couch/settings/network.py",
    "app/couch/settings/storage.py",
-   "app/couch/settings/system.py"
+   "app/couch/settings/system.py",
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -13895,7 +15064,10 @@
   "files": [
    "app/couch/notify.py",
    "app/couch/rpc.py",
-   "app/couch/shell.py"
+   "app/couch/shell.py",
+   "app/couch/tv/service.py",
+   "app/couch/wiring_discord.py",
+   "app/couch/wiring_tv.py"
   ]
  },
  {
@@ -13921,7 +15093,15 @@
  {
   "text": "Unknown",
   "files": [
-   "app/couch/settings/drm_modes.py"
+   "app/couch/settings/drm_modes.py",
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
+  "text": "Unreachable",
+  "files": [
+   "app/couch/tv/remote.py",
+   "app/couch/tv/service.py"
   ]
  },
  {
@@ -13934,6 +15114,12 @@
   "text": "Unschärfe hinter dem Control Center",
   "files": [
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Unter dieser Adresse antwortet kein Google TV oder Android TV.",
+  "files": [
+   "app/couch/tv/remote.py"
   ]
  },
  {
@@ -14022,6 +15208,12 @@
   ]
  },
  {
+  "text": "Utility",
+  "files": [
+   "app/couch/library/flatpaks.py"
+  ]
+ },
+ {
   "text": "VR-Spiel: Ohne VR-Brille startet es nicht richtig.",
   "files": [
    "app/couch/library/describe.py"
@@ -14077,6 +15269,19 @@
   ]
  },
  {
+  "text": "Verbindung vom Fernseher geschlossen",
+  "files": [
+   "app/couch/tv/adb.py",
+   "app/couch/tv/proto.py"
+  ]
+ },
+ {
+  "text": "Verbindung von Discord geschlossen",
+  "files": [
+   "app/couch/discord/ipc.py"
+  ]
+ },
+ {
   "text": "Verbindungsart",
   "files": [
    "app/couch/settings/network.py"
@@ -14123,6 +15328,12 @@
   "text": "Verfügbar",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Vergessen",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -14201,6 +15412,7 @@
  {
   "text": "Video",
   "files": [
+   "app/couch/library/flatpaks.py",
    "app/couch/settings/home.py"
   ]
  },
@@ -14246,6 +15458,12 @@
   "text": "Vom alten Browser begonnen; bitte im Browser neu laden.",
   "files": [
    "app/couch/fetcher.py"
+  ]
+ },
+ {
+  "text": "Von Flathub in deine Nutzer-Installation, wie die Apps der Einrichtung%s. Du meldest dich danach in Discord selbst an.",
+  "files": [
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -14452,6 +15670,12 @@
   ]
  },
  {
+  "text": "Was Discord als Mitteilung meldet, erscheint oben rechts wie jede Mitteilung des PC5 Launchers (Einstellungen › Mitteilungen gilt). Der PC5 Launcher liest dafür nur mit.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "Was ist neu",
   "files": [
    "app/couch/settings/system.py",
@@ -14537,6 +15761,12 @@
   ]
  },
  {
+  "text": "Wenn der Code am Fernseher verschwunden ist.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Werbeblocker: %s",
   "files": [
    "app/couch/browser/window.py"
@@ -14576,6 +15806,13 @@
   "text": "Wie viele Spiele deiner Steam-Wunschliste gerade im Angebot sind. Kreuz öffnet den Store.",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Wieder anzeigen",
+  "files": [
+   "app/couch/library/describe.py",
+   "app/couch/settings/apps.py"
   ]
  },
  {
@@ -14644,9 +15881,21 @@
   ]
  },
  {
+  "text": "Wird der Fernseher nicht gefunden: seine IP-Adresse aus seinen Netzwerk-Einstellungen (vier Zahlen mit Punkten) oder sein Name im Netz.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "Wird neu geladen",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Wird nicht mehr gebraucht: Der Launcher verhindert die Trennung jetzt selbst. Bitte entfernen; es wirkt, sobald sich der Controller das nächste Mal verbindet.",
+  "files": [
+   "app/couch/sysadmin.py"
   ]
  },
  {
@@ -14665,6 +15914,12 @@
   "text": "Wirkt bei Spielen mit FSR 3.1 oder neuer. Im Spiel muss FSR in den Grafikoptionen gewählt sein.",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Wirkt erst mit „Eingänge genauer erkennen“",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -14725,6 +15980,12 @@
   "text": "Wächter: lese %s (%s)",
   "files": [
    "session/supervisor.py"
+  ]
+ },
+ {
+  "text": "Wähle den Fernseher unter „Fernseher koppeln“ aus.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {
@@ -15426,6 +16687,12 @@
   ]
  },
  {
+  "text": "den Fernseher",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "der erste Teil",
   "files": [
    "app/couch/installer/probe.py"
@@ -15513,6 +16780,12 @@
   "text": "enthält eine Einhängung: %s",
   "files": [
    "app/couch/launch/prefix.py"
+  ]
+ },
+ {
+  "text": "flatpaks: %s nicht lesbar (%s)",
+  "files": [
+   "app/couch/library/flatpaks.py"
   ]
  },
  {
@@ -15712,6 +16985,12 @@
   ]
  },
  {
+  "text": "kein ADB",
+  "files": [
+   "app/couch/tv/adb.py"
+  ]
+ },
+ {
   "text": "kein Abschnitt libraryfolders",
   "files": [
    "app/couch/library/steam.py"
@@ -15736,9 +17015,21 @@
   ]
  },
  {
+  "text": "kein Discord-Socket erreichbar (%s)",
+  "files": [
+   "app/couch/discord/ipc.py"
+  ]
+ },
+ {
   "text": "kein Emulator für %s",
   "files": [
    "app/couch/launch/apps.py"
+  ]
+ },
+ {
+  "text": "kein JSON: %s",
+  "files": [
+   "app/couch/discord/ipc.py"
   ]
  },
  {
@@ -15787,13 +17078,7 @@
  {
   "text": "kein Schlüssel-Wert-Dokument",
   "files": [
-   "app/couch/library/lutris.py"
-  ]
- },
- {
-  "text": "kein Skript",
-  "files": [
-   "app/couch/launch/lutris_way.py"
+   "app/couch/library/lutris_import.py"
   ]
  },
  {
@@ -15852,6 +17137,12 @@
   ]
  },
  {
+  "text": "keine Antwort auf SET_ACTIVITY",
+  "files": [
+   "app/couch/discord/ipc.py"
+  ]
+ },
+ {
   "text": "keine App-Kennung",
   "files": [
    "app/couch/backup.py"
@@ -15873,6 +17164,12 @@
   "text": "keine FIFO",
   "files": [
    "app/couch/input/fakepad.py"
+  ]
+ },
+ {
+  "text": "keine Flatpak-Kennung für %s",
+  "files": [
+   "app/couch/launch/apps.py"
   ]
  },
  {
@@ -16015,33 +17312,45 @@
   ]
  },
  {
-  "text": "lutris -b: Rückgabewert %s, %s",
-  "files": [
-   "app/couch/launch/lutris_way.py"
-  ]
- },
- {
   "text": "lutris: %s ausgelassen (%s nicht lesbar: %s)",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
   ]
  },
  {
   "text": "lutris: %s ausgelassen (keine Startdatei eingetragen)",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
+  ]
+ },
+ {
+  "text": "lutris: %s nicht lesbar (%s)",
+  "files": [
+   "app/couch/library/imported.py"
+  ]
+ },
+ {
+  "text": "lutris: %s nicht lesbar (%s), die Übernahme läuft noch einmal",
+  "files": [
+   "app/couch/library/imported.py"
   ]
  },
  {
   "text": "lutris: %s nicht lesbar (%s); Vorgaben fehlen",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
+  ]
+ },
+ {
+  "text": "lutris: %s nicht schreibbar (%s)",
+  "files": [
+   "app/couch/library/imported.py"
   ]
  },
  {
   "text": "lutris: %s übersprungen (Runner „%s“ wird nicht unterstützt)",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
   ]
  },
  {
@@ -16051,15 +17360,33 @@
   ]
  },
  {
-  "text": "lutris: Datenbank nicht lesbar (%s)",
+  "text": "lutris: Datenbank nicht lesbar (%s), die Übernahme versucht es beim nächsten Start wieder",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
+  ]
+ },
+ {
+  "text": "lutris: Konfiguration fehlt (%s), die Übernahme versucht es beim nächsten Start wieder",
+  "files": [
+   "app/couch/library/lutris_import.py"
+  ]
+ },
+ {
+  "text": "lutris: Ordner für die Bilder von %s nicht anlegbar (%s)",
+  "files": [
+   "app/couch/library/lutris_import.py"
   ]
  },
  {
   "text": "lutris: Slug %s kommt mehrfach vor; zweiter Eintrag heißt %s",
   "files": [
-   "app/couch/library/lutris.py"
+   "app/couch/library/lutris_import.py"
+  ]
+ },
+ {
+  "text": "lutris: library.json kennt die übernommenen Spiele nicht mehr, sie kommen aus %s",
+  "files": [
+   "app/couch/library/imported.py"
   ]
  },
  {
@@ -16293,12 +17620,6 @@
   ]
  },
  {
-  "text": "slug=%r",
-  "files": [
-   "app/couch/launch/lutris_way.py"
-  ]
- },
- {
   "text": "so rechnen, als gäbe die Sitzung HDR aus",
   "files": [
    "app/couch/launch/builders.py"
@@ -16443,9 +17764,21 @@
   ]
  },
  {
+  "text": "unbekannter Fehler",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "unbekannter oder gesperrter Schlüssel",
   "files": [
    "app/couch/backup.py"
+  ]
+ },
+ {
+  "text": "unerwarteter Fehler",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -16491,13 +17824,19 @@
   ]
  },
  {
+  "text": "weder bazaar-daemon noch bazaar im PATH",
+  "files": [
+   "app/couch/launch/apps.py"
+  ]
+ },
+ {
   "text": "weniger als eine Minute",
   "files": [
    "app/couch/library/describe.py"
   ]
  },
  {
-  "text": "werden beim ersten Start aus Lutris übernommen",
+  "text": "werden beim ersten Start einmalig kopiert",
   "files": [
    "app/couch/library/describe.py"
   ]
@@ -16676,6 +18015,12 @@
   ]
  },
  {
+  "text": "„%s“ antwortet nicht. Ist der Fernseher an und im selben Netz wie der PC?",
+  "files": [
+   "app/couch/tv/service.py"
+  ]
+ },
+ {
   "text": "„%s“ bleibt in der bisherigen Fassung installiert.",
   "files": [
    "app/couch/wiring_store.py"
@@ -16760,6 +18105,18 @@
   ]
  },
  {
+  "text": "„%s“ ist gekoppelt.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "„%s“ ist gekoppelt. Der Fernseher kannte diesen PC schon.",
+  "files": [
+   "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
   "text": "„%s“ ist installiert",
   "files": [
    "app/couch/wiring_install.py",
@@ -16804,6 +18161,12 @@
   ]
  },
  {
+  "text": "„%s“ ist nicht mehr installiert.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "„%s“ ist noch vorhanden. Zum Entfernen „Deinstallieren“ oder „Ausblenden“ nehmen.",
   "files": [
    "app/couch/library/index.py"
@@ -16841,6 +18204,12 @@
   ]
  },
  {
+  "text": "„%s“ ließ sich nicht deinstallieren: %s",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "„%s“ ließ sich nicht installieren",
   "files": [
    "app/couch/wiring_store.py"
@@ -16850,6 +18219,18 @@
   "text": "„%s“ ließ sich nicht starten.",
   "files": [
    "app/couch/proc/manager.py"
+  ]
+ },
+ {
+  "text": "„%s“ lässt sich gerade nicht im Hintergrund starten.",
+  "files": [
+   "app/couch/shell.py"
+  ]
+ },
+ {
+  "text": "„%s“ läuft gerade an anderer Stelle, zum Beispiel im Desktop. Schließe es dort zuerst.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -16877,15 +18258,15 @@
   ]
  },
  {
-  "text": "„%s“ startete mit Proton nicht. couch startet es jetzt so wie Lutris und merkt sich das.",
-  "files": [
-   "app/couch/shell.py"
-  ]
- },
- {
   "text": "„%s“ steht jetzt in der Bibliothek.",
   "files": [
    "app/couch/wiring_files.py"
+  ]
+ },
+ {
+  "text": "„%s“ trotzdem schließen?",
+  "files": [
+   "app/couch/shell.py"
   ]
  },
  {
@@ -16980,6 +18361,12 @@
   ]
  },
  {
+  "text": "„%s“ wird wieder angezeigt.",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
   "text": "„%s“ wurde aus der Bibliothek entfernt. Der Spielordner war nicht mehr vorhanden.",
   "files": [
    "app/couch/installer/service.py"
@@ -16995,6 +18382,18 @@
   "text": "„%s“ wurde beendet, bevor ein Bild kam.",
   "files": [
    "app/couch/shell.py"
+  ]
+ },
+ {
+  "text": "„%s“ wurde deinstalliert.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "„%s“ wurde deinstalliert. In der anderen Flatpak-Installation ist es noch vorhanden.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -17099,6 +18498,24 @@
   "text": "„Automatisch“ richtet sich nach der Auflösung des Bildschirms.",
   "files": [
    "app/couch/settings/performance.py"
+  ]
+ },
+ {
+  "text": "„Ein- und Ausgabe (de)aktivieren“",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "„Mikrofon ein-/ausschalten“",
+  "files": [
+   "app/couch/settings/apps.py"
+  ]
+ },
+ {
+  "text": "„Nur wenn er den PC zeigt“ braucht „Eingänge genauer erkennen“. „Immer“ schaltet ihn auch aus, wenn gerade ein anderes Gerät läuft. Wartet höchstens drei Sekunden, der Ruhemodus kommt in jedem Fall.",
+  "files": [
+   "app/couch/settings/tvctl.py"
   ]
  },
  {

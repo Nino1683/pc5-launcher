@@ -1,6 +1,6 @@
 """Windows-Spiele mit umu-run und Proton-CachyOS (Bauplan 4.8, E10 bis E12; 03 Abschnitt 5.3).
 
-Aus einem Eintrag der Quelle "proton" (Lutris) oder "local" mit platform "windows" wird eine
+Aus einem Eintrag der Quelle "proton" (aus Lutris übernommen, E134) oder "local" mit platform "windows" wird eine
 LaunchSpec: argv ["umu-run", exe, *args], Umgebungsblock, Prefix nach E10. Gestartet wird nichts.
 
 Blockierend: build() mit check=True und preflight() prüfen Dateien und lesen /proc (übrig
@@ -57,7 +57,8 @@ NEVER_SET = ("PROTON_FSR3_UPGRADE", "PROTON_ENABLE_HDR", "ENABLE_HDR_WSI", "Stea
 # Schalter, die je nach Option gesetzt oder entfernt werden, samt ihrer Zweitnamen in Proton:
 # ein geerbter Wert darf die Wahl je Spiel nicht aushebeln.
 SWITCHES = ("PROTON_FSR4_UPGRADE", "FSR4_UPGRADE", "PROTON_PREFER_SDL", "PROTON_USE_SDL",
-            "PROTON_USE_WAYLAND", "PROTONFIXES_DISABLE", "STORE", "DXVK_NO_HDR", "PROTON_USE_OPTISCALER")
+            "PROTON_USE_WAYLAND", "PROTONFIXES_DISABLE", "STORE", "DXVK_NO_HDR", "PROTON_USE_OPTISCALER",
+            "PROTON_USE_WINED3D", "PROTON_USE_WINED3D11")
 
 # Gehören zur Prefix- und Proton-Wahl; weder Lutris' env noch die Option env dürfen sie ändern
 # (ein anderer WINEPREFIX liefe an Übernahme und Wineserver-Prüfung vorbei).
@@ -404,7 +405,7 @@ def _prelaunch(entry, ctx, prefix: str, notes: list) -> list:
         return [[ctx.bin("couch-display-sync"), prefix]]
     argv[0] = expand(argv[0], ctx.home)
     if os.path.isabs(argv[0]) and not os.path.isfile(argv[0]):
-        notes.append("Der Vorab-Befehl aus Lutris fehlt und wird ausgelassen: %s" % argv[0])
+        notes.append("Der übernommene Vorab-Befehl des Spiels fehlt und wird ausgelassen: %s" % argv[0])   # E134
         return []
     return [argv]
 
@@ -633,6 +634,15 @@ def build_env(entry, ctx, prefix: str, protonpath: str, notes: list | None = Non
         env["PROTON_USE_OPTISCALER"] = "1"
     else:
         env.pop("PROTON_USE_OPTISCALER", None)
+    # DXVK je Spiel (Wunsch 2026-10-28: „auswählen können womit ein Spiel startet, mit DXVK oder nicht“). Aus =
+    # PROTON_USE_WINED3D: Proton nimmt dann Wines eigenes Direct3D (WineD3D) für Direct3D 9 bis 12 und DXGI und
+    # tauscht die Dateien im Prefix beim nächsten Start selbst aus (config_info); PROTON_USE_WINED3D11 ist ein
+    # Zweitname
+    env.pop("PROTON_USE_WINED3D11", None)
+    if entry.option("dxvk") == "off":
+        env["PROTON_USE_WINED3D"] = "1"
+    else:
+        env.pop("PROTON_USE_WINED3D", None)
     if controller(entry, ctx, exe) == "xbox":
         env["PROTON_PREFER_SDL"] = "1"
     else:

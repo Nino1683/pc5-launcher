@@ -27,6 +27,16 @@ Ablauf
   healthy_alternative()  Ausweichen, wenn Reparieren nicht geht.
   available(), installed()  Listen für die Einstellungsseite „Proton-Versionen“.
 
+Schreibschutz (Wunsch 2026-10-28, „Schreibschutz“): Am 28.10. ließ Desktop-Steam beim Start drei Proton-Versionen
+zugleich auf seinem Prefix compatdata/0 laufen; UMU-Proton 10 schrieb dabei durch die Verweise des Prefix 88 PE-DLLs
+in GE-Proton11-11 (i386-windows, binnen 0,6 s). Eigene Versionen (repair/install, im Manifest "own": true, ältere
+an einer Sicherung unter backup_dir erkannt, is_own) bekommen deshalb auf alle Dateien unter files/lib*/wine den
+Schreibschutz (protect: Schreibrechte weg, Ordner bleiben beschreibbar, Zeitstempel bleiben). Wine bekommt dann
+„Zugriff verweigert“ statt fremde Dateien zu ersetzen. Geprüft am 2026-10-28 mit Kopien von GE-Proton11-11 und
+UMU-Proton-10.0-4 über umu-run im Scratch: neuer Prefix, Wechsel GE → UMU → GE und gleichzeitige Läufe gehen,
+Proton legt keine schreibgeschützten Kopien im Prefix an, ein copy auf eine verlinkte DLL scheitert, beide Ordner
+bleiben heil. Fremde Versionen (ProtonUp, umu) bleiben unberührt.
+
 Löschen: Ein Proton-Ordner wird hier nie gelöscht, nur verschoben (SAFETY Regel 13). Eigene Einzeldateien
 (.part, Archiv, Sperrdatei, Marker) entfernt dieses Modul selbst; den eigenen Zwischenordner leert nach
 einem Fehler ausschließlich trash.remove_own_dir (die eine Löschstelle des Produkts).
@@ -64,8 +74,10 @@ import urllib.request
 import zlib
 from typing import Callable
 
-from . import jsontext, paths
+from . import jsontext, log, paths
 from .installer import trash
+
+_log = log.get("proton.repair")
 
 USER_AGENT = "PC5-Launcher (Proton)"
 GITHUB_DL = "https://github.com/%s/releases/download/%s/%s"
@@ -78,6 +90,7 @@ STAGING_RE = re.compile(r"^" + re.escape(STAGING_PREFIX) + r"([0-9a-f]{32})$")
 BACKUP_FALLBACK = ".couch-proton-backup"   # liegt backup_dir auf einem anderen Dateisystem: Sicherung hierhin
 BACKUP_TAG = "-beschaedigt-"
 BACKUP_TAG_OK = "-bisherig-"         # „Neu laden“ einer heilen Version: nichts war beschädigt (E101)
+OWN_KEY = "own"                      # im Manifest: Ordner kommt von repair/install (Schreibschutz, 2026-10-28)
 READY_MARKER = ".couch-proton-ready"   # im Zwischenordner: Inhalt geprüft und vollständig, Einsetzen beginnt
 
 SLACK_S = 3600                 # so viel jünger als der Release darf eine Datei sein (Erkennung ohne Manifest)
@@ -235,7 +248,7 @@ def manifest_path(manifest_dir_: str, name: str) -> str:
 
 
 def load_manifest(manifest_dir_: str | None, name: str) -> dict | None:
-    """{"name", "version", "made", "files": {rel: [größe, sha256, mtime]}} oder None.
+    """{"name", "version", "made", "own", "files": {rel: [größe, sha256, mtime]}} oder None (own: von repair/install).
     Ein reines {rel: [größe, sha256]} (ohne Hülle) wird ebenso angenommen."""
     if not manifest_dir_ or not _NAME.match(name or ""):
         return None
@@ -250,7 +263,8 @@ def load_manifest(manifest_dir_: str | None, name: str) -> dict | None:
     files = {k: v for k, v in files.items() if isinstance(k, str) and isinstance(v, list) and len(v) >= 2}
     if not files:
         return None
-    return {"name": data.get("name", name), "version": data.get("version"), "made": data.get("made"), "files": files}
+    return {"name": data.get("name", name), "version": data.get("version"), "made": data.get("made"),
+            OWN_KEY: data.get(OWN_KEY) is True, "files": files}
 
 
 def scan_manifest(tool_dir: str) -> dict:
@@ -297,6 +311,36 @@ def make_manifest(tool_dir: str, manifest_dir_: str, manifest: dict | None = Non
     path = manifest_path(manifest_dir_, name)
     _write_json_atomic(path, dict(data, name=name))
     return {"path": path, "files": len(data.get("files") or {})}
+
+
+def protect(tool_dir: str) -> int:
+    """Schreibschutz für alle Dateien unter files/lib*/wine eines eigenen Proton-Ordners (siehe Modulkopf). Nur
+    reguläre Dateien, kein Verweis wird verfolgt; Ordner bleiben beschreibbar (Verschieben, Papierkorb), die Zeit
+    der Dateien bleibt (Manifest, Zeitstempel). Rückgabe: so viele Dateien wurden geändert. Wirft OSError."""
+    count = 0
+    for root in _wine_roots(tool_dir):
+        for rel, st in _walk_files(root, tool_dir):
+            if stat.S_ISREG(st.st_mode) and st.st_mode & 0o222:
+                os.chmod(os.path.join(tool_dir, rel), stat.S_IMODE(st.st_mode) & ~0o222)
+                count += 1
+    return count
+
+
+def is_own(tool_dir: str, manifest_dir_=None, backup_dir_=None) -> bool:
+    """Hat der PC5 Launcher diesen Proton-Ordner installiert oder repariert? Manifest mit "own": true (seit
+    2026-10-28) oder eine Sicherung <name>-beschaedigt-… bzw. -bisherig-… unter backup_dir_ (ältere Reparaturen)."""
+    name = os.path.basename(os.path.normpath(tool_dir))
+    man = load_manifest(manifest_dir_, name)
+    if man is not None and man.get(OWN_KEY) is True:
+        return True
+    for folder in (backup_dir_, os.path.join(os.path.dirname(os.path.normpath(tool_dir)), BACKUP_FALLBACK)):
+        try:
+            if folder and any(n.startswith(name + BACKUP_TAG) or n.startswith(name + BACKUP_TAG_OK)
+                              for n in os.listdir(folder)):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _result(ok: bool, reason: str, files: int, checked: int, method: str, sample=None, newest=None) -> dict:
@@ -1059,6 +1103,11 @@ def _run(name: str, compat_dir: str, cache_dir: str, *, mode: str, backup_dir_: 
             fresh = os.path.join(staging, name)
         man = scan_manifest(fresh)
         man["name"] = name
+        man[OWN_KEY] = True
+        try:
+            protect(fresh)                  # schon vor dem Einsetzen: kein Spalt ohne Schreibschutz
+        except OSError as e:
+            _log.warning("Proton %s: Schreibschutz nicht gesetzt (%s)", name, e)
         tick("swap", 0, 1, force=True)
         backup = ""
         was_ok = False

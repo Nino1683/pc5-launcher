@@ -451,6 +451,8 @@ class Track:
             for _ in self.segments():
                 if self.feed.closed.is_set():
                     raise FeedError("Home endet")
+                if self.tee is None or self.tee.failed:
+                    break                       # Datei verworfen (Platte voll, zu groß): den Rest nicht mehr laden
         except Exception as e:  # noqa: BLE001
             if self.tee:
                 self.tee.abort(str(e))
@@ -479,6 +481,7 @@ class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "couch"
     sys_version = ""
+    timeout = 30                    # Lesen der Anfrage; beim Senden gilt die Frist des Stroms (do_GET)
 
     def log_message(self, fmt, *args):
         pass
@@ -523,9 +526,13 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
+            # Liest die Seite nicht mehr, hielt wfile.write ohne Zeitgrenze den Platz des Stroms (höchstens 4) für
+            # immer; Stream._limit prüft die Frist nur zwischen zwei Stücken
+            deadline = stream.started + float(spec.get("seconds") or 0) + STREAM_LIMIT_S
             for chunk in stream.chunks():
                 view = memoryview(chunk)
                 for off in range(0, len(view), CHUNK):
+                    self.connection.settimeout(max(1.0, deadline - time.monotonic()))
                     self.wfile.write(view[off:off + CHUNK])
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             pass                                        # Seite hat aufgehört (anderes Spiel, Ende, Fehler)

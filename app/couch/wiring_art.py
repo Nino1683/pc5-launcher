@@ -70,8 +70,8 @@ def make_art(wiring: Any) -> Any:
     ctx = art_mod.ArtContext(
         data_dir=paths.data_dir(), cache_dir=paths.cache_dir(), config=wiring.config,
         steam_roots=(src.steam_root,) if src is not None else (os.path.join(home, ".local/share/Steam"),),
-        lutris_dir=os.path.join(home, ".local/share/lutris"),
-        lutris_icon_dir=os.path.join(home, ".local/share/icons/hicolor"),
+        # E134: die einmal aus Lutris kopierten Bilder; Lutris' eigene Ordner liest der Auflöser nicht mehr
+        imported_dir=paths.lutris_import_dir(),
         online=online, fetcher=fetcher,
         # nur was die Dateiauswahl zeigen darf, bekommt ein Vorschaubild
         browse_roots=paths.browse_roots,

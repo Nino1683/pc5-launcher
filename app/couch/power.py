@@ -34,6 +34,10 @@ power.timer), beendet keine App und braucht keine Rückfrage; gesperrt, wenn log
 Ruhemodus-Video (E130): Wählt man den Ruhemodus selbst (power.do über eine Seite), spielt vorher die Seite, von
 der der Wunsch kam, das gewählte Video (wiring_videos, suspend_video(role) -> Future | None, höchstens wenige
 Sekunden). Leerlauf und Ruhemodus-Timer rufen do() ohne Seite: Dann ist es eilig bzw. niemand schaut zu, kein Video.
+
+Vor dem Befehl (E142): before_system ist eine Liste fn(aktion) für „off“, „reboot“ und „suspend“, gerufen im
+Arbeits-Thread direkt vor logind (Fernseher ausschalten, wiring_tv). Jede begrenzt sich selbst auf wenige Sekunden;
+was wirft, steht im Protokoll und hält den Befehl nicht auf.
 """
 from __future__ import annotations
 
@@ -136,6 +140,8 @@ class Power:
         self.sleep_timer: Any = None
         # E130: fn(rolle) -> Future | None (wiring_videos): Ruhemodus-Video in dieser Seite, danach erst schlafen
         self.suspend_video: Callable[[str], Future | None] | None = None
+        # E142: fn(aktion) vor Ausschalten, Neustart und Ruhemodus (Arbeits-Thread, jede höchstens wenige Sekunden)
+        self.before_system: list[Callable[[str], None]] = []
 
     # ------------------------------------------------------------ Menü
     def _probe(self) -> dict[str, bool]:
@@ -430,7 +436,13 @@ class Power:
                 _log.exception("on_stay")
 
     def _system_call(self, action: str, argv: list) -> Any:
-        """Im Arbeits-Thread: erst die Ton-Ausgabe von vor der Sitzung, dann der Befehl selbst."""
+        """Im Arbeits-Thread: erst die Haken (E142), dann die Ton-Ausgabe von vor der Sitzung, dann der Befehl selbst."""
+        if action in _LOGIND_CALL:
+            for hook in list(self.before_system):
+                try:
+                    hook(action)
+                except Exception:
+                    _log.exception("Vor power.%s: %r", action, hook)     # Beiwerk: hält den Befehl nicht auf
         if action in RESTORES_SINK:
             try:
                 sinknote.restore(self._write)

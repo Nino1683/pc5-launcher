@@ -149,6 +149,8 @@ def steam_game_env(entry: Entry, app: Any = None) -> dict:
     env["DXVK_HDR"] = "1" if hdr else "0"
     # OptiScaler (2026-10-24): "0" schaltet einen geerbten Wert ab (Proton: check_environment)
     env["PROTON_USE_OPTISCALER"] = "1" if entry.option("optiscaler") == "on" else "0"
+    # DXVK je Spiel (2026-10-28): "0" schaltet einen geerbten Wert ab, Steams Startoptionen gelten danach
+    env["PROTON_USE_WINED3D"] = "1" if entry.option("dxvk") == "off" else "0"
     return env
 
 

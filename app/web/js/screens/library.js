@@ -3,7 +3,7 @@
 // Sortieren/Filtern, Suche und „Spiel installieren“. Gerollt wird per translate3d am Raster.
 // Bilder laden träge: dekodiert wird nur, was im Sichtbereich liegt; die Zeilen knapp davor und
 // dahinter werden schon geladen (ohne Dekodieren), alles Weitere erst beim Rollen.
-// E120 : vor den Spielen die Kachel „Mediengalerie“ (.lib-gallery, kein .cover und kein
+// E120: vor den Spielen die Kachel „Mediengalerie“ (.lib-gallery, kein .cover und kein
 // Eintrag): nur unter „Installiert“ und „Alle“, nicht beim Suchen oder Filtern nach Herkunft und nicht ohne Spiele.
 // Zähler, Sortierung, Filter und der erste Fokus (das erste Spiel) bleiben, wie sie waren; Links vom ersten Spiel
 // führt zur Kachel, von ihr weiter zu den Rundknöpfen.
@@ -37,14 +37,15 @@ const SORTS = [
 // Filter nach Herkunft (E99, entry.origin des Kerns): „local“ umfasst Store-, Launcher- und eigene
 // Spiele, als „Aus Archiv installiert“ standen dort auch Epic, GOG und Battle.net
 const SOURCES = [
-  { id: "steam", label: S.libSourceSteam }, { id: "proton", label: S.libOriginLutrisWin },
-  { id: "native", label: S.libOriginLutrisLinux }, { id: "switch", label: S.libSourceSwitch },
+  { id: "steam", label: S.libSourceSteam }, { id: "proton", label: S.libOriginImportedWin },     // aus Lutris (E134)
+  { id: "native", label: S.libOriginImportedLinux }, { id: "switch", label: S.libSourceSwitch },
   { id: "wiiu", label: S.libSourceWiiu }, { id: "epic", label: S.libOriginEpic }, { id: "gog", label: S.libOriginGog },
   { id: "battlenet", label: S.libOriginBattlenet }, { id: "ubisoft", label: S.libOriginUbisoft },
   { id: "rockstar", label: S.libOriginRockstar }, { id: "itch", label: S.libOriginItch },   // itch.io (E100)
   { id: "own-windows", label: S.libOriginOwnWin },
   { id: "own-linux", label: S.libOriginOwnLinux },
   { id: "rom", label: S.libOriginRom },                      // ROM-Ordner ohne SRM (E105)
+  { id: "flatpak", label: S.libOriginFlatpak },              // erkannte Flatpak-Spiele (E140)
 ];
 const originOf = (e) => e.origin || e.source;
 // Die Sortierung bleibt gemerkt, auch über einen Neustart des Home (E99; nur in diesem WebView).

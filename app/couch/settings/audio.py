@@ -14,7 +14,7 @@ Mikrofon steht in der Auswahl und wird automatisch zur Eingabe (audio.controller
 (vier Kanäle, Vibration über Ton) schaltet eine WirePlumber-Regel ab, solange audio.controller_output aus
 ist (CONTROLLER_RULE): Silent Hill Townfall stürzte sonst in XAudio2 ab.
 
-Der Fernseher wird über seinen EDID-Namen gefunden, nie über eine feste Portnummer. pactl
+Der Fernseher wird über seinen EDID-Namen gefunden (seit E143 zur Laufzeit gelesen), nie über eine feste Portnummer. pactl
 set-default-sink schreibt auch WirePlumbers gemerkten Standard um; deshalb setzt der Supervisor
 den vorherigen Standard am Sitzungsende zurück (Befund 14) – hier wird nichts zurückgestellt.
 Damit dabei nichts verloren geht, meldet der Dienst jedes Umstellen vorher an on_default_sink
@@ -58,7 +58,28 @@ def ui_pack(config) -> str:
     value = str(config.get("audio.ui_pack", UI_PACK_DEFAULT) or UI_PACK_DEFAULT)
     return value if value in dict(ui_packs()) else "couch"
 
-TV_MONITOR = "Beyond TV"
+TV_NAME_RETRY_S = 10.0         # E143: so oft höchstens neu nach dem Namen des Fernsehers sehen, solange er fehlt
+
+
+def tv_monitor_name() -> str:
+    """Name des Fernsehers aus der EDID des Anschlusses der Sitzung (drm_modes.tv_connector, E104): derselbe Name,
+    den PipeWire als product_name des HDMI-Ports meldet (ELD). "" wenn unbekannt (kein Fernseher, Ausgang dunkel).
+
+    E143: Bis dahin stand hier der Name eines bestimmten Fernsehers fest im Code; bei jedem anderen fand der PC5
+    Launcher den Ton-Ausgang des Fernsehers nicht. Prüfmodus: nur COUCH_TEST_TV_MONITOR, nie /sys."""
+    from .. import paths
+    if paths.test_mode():
+        return os.environ.get("COUCH_TEST_TV_MONITOR", "")
+    from . import drm_modes
+    try:
+        connector = drm_modes.tv_connector(paths.session_env())
+        edid = drm_modes.read_edid(connector) if connector else b""
+        return str(drm_modes.parse_edid(edid).get("product_name") or "") if edid else ""
+    except Exception:  # noqa: BLE001 (nur ein Name zum Wiedererkennen)
+        log.exception("Name des Fernsehers aus der EDID")
+        return ""
+
+
 PORT_PREFIX = "port:"          # ID einer Ausgabe, deren Senke erst nach einem Profilwechsel existiert
 STEP = 5
 TEST_LEFT = "/usr/share/sounds/alsa/Front_Left.wav"
@@ -104,14 +125,16 @@ class AudioService:
     """
 
     def __init__(self, run_read, run_write, config=None, scheduler=None,
-                 monitor_name: str = TV_MONITOR, on_change=None,
+                 monitor_name: str | None = None, on_change=None,
                  clock=time.monotonic, sleep=time.sleep, cache_seconds: float = 1.5,
                  on_default_sink=None):
         self.run_read = run_read
         self.run_write = run_write
         self.config = config
         self.scheduler = scheduler
-        self.monitor_name = monitor_name
+        self._monitor_fixed = monitor_name     # None: aus der EDID (tv_monitor_name), sonst fest (Tests)
+        self._monitor_found = ""
+        self._monitor_at: float | None = None
         self.on_change = on_change            # fn() nach Änderungen von außen (Beobachter, Fernseher gewählt)
         self.on_default_sink = on_default_sink  # fn(alt, neu) VOR jedem Umstellen der Standard-Ausgabe
         self._clock = clock
@@ -125,6 +148,18 @@ class AudioService:
         self._notify_timer = None
         self._watch_proc = None
         self._watch_thread = None
+
+    @property
+    def monitor_name(self) -> str:
+        """Name des Fernsehers (E143): einmal gefunden, bleibt er; fehlt er, höchstens alle TV_NAME_RETRY_S neu."""
+        if self._monitor_fixed is not None:
+            return self._monitor_fixed
+        if not self._monitor_found:
+            now = self._clock()
+            if self._monitor_at is None or now - self._monitor_at >= TV_NAME_RETRY_S:
+                self._monitor_at = now
+                self._monitor_found = tv_monitor_name()
+        return self._monitor_found
 
     # --- Lesen ---------------------------------------------------------------------------
 
@@ -146,11 +181,12 @@ class AudioService:
         """[{id, label, active, tv}]: vorhandene Senken und verfügbare HDMI-Ports ohne Senke."""
         st = st or self.state()
         out, names = [], set()
+        monitor = self.monitor_name
         for s in st["sinks"]:
             if s["controller"]:
                 continue
             names.add(s["name"])
-            tv = s["is_hdmi"] and (s["product_name"] or s["nick"]) == self.monitor_name
+            tv = bool(monitor) and s["is_hdmi"] and (s["product_name"] or s["nick"]) == monitor
             out.append({"id": s["name"], "label": self._tv_label() if tv else s["label"],
                         "active": bool(s["is_default"]), "tv": tv})
         for p in st["hdmi_ports"]:
@@ -159,7 +195,7 @@ class AudioService:
             if p["available"] == "no" or not p["stereo_sink"] or p["stereo_sink"] in names \
                     or not p["product_name"]:
                 continue
-            tv = p["product_name"] == self.monitor_name
+            tv = bool(monitor) and p["product_name"] == monitor
             out.append({"id": f"{PORT_PREFIX}{p['card']}|{p['port']}",
                         "label": self._tv_label() if tv else str(p["product_name"]),
                         "active": False, "tv": tv})
@@ -345,6 +381,34 @@ class AudioService:
             log.info("%d Tonströme der Oberfläche auf %s gezogen", done, sink)
         return done
 
+    def mute_streams_of(self, pids: set[int]) -> list[str]:
+        """Schaltet die Tonströme dieser Prozesse stumm, die noch nicht stumm sind (E137: ein angehaltenes
+        Spiel mit Herzschlag gäbe sonst alle paar Sekunden einen Tonfetzen von sich). Liefert ihre Nummern
+        für unmute_streams; Fehler nur ins Protokoll."""
+        try:
+            st = self.state(fresh=True)
+        except Exception:  # noqa: BLE001
+            log.exception("Tonströme einer App")
+            return []
+        done = []
+        for s in st.get("app_streams") or []:
+            serial = str(s.get("serial") or "")
+            if s.get("pid") in pids and serial.isdigit() and not s.get("mute"):
+                try:
+                    self._write(["pactl", "set-sink-input-mute", serial, "1"], "Tonstrom nicht einstellbar.")
+                    done.append(serial)
+                except SettingsError as e:
+                    log.warning("Tonstrom %s stumm: %s", serial, e)
+        return done
+
+    def unmute_streams(self, serials: list[str]) -> None:
+        """Hebt mute_streams_of wieder auf; ein inzwischen verschwundener Strom ist kein Fehler."""
+        for serial in serials:
+            try:
+                self._write(["pactl", "set-sink-input-mute", serial, "0"], "Tonstrom nicht einstellbar.")
+            except SettingsError:
+                pass
+
     def _activate_port(self, port: dict, old=None) -> str:
         if self.on_default_sink is not None:
             try:
@@ -381,7 +445,7 @@ class AudioService:
                 else:
                     self.follow_own_streams(wanted)
                 return wanted
-        port = pipewire.find_monitor_port(st, monitor)
+        port = pipewire.find_monitor_port(st, monitor) if monitor else None    # ohne Namen kein Raten (E143)
         if port is None:
             return None
         if pipewire.sink_by_name(st, port["stereo_sink"]) is None:

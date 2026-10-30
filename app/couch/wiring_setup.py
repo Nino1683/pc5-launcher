@@ -190,7 +190,9 @@ class SetupPart:
                 installed["tool:proton"] = bool(pj is not None and int((pj.summary() or {}).get("installed") or 0) > 0)
             except Exception:  # noqa: BLE001
                 pass
-            return catalog.view(installed)
+            # E139: Discord steht nur mit „Discord verwenden“ im Assistenten
+            from . import discord
+            return catalog.view(installed, {"discord.enabled": discord.enabled(self.wiring.config)})
         return self.wiring._bg(run)
 
     def _prepare(self, params: dict) -> tuple:
