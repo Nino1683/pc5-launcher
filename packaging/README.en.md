@@ -1,7 +1,7 @@
 # PC5 Launcher
 
 A console-style home screen for the game mode of Linux PCs: games from Steam, GOG, Epic, itch.io, Battle.net,
-Ubisoft, Rockstar, Lutris and emulators, TV apps, a browser and the PC's settings, all with a controller. It runs in the same Gamescope session as
+Ubisoft, Rockstar and emulators, apps from Flathub, a browser and the PC's settings, all with a controller. It runs in the same Gamescope session as
 Steam Big Picture and starts Steam when a Steam game is chosen.
 
 Free and open source (GPL-3.0). This is a preview package: “unconfirmed” means not yet seen on a real device. The

@@ -1,11 +1,11 @@
 # PC5 Launcher
 
 **A console-style home screen for the Game Mode of Linux PCs.** All your games from Steam, GOG, Epic, itch.io,
-Battle.net, Ubisoft, Rockstar and Lutris, your emulators, TV apps, a browser and every setting of your PC: in one
+Battle.net, Ubisoft and Rockstar, your emulators, apps from Flathub, a browser and every setting of your PC: in one
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **English and German**
+Free and open source (GPL-3.0) · Preview version 0.5.0 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -17,7 +17,8 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 
 ### All your games in one library
 
-- Steam, GOG, Epic Games, itch.io, Battle.net, Ubisoft Connect, Rockstar Games, Lutris and emulators side by side
+- Steam, GOG, Epic Games, itch.io, Battle.net, Ubisoft Connect, Rockstar Games and emulators side by side; games
+  from Lutris are taken over once (play time, settings, saves) and then start without Lutris
 - Covers and backgrounds load by themselves (Steam, GOG, Epic, Microsoft Store, Nintendo, itch.io, Battle.net;
   SteamGridDB with your own key)
 - Rename games, pin favorites, hide entries, remove entries whose folder you deleted
@@ -52,7 +53,9 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
   rate, from 20 fps) and resolution
 - **OptiScaler menu with the controller:** Control Center › Performance opens it in the running game. The D-pad,
   Cross and Circle work the menu, Options closes it; no keyboard needed
-- Damaged Proton versions are detected and downloaded again
+- Damaged Proton versions are detected and downloaded again; versions installed by PC5 Launcher are write-protected
+  so another Proton can't overwrite them
+- Per game: turn DXVK off (WineD3D) for games that crash or look wrong with it
 - The controller works in XInput games too, with no setting to change
 
 ### Emulators
@@ -73,6 +76,11 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 
 ### Apps and media
 
+- **Three tabs in the Home: Games, Apps and Media.** Whatever you install as a Flatpak (for example in Bazaar, the app
+  store of Bazzite) appears as a tile by itself, games under Games, video and music apps under Media. Move tiles in
+  every row, hide apps (Settings › Apps brings them back) and uninstall Flatpak apps right from the tile.
+- **Discord, if you want it** (off by default): the official client runs hidden in the background, also during
+  games; its messages show up as notifications and the Control Center mutes your microphone or sound in Discord
 - **Media gallery:** all your screenshots sorted by game, full screen, and use one as your Home background
 - Your own Home background: game art, your own picture or a slideshow; boot videos from steamdeckrepo.com
 - Widget bar in the Home: storage, trophies, Steam wishlist deals (with a notification when a game goes on sale),
@@ -84,8 +92,11 @@ Free and open source (GPL-3.0) · Preview version 0.3.3 · Interface in **Englis
 
 ### Control Center and settings
 
-- **Control Center:** switch between running apps, downloads, notifications, sound, microphone, accessories,
-  performance overlay
+- **Control Center:** switch between all running games and apps, downloads, notifications, sound, microphone,
+  accessories, performance overlay
+- **Control your TV** (Google TV / Android TV, off by default): volume, inputs and power from the Control Center over
+  your home network, no HDMI-CEC needed on the PC. Optionally the TV turns off when the PC sleeps and turns on, on the
+  PC's input, when it wakes.
 - **Settings like on a console:** sound, screen and video (HDR, VRR, force composition for streaming with Sunshine), network (Wi-Fi, speed test), Bluetooth and
   controllers, storage, power (sleep, sleep timer, screensaver), updates for the system, Flatpaks and Proton
 - **Updates itself:** PC5 Launcher checks GitHub once a day, tells you when there's a new version and installs it
@@ -155,8 +166,7 @@ terminal inside the extracted folder:
     bash install.sh
 
 From 0.3.1 on, PC5 Launcher updates itself (Settings › Updates; before 0.4.0 Settings › System › Updates). Coming
-from 0.2.0 or 0.3.0, update once
-the same way as installing; your settings stay. Everything else (supported systems, requirements, the way back to
+from 0.2.0 or 0.3.0, update once the same way as installing; your settings stay. Everything else (supported systems, requirements, the way back to
 Steam, updating and uninstalling): [packaging/README.en.md](packaging/README.en.md).
 
 | System | Status |
@@ -196,17 +206,18 @@ versions live in `app/couch/i18n/en.json` and `app/web/js/core/strings-en.js`.
 ## Deutsch
 
 **Ein Konsolen-Startbildschirm für den Spielmodus von Linux-PCs.** Alle Spiele aus Steam, GOG, Epic, itch.io,
-Battle.net, Ubisoft, Rockstar und Lutris, die Emulatoren, Apps für den Fernseher, ein Browser und alle Einstellungen
+Battle.net, Ubisoft und Rockstar, die Emulatoren, Apps aus Flathub, ein Browser und alle Einstellungen
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **Deutsch und Englisch**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.5.0 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 
 **Alle Spiele in einer Bibliothek**
 
-- Steam, GOG, Epic Games, itch.io, Battle.net, Ubisoft Connect, Rockstar Games, Lutris und Emulatoren nebeneinander
+- Steam, GOG, Epic Games, itch.io, Battle.net, Ubisoft Connect, Rockstar Games und Emulatoren nebeneinander;
+  Spiele aus Lutris werden einmal übernommen (Spielzeit, Einstellungen, Spielstände) und starten danach ohne Lutris
 - Cover und Hintergründe kommen von selbst (Steam, GOG, Epic, Microsoft Store, Nintendo, itch.io, Battle.net;
   SteamGridDB mit eigenem Schlüssel)
 - Spiele umbenennen, Favoriten, ausblenden, Einträge gelöschter Ordner entfernen
@@ -242,7 +253,9 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
   teilt, ab 20) und Auflösung
 - **OptiScaler-Menü mit dem Controller:** Control Center › Leistung öffnet es im laufenden Spiel. Steuerkreuz, Kreuz
   und Kreis bedienen das Menü, Options schließt es; keine Tastatur nötig
-- Beschädigte Proton-Versionen werden erkannt und neu geladen
+- Beschädigte Proton-Versionen werden erkannt und neu geladen; vom PC5 Launcher installierte Versionen sind
+  schreibgeschützt, damit kein anderes Proton sie überschreibt
+- Je Spiel: DXVK ausschalten (WineD3D) für Spiele, die damit abstürzen oder falsch aussehen
 - Der Controller geht auch in XInput-Spielen, ohne dass man etwas einstellen muss
 
 **Emulatoren**
@@ -263,6 +276,13 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
 
 **Apps und Medien**
 
+- **Drei Reiter im Home: Spiele, Apps und Medien.** Was du als Flatpak installierst (etwa in Bazaar, dem App Store
+  von Bazzite), erscheint von selbst als Kachel, Spiele unter Spiele, Video- und Musik-Apps unter Medien. Kacheln in
+  jeder Reihe verschieben, Apps ausblenden (Einstellungen › Apps holt sie zurück) und Flatpak-Apps direkt an der
+  Kachel deinstallieren.
+- **Discord, wenn du willst** (aus ist Vorgabe): Der offizielle Client läuft unsichtbar im Hintergrund, auch während
+  eines Spiels; seine Nachrichten kommen als Mitteilung, und im Control Center schaltest du Mikrofon oder Ton in
+  Discord stumm
 - **Mediengalerie:** alle Bildschirmfotos nach Spiel sortiert, im Vollbild, und eins als Hintergrund im Home
 - Eigener Hintergrund im Home: Spielbilder, ein eigenes Bild oder eine Diashow; Startvideos von steamdeckrepo.com
 - Widget-Leiste im Home: Speicherplatz, Trophäen, Angebote der Steam-Wunschliste (mit Mitteilung, wenn ein Spiel
@@ -274,8 +294,11 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.3.3 · Oberfläche auf **D
 
 **Control Center und Einstellungen**
 
-- **Control Center:** zwischen laufenden Apps wechseln, Downloads, Mitteilungen, Ton, Mikrofon, Zubehör,
-  Leistungsanzeige
+- **Control Center:** zwischen allen laufenden Spielen und Apps wechseln, Downloads, Mitteilungen, Ton, Mikrofon,
+  Zubehör, Leistungsanzeige
+- **Fernseher steuern** (Google TV / Android TV, aus ist Vorgabe): Lautstärke, Eingänge und Ein/Aus im Control
+  Center über das Heimnetz, ohne HDMI-CEC am PC. Wahlweise geht der Fernseher mit dem Ruhemodus des PCs aus und beim
+  Aufwachen wieder an, gleich auf dem Eingang des PCs.
 - **Einstellungen wie bei einer Konsole:** Ton, Bildschirm und Video (HDR, VRR, Komposition erzwingen fürs Streaming mit Sunshine), Netzwerk (WLAN,
   Geschwindigkeitsmessung), Bluetooth und Controller, Speicher, Energie (Ruhemodus, Ruhemodus-Timer,
   Bildschirmschoner), Updates für System, Flatpaks und Proton

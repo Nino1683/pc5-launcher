@@ -1,7 +1,7 @@
 # PC5 Launcher
 
 Ein Konsolen-Startbildschirm für den Spielmodus von Linux-PCs: Spiele aus Steam, GOG, Epic, itch.io, Battle.net,
-Ubisoft, Rockstar, Lutris und von Emulatoren, Apps für den Fernseher, ein Browser und die Einstellungen des Rechners, alles mit dem Controller.
+Ubisoft, Rockstar und von Emulatoren, Apps aus Flathub, ein Browser und die Einstellungen des Rechners, alles mit dem Controller.
 Er läuft in derselben Gamescope-Sitzung wie Steam Big Picture und startet Steam, wenn ein Steam-Spiel gewählt wird.
 
 Kostenlos und quelloffen (GPL-3.0). Diese Fassung ist ein Vorab-Paket: Was „unbestätigt“ heißt, ist auf einem

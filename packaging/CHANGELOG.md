@@ -1,6 +1,6 @@
 # Änderungen
 
-## Nächste Fassung
+## 0.5.0 (2026-10-30)
 
 - **Fernseher steuern:** Hat dein Fernseher Google TV oder Android TV, steuert der PC5 Launcher ihn über das Heimnetz,
   auch ohne HDMI-CEC am PC: im Control Center unter „Fernseher“ Leiser, Lauter, Stumm, Eingang wechseln und
