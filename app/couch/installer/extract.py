@@ -83,10 +83,14 @@ def make_staging(dest_root: str) -> tuple:
     os.mkdir(staging, 0o700)                 # scheitert, falls es den Namen schon gibt
     lock_fd = os.open(os.path.join(staging, trash.STAGING_MARKER),
                       os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    os.write(lock_fd, token.encode("ascii"))
-    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    payload = os.path.join(staging, PAYLOAD_DIR)
-    os.mkdir(payload, 0o755)
+    try:
+        os.write(lock_fd, token.encode("ascii"))
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        payload = os.path.join(staging, PAYLOAD_DIR)
+        os.mkdir(payload, 0o755)
+    except BaseException:
+        os.close(lock_fd)       # der Ordner mit Marker bleibt: ihn räumt das Aufräumen verwaister Zwischenordner ab
+        raise
     return staging, payload, token, lock_fd
 
 
@@ -357,6 +361,17 @@ def _is_real_file(path: str) -> bool:
         return False
 
 
+def _single_top(payload: str, names: list) -> tuple:
+    """Ein einzelner echter Oberordner, daneben nur Beigaben (Lies-mich, Verknüpfung, probe.only_strays)?
+    Rückgabe: (Name des Oberordners oder None, die übrigen Namen). Entschieden am entpackten Inhalt."""
+    dirs = [n for n in names if _is_real_dir(os.path.join(payload, n))]
+    others = [n for n in names if n not in dirs]
+    if len(dirs) == 1 and all(_is_real_file(os.path.join(payload, n)) for n in others) and \
+            probe.only_strays([(n, os.path.getsize(os.path.join(payload, n))) for n in others]):
+        return dirs[0], others
+    return None, others
+
+
 def verify_start_file(install_dir: str, rel: str) -> str | None:
     """Prüft eine Startdatei: relativer Pfad ohne "..", gewöhnliche Datei innerhalb des Spielordners.
 
@@ -486,12 +501,8 @@ def _install(plan: dict, spec: dict, payload: str, real_root: str, may_continue:
         # Ein einzelner echter Oberordner wird zum Spielordner (Beigaben daneben wie Lies-mich oder eine
         # Verknüpfung bleiben im Zwischenordner zurück und verschwinden mit ihm), sonst der ganze Inhalt.
         # Entschieden wird am entpackten Inhalt, nicht an der Auflistung.
-        dirs = [n for n in names if _is_real_dir(os.path.join(payload, n))]
-        others = [n for n in names if n not in dirs]
-        top = None
-        if len(dirs) == 1 and all(_is_real_file(os.path.join(payload, n)) for n in others) and \
-                probe.only_strays([(n, os.path.getsize(os.path.join(payload, n))) for n in others]):
-            top = dirs[0]
+        top, others = _single_top(payload, names)
+        if top:
             result["dropped"] = others
         source = os.path.join(payload, top) if top else payload
         if top:
@@ -761,12 +772,7 @@ def _into(payload: str, real: str, title: str, skip: set, platform: str, may_con
     if not names:
         raise _Abort("empty", "Das Archiv enthält keine Dateien.")
     # Ein einzelner echter Oberordner wird aufgelöst (wie run()); Beigaben daneben bleiben zurück
-    dirs = [n for n in names if _is_real_dir(os.path.join(payload, n))]
-    others = [n for n in names if n not in dirs]
-    top = None
-    if len(dirs) == 1 and all(_is_real_file(os.path.join(payload, n)) for n in others) and \
-            probe.only_strays([(n, os.path.getsize(os.path.join(payload, n))) for n in others]):
-        top = dirs[0]
+    top, _others = _single_top(payload, names)
     source = os.path.join(payload, top) if top else payload
     if top:
         # Gemessen gegen das, was wirklich wandert (sonst zeigte „../Nachbar“ danach auf ein Nachbarspiel)

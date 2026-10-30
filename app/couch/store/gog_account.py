@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from .. import system
 
 CLIENT_ID = "46899977096215655"
 CLIENT_SECRET = "9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9"
@@ -45,12 +48,9 @@ def code_from_redirect(uri: str) -> str:
 
 
 def _write_private(path: str, data: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".neu"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-    os.replace(tmp, path)
+    """JSON atomar und nur für dich lesbar (0600). Eigene Zwischendatei je Prozess und Thread (Browser und Home
+    schreiben dieselbe Datei); eine liegengebliebene ältere Zwischendatei bestimmt nie die Rechte (E99)."""
+    system.write_atomic(path, json.dumps(data), 0o600)
 
 
 def store_code(path: str, code: str, clock=time.time) -> None:
@@ -73,6 +73,9 @@ class GogAccount:
         self.code_file = code_file
         self._request = request
         self._clock = clock
+        # Erneuern nur einer zur Zeit: Kaufwächter, Downloads und Oberfläche fragen aus verschiedenen Threads,
+        # zwei Erneuerungen mit demselben refresh_token liefen sonst um die Wette
+        self._lock = threading.Lock()
 
     def _tokens(self) -> dict:
         try:
@@ -125,6 +128,10 @@ class GogAccount:
 
     def token(self) -> str:
         """Gültiger Zugangsschlüssel oder "" (nicht angemeldet). Erneuert bei Bedarf."""
+        with self._lock:
+            return self._token()
+
+    def _token(self) -> str:
         data = self._tokens()
         if not data.get("refresh_token"):
             return ""

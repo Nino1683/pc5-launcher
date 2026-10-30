@@ -380,8 +380,9 @@ class WriteBehind:
         return True
 
 
-def write_atomic(path: str, data: bytes | str, mode: int = 0o600) -> None:
-    """Temp-Datei im selben Ordner + rename: Leser sehen nie eine halbe Datei."""
+def write_atomic(path: str, data: bytes | str, mode: int = 0o600, replace: bool = True) -> None:
+    """Temp-Datei im selben Ordner + rename: Leser sehen nie eine halbe Datei. replace=False: nie über eine
+    vorhandene Datei (installer/trash.rename_noreplace); gibt es path schon, FileExistsError, und nichts ändert sich."""
     if isinstance(data, str):
         data = data.encode("utf-8")
     directory = os.path.dirname(path) or "."
@@ -393,7 +394,11 @@ def write_atomic(path: str, data: bytes | str, mode: int = 0o600) -> None:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        if replace:
+            os.replace(tmp, path)
+        else:
+            from .installer import trash
+            trash.rename_noreplace(tmp, path)
     except BaseException:
         try:
             os.unlink(tmp)

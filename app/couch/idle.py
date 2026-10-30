@@ -26,6 +26,7 @@ der letzten Minute verlängert ihn nicht (anders als beim Leerlauf).
 """
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, Callable
 
@@ -206,7 +207,6 @@ class IdleWatch:
 def logind_blockers(run_read: Callable[..., Any]) -> list[str]:
     """Programme, die Schlaf oder Leerlauf bei logind sperren (Modus block), als Gründe.
     run_read wie system.run_read (CompletedProcess)."""
-    import json
     try:
         r = run_read(["busctl", "--system", "--json=short", "call", "org.freedesktop.login1",
                       "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "ListInhibitors"], timeout=5)
@@ -231,9 +231,8 @@ class ResumeWatch:
     JUMP_S = 5.0
 
     def __init__(self, sched: Any, on_resume: Callable[[], None], wall: Callable[[], float] | None = None):
-        import time as _time
         self.sched, self.on_resume = sched, on_resume
-        self.wall = wall or _time.time
+        self.wall = wall or time.time
         self._last = (self.wall(), sched.now())
         self._timer = None
 

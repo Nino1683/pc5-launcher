@@ -12,18 +12,12 @@
 // Die Karten unter dem Hub (hub-cards.js, E125) zeigen dieselbe Meldung bzw. Beschreibung: showNews, showAbout.
 // Den Knopf „Beschreibung“ trägt der Hub selbst rechts neben „…“ (2026-10-28: unter den Bildern stand er zu dicht
 // daran); onAbout(steam oder null) sagt ihm, ob es eine lange Beschreibung gibt.
-import { h, cssPx } from "../core/dom.js";
+import { h, cssPx, ensureStyle } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { S, fmt, whenText } from "../core/strings.js";
 import { confirm, dialog, imageViewer, messageDialog, scrollTextDialog } from "./dialog.js";
 import { gameInfo, gameNews, wantsInfo } from "./gameinfo.js";
 import { trophySection } from "./trophies.js";
-
-// Eigene Gestaltung einmal nachladen (css/hub-info.css)
-function ensureStyle() {
-  if (document.querySelector("link[data-part=hub-info]")) return;
-  document.head.append(h("link", { rel: "stylesheet", href: "css/hub-info.css", "data-part": "hub-info" }));
-}
 
 // Meldung im Browser der Konsole; läuft vorn etwas anderes, fragt die Seite wie bei jedem Start
 async function openNews(entry, item) {
@@ -165,7 +159,7 @@ export async function showNews(entry, n) {
 // hubEl: der Hub (.hub); ihm setzt deepTo die Verschiebung (--fx-y), solange der Fokus in einem Abschnitt liegt.
 // onAbout(steam oder null): Gibt es zum Eintrag eine lange Beschreibung (Knopf „Beschreibung“ im Hub)?
 export function createHubSections(hubEl, { onAbout = () => {} } = {}) {
-  ensureStyle();
+  ensureStyle("hub-info");             // eigene Gestaltung (css/hub-info.css)
   const el = h("div.hub-extra", { hidden: true });
   const sections = [];
   let entry = null;

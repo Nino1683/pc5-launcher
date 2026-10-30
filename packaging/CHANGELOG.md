@@ -1,5 +1,38 @@
 # Änderungen
 
+## 0.5.1 (2026-10-30)
+
+Nur Fehlerbehebungen.
+
+- **Hintergrund-Apps bleiben an:** Discord und der App Store, die über ihre Kachel nach vorn geholt wurden, sowie die
+  Beobachter für Ton und Netz endeten nach rund 30 Sekunden. Danach ging der Ton nicht mehr von selbst auf den
+  Fernseher.
+- **Browser:** Codes für die Anmeldung bei GOG und Epic werden nur noch während deiner eigenen Anmeldung aus dem
+  Store angenommen; vorher konnte eine fremde Seite die Konsole mit einem anderen GOG-Konto anmelden. Ein
+  Bildschirm, der noch nicht zu sehen ist, schluckt Kreis nicht mehr; eine kaputte Startseite oder Lesezeichen-Datei
+  hält den Browser nicht mehr auf.
+- **Anmeldedaten:** Die Dateien der Anmeldung bei GOG, Epic und Ubisoft sind immer nur für dich lesbar, auch wenn
+  vorher etwas schiefging.
+- **Einstellungen › Speicher:** Der Konsolenspeicher zeigt wieder Größe und freien Platz statt „Nicht verbunden“.
+- **Papierkorb des Installers:** Er hieß „Trophäen“ und zeigte deren Texte; jetzt wieder „Papierkorb“ mit der Frist.
+- **Datei-Explorer:** Kopieren, Verschieben, Umbenennen und Wiederherstellen ersetzen oder löschen nie etwas, das
+  zwischendurch an derselben Stelle entstanden ist.
+- **Deinstallieren:** Lässt sich nicht prüfen, ob eine App gerade woanders läuft, wird nicht deinstalliert.
+- **Stores:** Ein Abbruch, während Steam noch Daten liest, bleibt nicht mehr bei „Wird abgebrochen …“ hängen; ein
+  abgebrochener Installer stoppt auch kurz vor seinem Start; der Prefix eines abgebrochenen Spiels bleibt liegen,
+  solange darin noch Wine läuft. Bilder neuer Steam-Spiele in langen Listen fehlen nicht mehr, und gleichzeitige
+  Anfragen zerstören den Zwischenspeicher nicht mehr.
+- **Ein/Aus und Beenden:** Nach einem Fehler meldete das Menü dauerhaft „Es läuft schon ein Vorgang“; beim Beenden
+  des Home gehen Einstellungen und Spielzeiten auch dann nicht verloren, wenn vorher etwas scheitert.
+- **Einrichtung:** Ein abgebrochener Download von umu-launcher wird beim nächsten Versuch fortgesetzt statt als
+  „beschädigt“ gemeldet.
+- **Fernseher:** Er wird auch an der zweiten Grafikkarte gefunden; zweimal schnell „Auswählen“ beim ersten Koppeln
+  kann die Kopplung nicht mehr unbrauchbar machen; Verbindungen werden sauber geschlossen.
+- **Discord:** Eine ungewöhnliche Antwort von Discord beendet „Spielt gerade“ nicht mehr bis zum Neustart.
+- **Rückfragen:** Vier Aktionen in den Einstellungen fragen jetzt immer nach, bevor sie etwas tun.
+- **Englische Oberfläche:** Anführungszeichen im englischen Stil; Menüs mit Sonderzeichen im Namen gehen wieder auf.
+- **Speicher unter dem Bildschirmschoner:** Hintergrundbilder werden freigegeben, ein Trailer im Vollbild hält an.
+
 ## 0.5.0 (2026-10-30)
 
 - **Fernseher steuern:** Hat dein Fernseher Google TV oder Android TV, steuert der PC5 Launcher ihn über das Heimnetz,

@@ -35,7 +35,7 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("WebKit", "6.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, WebKit  # noqa: E402
 
-from .. import i18n, log, oskdirect, paths  # noqa: E402
+from .. import i18n, log, oskdirect, paths, system  # noqa: E402
 from . import adblock, address, bookmarks, downloads, popups  # noqa: E402
 from .prefs import Prefs, ZOOM_MAX, ZOOM_MIN, render_start  # noqa: E402
 from ..store import epic_account, gog_account, itch_account, steam_account  # noqa: E402
@@ -67,7 +67,7 @@ LANG = os.environ.get("COUCH_LANG", "de")
 def _t(text: str) -> str:
     return i18n.t(text, LANG)
 
-HERE = os.path.dirname(os.path.realpath(__file__))
+
 ZOOM_STEP = 0.1
 MEMORY_LIMIT_MB = 2048             # je Seitenprozess; darüber räumt WebKit seine Zwischenspeicher
 # E138: kein eigener Seitenprozess je Website. Mit dem Wechsel behielt WebKit jede besuchte Seite als
@@ -606,8 +606,10 @@ class Browser:
         self.zoom_label.set_text("%d %%" % round(self.view.get_zoom_level() * 100))
 
     def on_key(self, _ctl, keyval, _code, state) -> bool:
-        if keyval == Gdk.KEY_Escape and self.popup is not None:
-            self.close_popup()                  # Kreis schließt das Anmeldefenster, nicht die Seite
+        if keyval == Gdk.KEY_Escape and self.popup_frame is not None:
+            # Kreis schließt das gezeigte Anmeldefenster, nicht die Seite (wie go_back; ein noch nicht
+            # gezeigtes Fenster, E89, bleibt und schluckt die Taste nicht)
+            self.close_popup()
             return True
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
         alt = bool(state & Gdk.ModifierType.ALT_MASK)
@@ -753,6 +755,11 @@ class Browser:
         code = gog_account.code_from_redirect(uri)
         if not code or getattr(self, "_gog_taken", "") == code:
             return
+        if self.close_after != "gog-login":
+            # Nur während einer Anmeldung aus dem Store (wie itch.io): Sonst könnte jede Seite diese Adresse mit
+            # dem Code eines fremden Kontos aufrufen, und die Konsole wäre damit angemeldet. Die Navigation ist ignoriert.
+            _log.info("GOG-Rückleitung ohne laufende Anmeldung: nicht übernommen")
+            return
         self._gog_taken = code
         _log.info("GOG-Anmeldung: Umleitung mit Code erkannt")
         gog_account.store_code(os.path.join(paths.state_dir(), "gog-login.json"), code)
@@ -761,7 +768,11 @@ class Browser:
 
     def take_epic_code(self) -> None:
         """Anmeldung bei Epic für den Store (E73): Die Umleitungsseite zeigt ein JSON mit dem Code;
-        er geht an das Home (legendary auth), nicht an die Seite."""
+        er geht an das Home (legendary auth), nicht an die Seite. Nur während einer Anmeldung aus dem Store
+        (close_after "epic-login"), sonst schlösse jede Seite mit dieser Adresse den Browser."""
+        if self.close_after != "epic-login":
+            return
+
         def done(view, res) -> None:
             try:
                 value = view.call_async_javascript_function_finish(res)
@@ -873,10 +884,8 @@ class Browser:
                 return
             path = os.path.join(paths.state_dir(), "ubisoft-login.json")
             try:
-                fd = os.open(path + ".neu", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-                with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                    fh.write(text)
-                os.replace(path + ".neu", path)
+                # eigene Zwischendatei mit 0600: eine liegengebliebene ältere bestimmt nie die Rechte (E99)
+                system.write_atomic(path, text, 0o600)
             except OSError as e:
                 _log.warning("Ubisoft-Anmeldung nicht gespeichert: %s", e)
                 return
@@ -1246,7 +1255,9 @@ class Browser:
             os.unlink(path)
         except (OSError, ValueError):
             return
-        url = str((data or {}).get("url") or "") if isinstance(data, dict) else ""
+        if not isinstance(data, dict):
+            return                          # Ausnahme hier beendete den Zeitgeber (_poll_downloads) für immer
+        url = str(data.get("url") or "")
         try:
             fresh = time.time() - float(data.get("at") or 0) < 120
         except (TypeError, ValueError):

@@ -1,4 +1,4 @@
-"""Linux-Programme direkt starten (Lutris-"linux"-Einträge, Archiv-Spiele mit Linux-Startdatei).
+"""Linux-Programme direkt starten (aus Lutris übernommene Linux-Spiele, E134; Archiv-Spiele mit Linux-Startdatei).
 
 Hier liegen außerdem die kleinen Prüfhelfer, die alle Starter teilen: fehlende Datei oder
 fehlende Platte, Argumente zerlegen. Die Reste eines Steam-Elternprozesses (STEAM_LEFTOVERS)
@@ -184,7 +184,7 @@ def build(entry, ctx, *, check: bool = True) -> LaunchSpec:
         preflight(entry, ctx)
     if cwd and not os.path.isdir(cwd) and os.path.isdir(os.path.dirname(exe)):
         cwd = os.path.dirname(exe)
-    # Lutris-Linux-Spiele bekommen die Umgebung aus Lutris (Vorgaben, Runner, Spiel: z. B.
+    # Aus Lutris übernommene Linux-Spiele (E134) bringen deren Umgebung mit (Vorgaben, Runner, Spiel: z. B.
     # LD_PRELOAD oder LD_LIBRARY_PATH auf mitgelieferte Bibliotheken), darüber die Option env (E99)
     env = clean_env(entry.detail.get("env")) if entry.source == "native" else {}
     env.update(clean_env(entry.option("env")))

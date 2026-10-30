@@ -56,8 +56,9 @@ _UMLAUT = re.compile(r"[\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]")
 
 
 # ================================================================ Lesen
-def _read(path: str, limit: int = MAX_FILE) -> str:
-    """Eigene Textdatei lesen, nie über einen Verweis; "" wenn es sie nicht gibt."""
+def read_own(path: str, limit: int = MAX_FILE) -> str:
+    """Eigene Textdatei lesen, nie über einen Verweis, nur eine gewöhnliche Datei; "" wenn es sie nicht gibt oder
+    sie nicht lesbar ist (auch für selfupdate.read_small)."""
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     except OSError:
@@ -76,7 +77,7 @@ def read_text(release_dir: str) -> str:
     """CHANGELOG.md der laufenden Fassung: im Paket bzw. von install-release neben VERSION, im Arbeitsordner unter
     packaging/. "" wenn keine da ist."""
     for rel in ("CHANGELOG.md", os.path.join("packaging", "CHANGELOG.md")):
-        text = _read(os.path.join(release_dir or "", rel))
+        text = read_own(os.path.join(release_dir or "", rel))
         if text.strip():
             return text
     return ""

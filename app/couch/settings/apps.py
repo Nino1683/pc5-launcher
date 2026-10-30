@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import logging
 
-from .rows import AREA_ORDER, Page, SettingsError, action, info, link, text, toggle
+from .rows import AREA_ORDER, Page, SettingsError, action, info, late_part, link, message_of, text, toggle
 
 log = logging.getLogger("couch.settings.apps")
 
@@ -116,25 +116,12 @@ class AppsArea:
     # --- Zeilen ---------------------------------------------------------------------------
 
     def _part(self):
-        late = self.extra.get("late")
-        if not callable(late):
-            return None
-        try:
-            return late("apps_part")
-        except Exception:  # noqa: BLE001
-            log.exception("apps_part")
-            return None
+        """E141: der Teil „apps“ (wiring_apps.AppsPart), spät gebunden; None ohne ihn."""
+        return late_part(self.extra, "apps_part", log)
 
     def _discord_part(self):
         """E139/E143: der Teil „discord“ (wiring_discord.DiscordPart), spät gebunden; None ohne ihn."""
-        late = self.extra.get("late")
-        if not callable(late):
-            return None
-        try:
-            return late("discord_part")
-        except Exception:  # noqa: BLE001
-            log.exception("discord_part")
-            return None
+        return late_part(self.extra, "discord_part", log)
 
     def _has(self, entry_id: str) -> bool:
         fn = self.extra.get("has_entry")
@@ -208,13 +195,8 @@ class AppsArea:
         except KeyError:
             raise SettingsError("Diese App gibt es nicht mehr.") from None
         except Exception as e:  # noqa: BLE001
-            message = getattr(e, "message", None)
-            raise SettingsError(message if isinstance(message, str) and message else
-                                "Die App ließ sich nicht wieder anzeigen.") from e
+            raise SettingsError(message_of(e) or "Die App ließ sich nicht wieder anzeigen.") from e
         return {"message": "„%s“ wird wieder angezeigt." % (title or entry_id), "refresh": True}
-
-
-
 
     # --- Discord (E139) -------------------------------------------------------------------
 
@@ -292,12 +274,12 @@ class AppsArea:
     def _set_discord(self, row_id: str, value) -> dict:
         from .. import discord
         if row_id == ROW_DISCORD_APP_ID:
-            try:
-                cid = discord.clean_app_id(value if isinstance(value, str) else "")
-            except ValueError:
-                raise SettingsError(DISCORD_BAD_ID) from None
             if value is not None and not isinstance(value, str):
                 raise SettingsError(DISCORD_BAD_ID)
+            try:
+                cid = discord.clean_app_id(value or "")
+            except ValueError:
+                raise SettingsError(DISCORD_BAD_ID) from None
             self.config.set("discord.app_id", cid)
             return {"message": "Application ID übernommen." if cid else "Application ID entfernt.", "refresh": True}
         on = bool(value)
@@ -331,9 +313,7 @@ class AppsArea:
         except SettingsError:
             raise
         except Exception as e:  # noqa: BLE001
-            message = getattr(e, "message", None)
-            raise SettingsError(message if isinstance(message, str) and message else
-                                "Discord lässt sich gerade nicht öffnen.") from e
+            raise SettingsError(message_of(e) or "Discord lässt sich gerade nicht öffnen.") from e
         return {}
 
 

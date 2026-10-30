@@ -33,7 +33,3 @@ class CrashWatch:
         recent = [t for t in self._crashes.get(role, []) if now - t < self.window_s] + [now]
         self._crashes[role] = recent
         return len(recent) >= self.limit
-
-    def count(self, role: str) -> int:
-        now = self._clock()
-        return sum(1 for t in self._crashes.get(role, []) if now - t < self.window_s)

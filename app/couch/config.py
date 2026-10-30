@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import threading
 import time
 from typing import Any, Callable
@@ -137,7 +136,6 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-
 class Config:
     def __init__(self, path: str | None = None, defaults: dict[str, Any] | None = None,
                  writer: Any = None):
@@ -229,12 +227,7 @@ class Config:
             observers = list(self._observers)
         if old == value:
             return                              # gleicher Wert wie die Vorgabe: nichts zu melden
-        for prefix, fn in observers:
-            if key.startswith(prefix):
-                try:
-                    fn(key, copy.deepcopy(value))
-                except Exception:
-                    _log.exception("Beobachter für %s", key)
+        _tell(observers, key, value)
 
     def on_change(self, prefix: str, fn: Callable[[str, Any], None]) -> None:
         with self._lock:
@@ -251,12 +244,7 @@ class Config:
             observers = list(self._observers)
         new = self.get(key)
         if new != old:
-            for prefix, fn in observers:
-                if key.startswith(prefix):
-                    try:
-                        fn(key, new)
-                    except Exception:
-                        _log.exception("Beobachter für %s", key)
+            _tell(observers, key, new)
 
     def reset_all(self) -> list[str]:
         """Alles zurück auf die Vorgaben, mit einem einzigen Schreibvorgang. Beobachter erfahren
@@ -274,12 +262,7 @@ class Config:
             if new == was:
                 continue
             changed.append(key)
-            for prefix, fn in observers:
-                if key.startswith(prefix):
-                    try:
-                        fn(key, new)
-                    except Exception:
-                        _log.exception("Beobachter für %s", key)
+            _tell(observers, key, new)
         return changed
 
     def add_defaults(self, table: dict[str, Any]) -> None:
@@ -293,6 +276,17 @@ class Config:
 
 
 _MISSING = object()
+
+
+def _tell(observers: list, key: str, value: Any) -> None:
+    """Beobachter, deren Präfix passt, ohne Sperre benachrichtigen; jeder bekommt eine eigene Kopie, und ein
+    Fehler in einem hält die übrigen nicht auf."""
+    for prefix, fn in observers:
+        if key.startswith(prefix):
+            try:
+                fn(key, copy.deepcopy(value))
+            except Exception:
+                _log.exception("Beobachter für %s", key)
 
 
 def decode_lenient(blob: bytes) -> tuple[str, bool]:

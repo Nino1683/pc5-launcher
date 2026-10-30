@@ -247,7 +247,9 @@ class RockstarStore:
             if not isinstance(data, dict) or data.get("notFound"):
                 raise StoreError(NOT_FOUND)
             return data.get("pageProps") if isinstance(data.get("pageProps"), dict) else {}
-        raise StoreError(NOT_FOUND)
+        # Auch mit neu gelesener buildId 404 ohne „notFound“: eine Störung (keine neue buildId zu finden), kein
+        # fehlendes Spiel. Kein StoreError, damit _cached den letzten Stand nimmt bzw. „nicht erreichbar“ sagt.
+        raise ValueError("buildId veraltet")
 
     # ------------------------------------------------------------------ Karten
     @staticmethod

@@ -116,11 +116,6 @@ def skip_fs(fstype: str) -> bool:
     return fstype.startswith("fuse") or fstype in SKIP_FS
 
 
-def is_mount_point(path: str, mounts: dict[str, str] | None = None) -> bool:
-    mounts = mount_table() if mounts is None else mounts
-    return os.path.realpath(path) in mounts
-
-
 # ---------------------------------------------------------------- Durchlauf
 
 def _entry_dev(entry) -> int:

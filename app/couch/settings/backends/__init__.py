@@ -59,10 +59,6 @@ class TtlCache:
         self._data[key] = (now, value)
         return value
 
-    def peek(self, key):
-        hit = self._data.get(key)
-        return hit[1] if hit is not None else None
-
     def put(self, key, value) -> None:
         self._data[key] = (self.clock(), value)
 

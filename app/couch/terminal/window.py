@@ -74,7 +74,7 @@ class Terminal:
         self._flush_id = 0
         self._watch_id = 0
         self._child_id = 0
-        self._ready = False
+        self._retry_id = 0              # ein einziger Zeitgeber für blockierte Eingaben
         self._quitting = False
         self._first = session.autorun(os.environ)      # nur beim ersten „ready“ (lädt die Seite neu, nicht noch einmal)
 
@@ -149,7 +149,6 @@ class Terminal:
 
     def on_crash(self, view, reason) -> None:
         _log.warning("Seite abgestürzt (%s), lade neu", reason)
-        self._ready = False
         GLib.timeout_add(500, lambda: self.view.reload() and False)
 
     def on_message(self, ucm, value) -> None:
@@ -163,15 +162,14 @@ class Terminal:
         if t == "in":
             data = msg.get("d")
             if isinstance(data, str) and self.pty is not None:
-                if not self.pty.write(data.encode("utf-8", "surrogateescape")):
-                    GLib.timeout_add(20, self._retry_write)
+                if not self.pty.write(data.encode("utf-8", "surrogateescape")) and not self._retry_id:
+                    self._retry_id = GLib.timeout_add(20, self._retry_write)
         elif t == "size":
             self.size = session.clamp_size(msg.get("cols"), msg.get("rows"))
             if self.pty is not None:
                 self.pty.resize(*self.size)
         elif t == "ready":
             self.size = session.clamp_size(msg.get("cols"), msg.get("rows"))
-            self._ready = True
             self.send({"t": "init", "font": self.prefs["font"], "fontMin": FONT_MIN, "fontMax": FONT_MAX,
                        "claude": session.argv_for("new", self.env) is not None,
                        "running": self.action if self.pty is not None else ""})
@@ -195,7 +193,10 @@ class Terminal:
             self.quit()
 
     def _retry_write(self) -> bool:
-        return self.pty is not None and not self.pty.flush()
+        if self.pty is not None and not self.pty.flush():
+            return True
+        self._retry_id = 0
+        return False
 
     # ------------------------------------------------------------------ Programm
     def run(self, action: str) -> None:

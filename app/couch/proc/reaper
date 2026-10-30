@@ -128,7 +128,7 @@ def run_prelaunch(state, cmd, limit):
             used += step
         if used >= limit:
             say("Vorab-Befehl %s nach %.0f s abgebrochen, Start geht weiter" % (cmd[0], limit))
-            for victim in [p for p in descendants(pid)] + [pid]:
+            for victim in descendants(pid) + [pid]:
                 try:
                     os.kill(victim, signal.SIGKILL)
                 except OSError:

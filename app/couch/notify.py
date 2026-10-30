@@ -171,7 +171,9 @@ class Notifications:
             item["sound"] = sound
         self._items.append(item)
         del self._items[:-MAX_ITEMS]
-        self._unread += 1
+        # Ungelesen höchstens so viele, wie in der Liste stehen (wie _load und remove): Sonst zeigte die Marke
+        # nach mehr als MAX_ITEMS Mitteilungen mehr, als sich öffnen lässt, und nach dem Neustart weniger
+        self._unread = min(self._unread + 1, len(self._items))
         self._sync()
         if not silent and self._shows(icon, important):
             self._rpc.emit("toast", {**item, "seconds": self.seconds()})

@@ -395,48 +395,36 @@ def _remove_tree(dir_fd: int, dev: int, mount_id: int, keep: str | None = None,
         os.rmdir(name, dir_fd=dir_fd)   # scheitert, wenn doch noch etwas darin liegt
 
 
-def _count_tree(dir_fd: int, dev: int) -> int:
-    """Zählt die Einträge unterhalb von dir_fd (Dateien, Verweise und Ordner). Nur lesend; folgt
-    keinem Symlink und verlässt das Gerät nicht (dieselben Grenzen wie _remove_tree)."""
+def _sum_tree(dir_fd: int, dev: int, value: Callable[[os.stat_result], int]) -> int:
+    """Summe von value(lstat) über alle Einträge unterhalb von dir_fd (Dateien, Verweise und Ordner). Nur
+    lesend; folgt keinem Symlink und verlässt das Gerät nicht (dieselben Grenzen wie _remove_tree)."""
     total = 0
     for name in os.listdir(dir_fd):
         try:
             st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
         except OSError:
             continue
-        total += 1
+        total += value(st)
         if stat.S_ISDIR(st.st_mode) and st.st_dev == dev:
             try:
                 fd = os.open(name, _DIR_FLAGS, dir_fd=dir_fd)
             except OSError:
                 continue
             try:
-                total += _count_tree(fd, dev)
+                total += _sum_tree(fd, dev, value)
             finally:
                 os.close(fd)
     return total
+
+
+def _count_tree(dir_fd: int, dev: int) -> int:
+    """Zahl der Einträge unterhalb von dir_fd (so viele tick() ruft _remove_tree)."""
+    return _sum_tree(dir_fd, dev, lambda st: 1)
 
 
 def _size_tree(dir_fd: int, dev: int) -> int:
-    """Belegter Platz unterhalb von dir_fd in Bytes (st_blocks, wie du). Nur lesend, dieselben
-    Grenzen wie _remove_tree: kein Symlink wird verfolgt, das Gerät nie verlassen."""
-    total = 0
-    for name in os.listdir(dir_fd):
-        try:
-            st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
-        except OSError:
-            continue
-        total += st.st_blocks * 512
-        if stat.S_ISDIR(st.st_mode) and st.st_dev == dev:
-            try:
-                fd = os.open(name, _DIR_FLAGS, dir_fd=dir_fd)
-            except OSError:
-                continue
-            try:
-                total += _size_tree(fd, dev)
-            finally:
-                os.close(fd)
-    return total
+    """Belegter Platz unterhalb von dir_fd in Bytes (st_blocks, wie du)."""
+    return _sum_tree(dir_fd, dev, lambda st: st.st_blocks * 512)
 
 
 def _store_level(entry: dict, parent: str, real_root: str) -> str | None:
@@ -869,30 +857,19 @@ def count_item(trash_id: str, games_root: str) -> int | None:
     """Zahl der Einträge, die purge() für diesen Papierkorb-Eintrag entfernen wird (für die
     Fortschrittsanzeige). Nur lesend, blockierend (ein Durchgang durch den Baum). None, wenn sich
     der Eintrag nicht zweifelsfrei als unserer öffnen lässt (purge() nennt dann den Grund)."""
-    try:
-        _check_trash_id(trash_id)
-        _real_root, root_fd, root_st = _open_root(games_root)
-        try:
-            trash_fd, trash_st = _open_trash(root_fd, root_st, create=False)
-            try:
-                _read_sidecar(trash_fd, trash_id)
-                item_fd, item_st = _open_child_dir(trash_fd, trash_id, trash_st)
-                try:
-                    return _count_tree(item_fd, item_st.st_dev)
-                finally:
-                    os.close(item_fd)
-            finally:
-                os.close(trash_fd)
-        finally:
-            os.close(root_fd)
-    except (Refuse, OSError, RecursionError):
-        return None
+    return _measure_item(trash_id, games_root, lambda fd, st: _count_tree(fd, st.st_dev))
 
 
 def item_size(trash_id: str, games_root: str) -> int | None:
     """Platz in Bytes, den purge() für diesen Papierkorb-Eintrag frei macht (für die Rückfrage
     „Endgültig löschen“). Nur lesend, blockierend (ein Durchgang durch den Baum). None, wenn sich
     der Eintrag nicht zweifelsfrei als unserer öffnen lässt."""
+    return _measure_item(trash_id, games_root, lambda fd, st: st.st_blocks * 512 + _size_tree(fd, st.st_dev))
+
+
+def _measure_item(trash_id, games_root, measure: Callable[[int, os.stat_result], int]) -> int | None:
+    """Öffnet einen Papierkorb-Eintrag wie purge() (Kennung, Spiele-Ordner, Papierkorb, Begleitdatei,
+    echter eigener Ordner) und liefert measure(Deskriptor, fstat). Nur lesend. None bei jeder Abweichung."""
     try:
         _check_trash_id(trash_id)
         _real_root, root_fd, root_st = _open_root(games_root)
@@ -902,7 +879,7 @@ def item_size(trash_id: str, games_root: str) -> int | None:
                 _read_sidecar(trash_fd, trash_id)
                 item_fd, item_st = _open_child_dir(trash_fd, trash_id, trash_st)
                 try:
-                    return item_st.st_blocks * 512 + _size_tree(item_fd, item_st.st_dev)
+                    return measure(item_fd, item_st)
                 finally:
                     os.close(item_fd)
             finally:

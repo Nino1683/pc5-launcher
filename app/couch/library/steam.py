@@ -345,13 +345,19 @@ def _compat_tools(ctx) -> dict:
         return {}
     if ci(tree, "InstallConfigStore") is None:
         ctx.warn("steam: config.vdf hat keinen erwarteten Inhalt; Proton-Zuordnung unbekannt")
+    out = _compat_names(tree)
+    del tree
+    return out
+
+
+def _compat_names(tree) -> dict:
+    """{appid oder 0: werkzeugname} aus dem Baum von config.vdf; nur CompatToolMapping/<id>/name verlässt ihn."""
     mapping = ci(tree, "InstallConfigStore", "Software", "Valve", "Steam", "CompatToolMapping", default={})
     out = {}
     for appid, rec in (mapping.items() if isinstance(mapping, dict) else []):
         name = ci(rec, "name")
         if str(appid).isdigit() and isinstance(name, str) and name:
             out[int(appid)] = name
-    del tree, mapping
     return out
 
 
@@ -371,13 +377,8 @@ def compat_tool_mapping(steam_root: str) -> dict:
         raise ValueError("config.vdf nicht lesbar (%s)" % type(e).__name__) from None
     if ci(tree, "InstallConfigStore") is None:
         raise ValueError("config.vdf hat keinen erwarteten Inhalt")
-    mapping = ci(tree, "InstallConfigStore", "Software", "Valve", "Steam", "CompatToolMapping", default={})
-    out = {}
-    for appid, rec in (mapping.items() if isinstance(mapping, dict) else []):
-        name = ci(rec, "name")
-        if str(appid).isdigit() and isinstance(name, str) and name:
-            out[int(appid)] = name
-    del tree, mapping
+    out = _compat_names(tree)
+    del tree
     return out
 
 

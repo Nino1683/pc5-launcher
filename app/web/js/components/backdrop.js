@@ -121,8 +121,9 @@ function givePooled(img) {
   poolStats.returned += 1;
 }
 
-// Verdeckt oder unsichtbar: den Vorrat freigeben (mit einem Spiel vorn soll das Home keine Bilder halten)
-store.subscribe(["visible", "ui", "background"], () => {
+// Verdeckt oder unsichtbar: den Vorrat freigeben (mit einem Spiel vorn soll das Home keine Bilder halten). Dieselben
+// Schlüssel wie store.visible: Unter dem Bildschirmschoner bleibt visible true, ohne saver blieben die Bilder dort belegt
+store.subscribe(["visible", "ui", "background", "foreground", "saver"], () => {
   if (poolAllowed() || !pool.size) return;
   poolStats.freed += pool.size;
   pool.clear();

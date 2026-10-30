@@ -439,7 +439,12 @@ class App:
             except Exception:
                 _log.exception("input.stop")
         if self.control:
-            self.control.close()
+            try:
+                self.control.close()
+            except Exception:
+                # sonst kämen weder wiring.stop noch das Sichern dran, und nach QUIT_DEADLINE_S endete der
+                # Prozess hart, ohne dass Einstellungen und Spielzeiten auf der Platte sind
+                _log.exception("control.close")
         self._stop_wiring()
         self._flush_writes()
         self.gtk.quit()

@@ -442,17 +442,19 @@ def bound_sources(ctx: SourceContext) -> dict[str, Callable[[], list[Entry]]]:
     Jede fn ist run_source(ctx, name): blockierend, wirft nie; die Warnungen des letzten Laufs
     stehen danach in ctx.warnings (je Quelle ersetzt, nicht angehäuft).
     """
-    def bind(name: str):
-        return lambda: run_source(ctx, name)
-    return {name: bind(name) for name in all_sources()}
+    return _bound(ctx, all_sources())
 
 
 def bound_derived(ctx: SourceContext) -> dict[str, Callable[[], list[Entry]]]:
     """Wie bound_sources für die abgeleiteten Quellen ("shortcuts"); NACH den anderen anmelden,
     damit sie im selben Lauf deren frisches Ergebnis sehen."""
+    return _bound(ctx, derived_sources())
+
+
+def _bound(ctx: SourceContext, names) -> dict[str, Callable[[], list[Entry]]]:
     def bind(name: str):
         return lambda: run_source(ctx, name)
-    return {name: bind(name) for name in derived_sources()}
+    return {name: bind(name) for name in names}
 
 
 def load_all(ctx: SourceContext | None = None, only=None, derived: bool = False):

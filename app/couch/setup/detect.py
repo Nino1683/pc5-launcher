@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import re
 import shutil
-from typing import Any
 
 from .. import paths
 from . import catalog, folders

@@ -28,10 +28,10 @@
 //                                              gehaltenen Fokus (ein Menü oder Dialog liegt darüber)
 //   emptyText                                  Text der einen Zeile einer leeren Liste
 //   alwaysFocus                                besteht die Liste nur aus gesperrten Zeilen, trägt die erste den Fokus
-import { h, icon, cssPx, settledRect } from "../core/dom.js";
+import { h, icon, cssPx, settledRect, DECIMAL } from "../core/dom.js";
 import { S } from "../core/strings.js";
 import { sound } from "../core/sound.js";
-import { openPicker } from "./picker.js";
+import { openPicker, sameValue } from "./picker.js";
 import { confirm } from "./dialog.js";
 import { artBox } from "./art.js";
 import { nav } from "../core/nav.js";
@@ -41,10 +41,6 @@ const LOAD_HINT_MS = 300;        // so lange bleibt der Platzhalter einer ladend
 // Regler: gehaltene Richtung beschleunigt (Faktor auf die Schrittweite nach so vielen Wiederholungen)
 const HOLD_STEPS = [[14, 5], [6, 2]];
 
-function same(a, b) {
-  return a === b || (a !== null && a !== undefined && b !== null && b !== undefined && String(a) === String(b));
-}
-
 function str(value) {
   if (value === null || value === undefined || value === false) return "";
   if (value === true) return S.on;
@@ -52,7 +48,7 @@ function str(value) {
 }
 
 function optionLabel(row) {
-  const opt = (row.options || []).find((o) => o && same(o.value, row.value));
+  const opt = (row.options || []).find((o) => o && sameValue(o.value, row.value));
   if (opt) return str(opt.label === undefined ? opt.value : opt.label);
   return str(row.value);
 }
@@ -68,7 +64,7 @@ function sliderParts(row) {
 }
 
 function sliderText(row, value) {
-  const text = String(Math.round(value * 100) / 100).replace(".", ",");
+  const text = String(Math.round(value * 100) / 100).replace(".", DECIMAL);      // Dezimalzeichen der Sprache (dom.js)
   const unit = String(row.unit || "").trim();
   return unit ? text + " " + unit : text;
 }
@@ -313,7 +309,7 @@ export function createRowList(handlers = {}) {
   }
 
   // Wert, den die Zeile gerade von hier aus zeigt, solange ihre Änderung unterwegs ist
-  function localValue(id, st) {
+  function localValue(st) {
     return st.has ? st.next : st.shown;
   }
 
@@ -386,7 +382,7 @@ export function createRowList(handlers = {}) {
         case "select": {
           const value = await openPicker({ options: row.options || [], value: row.value, anchor: node });
           const now = rowById(row.id) || row;
-          if (value !== undefined && !same(value, now.value)) commit(now, value);
+          if (value !== undefined && !sameValue(value, now.value)) commit(now, value);
           break;
         }
         case "text": {
@@ -463,7 +459,7 @@ export function createRowList(handlers = {}) {
     // der Regler zurück, wenn zwischendurch ein älterer Stand der Seite eintrifft
     for (const [id, st] of sending) {
       const row = rowById(id);
-      if (row) row.value = localValue(id, st);
+      if (row) row.value = localValue(st);
     }
     render();
   }

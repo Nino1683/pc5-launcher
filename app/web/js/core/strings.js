@@ -18,6 +18,7 @@ const DE = {
   error: "Fehler",
   errorGeneric: "Das hat nicht geklappt.",
   select: "Auswählen",
+  quoted: "„{text}“",                   // ein Name im Satz (Spieltitel, Dateiname)
 
   // Home
   tabGames: "Spiele",
@@ -247,9 +248,10 @@ const DE = {
   insPlay: "Spielen",
   insToLibrary: "Zur Bibliothek",
 
-  trTitle: "Papierkorb",
-  trSub: "Gelöschte Spiele bleiben {days} Tage hier und werden danach endgültig entfernt.",
-  trEmpty: "Der Papierkorb ist leer.",
+  // trash…: eigene Namen, die Trophäen (E124) haben trTitle, trSub, trEmpty (vorher galten deren Texte auch hier)
+  trashTitle: "Papierkorb",
+  trashSub: "Gelöschte Spiele bleiben {days} Tage hier und werden danach endgültig entfernt.",
+  trashEmpty: "Der Papierkorb ist leer.",
   trRestore: "Wiederherstellen",
   trPurge: "Endgültig löschen",
   trPurgeTitle: "„{title}“ endgültig löschen?",
@@ -967,7 +969,6 @@ const DE = {
   setupNext: "Weiter",
   setupBack: "Zurück",
   setupMore: "Mehr erfahren",
-  setupLoading: "Wird geladen …",
   setupUnavailable: "Die Einrichtung antwortet gerade nicht. Versuche es gleich noch einmal.",
   setupFailedTitle: "Das hat nicht geklappt",
   setupPresent: "Vorhanden",
@@ -1519,6 +1520,12 @@ export function playtimeText(seconds) {
   const minutes = minutesAll % 60;
   if (!hours) return fmt(S.minutes, { n: minutes });
   return minutes ? fmt(S.hours, { n: hours }) + " " + fmt(S.minutes, { n: minutes }) : fmt(S.hours, { n: hours });
+}
+
+// Zeitpunkt (Unix-Sekunden) mit Datum und Uhrzeit („24. Okt. 2026, 21:14“): Spielstände und Sicherungen der Einstellungen
+export function stampText(seconds) {
+  if (!seconds) return "";
+  return new Date(seconds * 1000).toLocaleString(S.locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 // Zeitpunkt (Unix-Sekunden) als "heute", "gestern", "vor 3 Tagen", danach kurzes Datum ("24. Sept. 2026")

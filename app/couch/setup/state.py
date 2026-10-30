@@ -72,11 +72,15 @@ def write(data: dict) -> dict:
     return data
 
 
+def _writable() -> dict:
+    """Inhalt der Marke als Grundlage zum Schreiben: eine kaputte gilt als leer."""
+    data = read()
+    return {} if data.get("state") == "broken" else data
+
+
 def update(clock=time.time, **fields: Any) -> dict:
     """Felder setzen (state, items, folders, gamesDisk, emuRoot …) und speichern."""
-    data = read()
-    if data.get("state") == "broken":
-        data = {}
+    data = _writable()
     data.update(fields)
     if "state" in fields:
         data["at"] = int(clock())
@@ -119,9 +123,7 @@ def due(config: Any = None, clock=time.time) -> dict:
 
 def record_items(items: list, clock=time.time) -> None:
     """Installierte Flatpaks merken ({id, flatpak, installation, at}); doppelte ersetzt der neue."""
-    data = read()
-    if data.get("state") == "broken":
-        data = {}
+    data = _writable()
     known = {str(i.get("flatpak") or i.get("id")): i for i in data.get("items") or [] if isinstance(i, dict)}
     for item in items:
         known[str(item.get("flatpak") or item.get("id"))] = {**item, "at": int(item.get("at") or clock())}
@@ -130,9 +132,7 @@ def record_items(items: list, clock=time.time) -> None:
 
 
 def record_folders(created: list) -> None:
-    data = read()
-    if data.get("state") == "broken":
-        data = {}
+    data = _writable()
     folders = [f for f in data.get("folders") or [] if isinstance(f, str)]
     for f in created:
         if f not in folders:

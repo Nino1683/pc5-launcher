@@ -120,7 +120,7 @@ function createCandidates(params) {
     const mine = ++serial;
     spinner.hidden = false;
     screen.setSub(S.candLoading);
-    if (screen.list.setLoading) screen.list.setLoading(0);
+    screen.list.setLoading(0);
     let rows;
     try {
       const p = { id: entry.id };
@@ -138,7 +138,7 @@ function createCandidates(params) {
     screen.setSub(query ? fmt(S.candQuery, { q: query }) : entry.title);
     screen.list.setRows([{ id: "query", type: "action", label: S.candSearch, value: query, icon: "keyboard" }, ...rows]);
     const first = rows.find((r) => r.cand);
-    if (first && screen.list.nodeOf) { const node = screen.list.nodeOf(first.id); if (node) nav.focus(node); }
+    if (first) { const node = screen.list.nodeOf(first.id); if (node) nav.focus(node); }
     nav.ensure();
   }
 

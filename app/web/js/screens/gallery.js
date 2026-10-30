@@ -15,7 +15,7 @@
 // voller Größe zeigt das Vollbild die Datei selbst (couch://files, wie der Datei-Explorer). Gelöscht wird nur
 // in den Papierkorb des Systems (gallery.delete), nach einer Rückfrage mit Vorgabe Abbrechen.
 // Gerollt wird das Raster in ganzen Reihen über --top (nur transform, wie die Bibliothek).
-import { h, icon, sizeText } from "../core/dom.js";
+import { h, hint, icon, sizeText } from "../core/dom.js";
 import { call, notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -83,8 +83,6 @@ function leavePick() {
     if (!router.back()) break;
   }
 }
-
-const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
 
 // ================================================================ Raster
 function create(params = {}) {

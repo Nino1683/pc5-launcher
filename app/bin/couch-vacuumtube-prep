@@ -10,7 +10,7 @@ alle anderen Werte bleiben, wie sie sind. Fehlt die Datei (VacuumTube lief noch 
 sie nur mit diesem einen Wert; VacuumTube ergänzt den Rest selbst.
 
 Läuft als prelaunch vor jedem YouTube-Start. Pfad zum Prüfen: COUCH_VACUUMTUBE_CONFIG; im
-Prüfmodus (COUCH_TEST_ROOT) ohne diese Angabe tut es nichts.
+Prüfmodus (COUCH_TEST_ROOT oder COUCH_TEST=1) ohne diese Angabe tut es nichts.
 Rückgabe immer 0: Ein Vorab-Befehl darf den Start nicht verhindern.
 """
 import json
@@ -24,8 +24,8 @@ def config_path() -> str | None:
     given = os.environ.get("COUCH_VACUUMTUBE_CONFIG")
     if given:
         return given
-    if os.environ.get("COUCH_TEST_ROOT"):
-        return None
+    if os.environ.get("COUCH_TEST_ROOT") or os.environ.get("COUCH_TEST") == "1":
+        return None                     # Prüfmodus (wie paths.test_mode): nie die echte Datei
     return os.path.expanduser("~/.var/app/rocks.shy.VacuumTube/config/VacuumTube/config.json")
 
 

@@ -58,22 +58,24 @@ def parse_df(text: str) -> dict | None:
     return {"target": parts[0], "fstype": parts[1], "total": total, "used": used, "free": free}
 
 
-def read_volume(run_read, path: str) -> dict:
-    """{"path", "mounted", "total", "used", "free", "fstype"}. mounted=False, wenn unter path kein
-    eigenes Dateisystem hängt (df nennt dann das darüberliegende)."""
+def read_volume(run_read, path: str, own_mount: bool = True) -> dict:
+    """{"path", "mounted", "total", "used", "free", "fstype"}. own_mount (Spiele-Platte): mounted=False, wenn unter
+    path kein eigenes Dateisystem hängt (df nennt dann das darüberliegende). Ohne own_mount (Konsolenspeicher) zählt
+    das Dateisystem, auf dem path liegt: Der persönliche Ordner ist selten selbst eingehängt (Bazzite: /var/home)."""
     out = {"path": path, "mounted": False, "total": 0, "used": 0, "free": 0, "fstype": ""}
     rc, text, _ = run_read(["df", "-B1", "--output=target,fstype,size,used,avail", path], timeout=5)
     info = parse_df(text) if rc == 0 else None
     if info is None:
         return out
-    if os.path.realpath(info["target"]) != os.path.realpath(path):
+    if own_mount and os.path.realpath(info["target"]) != os.path.realpath(path):
         return out
     out.update(mounted=True, total=info["total"], used=info["used"], free=info["free"], fstype=info["fstype"])
     return out
 
 
 def fstype_of(path: str, mountinfo: str = "/proc/self/mountinfo") -> str:
-    """Dateisystem, auf dem path liegt (längster passender Einhängepunkt). "" wenn unbekannt."""
+    """Dateisystem, auf dem path liegt (längster passender Einhängepunkt; bei gleichem der spätere, also das
+    obenauf eingehängte wie files.fs_type). "" wenn unbekannt."""
     real = os.path.realpath(path)
     best, best_len = "", -1
     try:
@@ -85,7 +87,7 @@ def fstype_of(path: str, mountinfo: str = "/proc/self/mountinfo") -> str:
                     continue
                 # mountinfo maskiert Leerzeichen als \040
                 mp = fields[4].replace("\\040", " ").replace("\\011", "\t").replace("\\134", "\\")
-                if (real == mp or real.startswith(mp.rstrip("/") + "/")) and len(mp) > best_len:
+                if (real == mp or real.startswith(mp.rstrip("/") + "/")) and len(mp) >= best_len:
                     best, best_len = right.split()[0] if right.split() else "", len(mp)
     except OSError:
         return ""
@@ -268,7 +270,9 @@ class StorageArea:
             vols = []
             for key, label, path in (("internal", "Konsolenspeicher", self.internal),
                                      ("games-disk", "Spiele-Platte", self.games_disk)):
-                v = read_volume(self.deps.run_read, path)
+                # E104 nahm statt /var/home den persönlichen Ordner, der nie selbst eingehängt ist: Ein Abgleich mit
+                # dem Einhängepunkt zeigte den Konsolenspeicher seitdem als „Nicht verbunden“
+                v = read_volume(self.deps.run_read, path, own_mount=key == "games-disk")
                 v.update(key=key, label=label)
                 vols.append(v)
             return vols
@@ -330,12 +334,7 @@ class StorageArea:
 
     def _cleanup(self):
         """Dienst „Platz schaffen“ (wiring_cleanup, E110), spät gebunden; None ohne ihn (Zeile entfällt, E20)."""
-        late = self.deps.extra.get("late")
-        try:
-            return late("cleanup") if callable(late) else None
-        except Exception:  # noqa: BLE001
-            log.exception("late(cleanup)")
-            return None
+        return R.late_part(self.deps.extra, "cleanup", log)
 
     def _apps_rows(self) -> list:
         x = self.deps.extra

@@ -112,6 +112,9 @@ def _download(url: str, dest: str, get, tick, stop, size: int = SIZE) -> None:
                 out.write(chunk)
                 if tick:
                     tick(have, size)
+    if have < size:
+        # Verbindung vorzeitig zu (urllib meldet das nicht): .part bleibt, der nächste Versuch setzt fort
+        raise UmuError("Der Download ist unvollständig. Ein neuer Versuch setzt fort.", "interrupted")
     os.replace(part, dest)
 
 
@@ -165,6 +168,7 @@ def ensure(get: Callable | None = None, tick=None, stop=None, *, sha256: str = S
     archive = os.path.join(tools, ASSET)
     staging = os.path.join(tools, ".umu-neu-%d" % os.getpid())
     known: list = []
+    keep_part = False
     try:
         _download(url, archive, get, tick, stop, size)
         if _sha256(archive) != sha256:
@@ -182,10 +186,13 @@ def ensure(get: Callable | None = None, tick=None, stop=None, *, sha256: str = S
         if os.path.lexists(link):
             raise UmuError("%s gibt es schon und ist kein Verweis." % link, "exists")
         os.symlink(os.path.join(os.path.basename(target), sub) if sub else os.path.basename(target), link)
+    except UmuError as e:
+        keep_part = e.code == "interrupted"     # abgebrochener Download: .part für das Fortsetzen per Range
+        raise
     except OSError as e:
         raise UmuError("umu-launcher ließ sich nicht ablegen: %s" % (e.strerror or e), "failed") from e
     finally:
-        for leftover in (archive, archive + ".part"):
+        for leftover in (archive,) if keep_part else (archive, archive + ".part"):
             try:
                 if os.path.isfile(leftover) and not os.path.islink(leftover):
                     os.unlink(leftover)

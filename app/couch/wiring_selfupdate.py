@@ -83,8 +83,11 @@ def extend(wiring: Any) -> None:
         if state is not None:
             wiring.main.post(lambda: state.update(whatsnew=value))
 
-    def after_start() -> None:                  # Arbeits-Thread
-        svc.cleanup_leftovers()
+    def after_start() -> None:                  # Arbeits-Thread; niemand liest sein Ergebnis
+        try:
+            svc.cleanup_leftovers()
+        except Exception:                       # sonst fielen „erster Start“ und „Was ist neu“ still aus
+            _log.exception("Selbst-Update: Reste abräumen")
         try:
             version = svc.first_start()
         except Exception:

@@ -2,8 +2,8 @@
 
 Suche: mDNS-Dienst _androidtvremote2._tcp, den jedes Google TV und Android TV mit der Fernbedienung anbietet, über
 „avahi-browse -rpt“ (Avahi läuft auf Bazzite, SteamOS und den meisten Desktops). Gelesen werden die Zeilen „=“
-(aufgelöst): Name, Rechnername, Adresse (IPv4 vor IPv6). Der TXT-Teil bleibt ungelesen. Fehlt avahi-browse, sagt die
-Seite das und bietet „Adresse eingeben“ an.
+(aufgelöst): Name, Rechnername, IPv4-Adresse (ein Fernseher nur mit IPv6 entfällt: clean_host nimmt nur IPv4). Der
+TXT-Teil bleibt ungelesen. Fehlt avahi-browse, sagt die Seite das und bietet „Adresse eingeben“ an.
 
 MAC: nach einer gelungenen Verbindung aus der Nachbartabelle (/proc/net/arp), mit dem Netzgerät dazu; nur dafür, den
 Fernseher im Standby per Wake-on-LAN zu wecken.
@@ -48,8 +48,8 @@ def _unescape(text: str) -> str:
 
 
 def parse_avahi(text: str) -> list[dict]:
-    """Zeilen „=;iface;IPv4;Name;Typ;Domäne;Rechner;Adresse;Port;TXT“ -> [{name, host, hostname}] (je Name einmal,
-    IPv4 bevorzugt)."""
+    """Zeilen „=;iface;IPv4;Name;Typ;Domäne;Rechner;Adresse;Port;TXT“ -> [{name, host, hostname}] (je Name einmal, nur
+    mit IPv4-Adresse; eine IPv6-Zeile hält nur den Platz des Namens in der Reihenfolge)."""
     found: dict[str, dict] = {}
     for line in (text or "").splitlines():
         parts = line.split(";")

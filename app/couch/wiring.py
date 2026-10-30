@@ -6,7 +6,7 @@ Dienste und vor dem ersten Fenster. Jeder Baustein hängt für sich: Scheitert e
 Home ohne ihn weiter (steht im Protokoll).
 
 Größere Teile stehen in eigenen Modulen wiring_<teil>.py (PARTS). Jedes bietet extend(wiring)
-und hängt sich am Ende von Wiring.run() ein, wieder jedes für sich. Für sie gibt es drei Listen:
+und hängt sich am Ende von Wiring.run() ein, wieder jedes für sich. Für sie gibt es vier Listen:
   wiring.after_ready     Funktionen, die einmal nach dem Bereit-Signal laufen (alles Langsame
                          beim Start gehört dorthin und dort in einen Arbeits-Thread: wiring._bg)
   wiring.shutdown_hooks  laufen in wiring.stop(), jede nur kurz
@@ -26,11 +26,13 @@ from __future__ import annotations
 
 import importlib
 import os
+import queue
 import shutil
 import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import Future
 from typing import Any, Callable
 
 from . import log, paths, system
@@ -84,13 +86,47 @@ def write3(argv: Any, timeout: float = 30) -> tuple[int, str, str]:
     return r.returncode, r.stdout or "", r.stderr or ""
 
 
+class _Spawner:
+    """Startet Hilfsprozesse aus einem Thread, der so lange lebt wie das Home. PR_SET_PDEATHSIG gilt dem
+    Thread, der forkt, nicht dem Prozess (prctl(2)): Aus einem Arbeits-Thread gestartet, bekäme das Kind
+    SIGTERM, sobald dieser Thread endet (überzählige Pool-Threads nach 30 s ohne Arbeit, „discord-show“ und
+    „bazaar-show“ nach ihrer Wartezeit), nicht erst mit dem Home."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._jobs: queue.SimpleQueue = queue.SimpleQueue()
+        self._thread: threading.Thread | None = None
+
+    def popen(self, argv: list, kwargs: dict) -> subprocess.Popen:
+        if threading.current_thread() is threading.main_thread():
+            return subprocess.Popen(argv, **kwargs)
+        with self._lock:
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._loop, name="couch-spawn", daemon=True)
+                self._thread.start()
+        done: Future = Future()
+        self._jobs.put((done, argv, kwargs))
+        return done.result()
+
+    def _loop(self) -> None:
+        while True:
+            done, argv, kwargs = self._jobs.get()
+            try:
+                done.set_result(subprocess.Popen(argv, **kwargs))
+            except BaseException as e:      # geht an den wartenden Thread
+                done.set_exception(e)
+
+
+_spawner = _Spawner()
+
+
 def _popen_bound(argv: list, **kwargs: Any) -> subprocess.Popen:
     """Hilfsprozess, der mit dem Home endet, auch wenn das Home hart beendet wird (sonst
-    bliebe er bis zum Sitzungsende am Supervisor hängen)."""
+    bliebe er bis zum Sitzungsende am Supervisor hängen). Aus jedem Thread aufrufbar."""
     setpriv = shutil.which("setpriv")
     if setpriv:
         argv = [setpriv, "--pdeathsig", "TERM", *argv]
-    return subprocess.Popen(argv, **kwargs)
+    return _spawner.popen(argv, kwargs)
 
 
 # ---------------------------------------------------------------- in die Hauptschleife

@@ -432,7 +432,6 @@ class FocusManager:
                     continue                    # schon unsere Nummer, oder ein Fenster von Steam selbst
                 # Nur ein Spiel unter Steams eigenem reaper mit genau dessen Nummer, und darüber
                 # unser reaper (Steam-Spiel als App der Konsole); alles andere bleibt, wie es ist
-                from ..proc import tree
                 steam = tree.find_reaper(pid)
                 own = self._own_reaper(steam[0]) if steam and steam[1] == tag and not is_app_id(steam[1]) else None
                 if own is not None:

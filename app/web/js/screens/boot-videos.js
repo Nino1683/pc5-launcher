@@ -8,7 +8,7 @@
 // Die Liste kommt seitenweise vom Kern (video.list, zwölf je Seite); die nächste Seite, sobald der Fokus in der
 // letzten Reihe steht. Vorschaubilder und Vorschauvideos lädt die Seite direkt von cdn.steamdeckrepo.com (der Kern hat
 // die Adressen geprüft); das Video selbst lädt nur der Kern.
-import { h, icon } from "../core/dom.js";
+import { h, hint, icon } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -35,7 +35,6 @@ function create(params = {}) {
   const grid = h("div.gal-grid.bv-grid", { "data-scroll": true });
   const view = h("div.gal-view.bv-view", { "data-focus-group": true }, grid);
   const empty = h("div.gal-empty", { hidden: true });
-  const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
   const hints = h("div.hints", hint("btn-cross", S.bvHintChoose), hint("btn-triangle", S.bvHintSort), hint("btn-circle", S.hintBack));
   const credit = h("div.bv-credit.ell", { text: S.bvCredit });
   const el = h("div.flow.gal.bv", titleEl, subEl, sortBtn, view, empty, credit, hints);

@@ -257,9 +257,11 @@ class _AppInfo:
             buf = f.read(size)
         data, _ = self._parse(buf, 0, 0)
         info = data.get("appinfo", data)
-        full = (info.get("common") or {}).get("library_assets_full") or {}
+        # Typen prüfen: ein Text an Stelle eines Blocks warf sonst AttributeError am Fang in assets() vorbei
+        common = info.get("common") if isinstance(info, dict) else None
+        full = common.get("library_assets_full") if isinstance(common, dict) else None
         out = {}
-        for kind, entry in full.items():
+        for kind, entry in (full.items() if isinstance(full, dict) else ()):
             if not isinstance(entry, dict):
                 continue
             for size_key, suffix in (("image", ""), ("image2x", "_2x")):

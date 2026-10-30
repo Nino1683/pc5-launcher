@@ -614,7 +614,10 @@ class Installer:
                     json.dump(seen, fh)
                 os.replace(tmp, path)
             except OSError:
-                pass                            # ohne Gedächtnis wird eben nichts automatisch gelöscht
+                try:
+                    os.unlink(tmp)              # eigene Zwischendatei
+                except OSError:
+                    pass                        # ohne Gedächtnis wird eben nichts automatisch gelöscht
         return seen
 
     def _readd_lost(self, skip: list) -> list:

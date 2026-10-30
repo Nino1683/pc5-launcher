@@ -11,7 +11,12 @@ import re
 from ... import APP_ID
 
 EMPTY = {"default_sink": None, "default_source": None, "configured_sink": None,
-         "sinks": [], "sources": [], "hdmi_ports": [], "app_streams": [], "error": ""}
+         "sinks": [], "sources": [], "hdmi_ports": [], "own_streams": [], "app_streams": [], "error": ""}
+
+
+def _empty(error: str) -> dict:
+    """Leerer Zustand mit Fehlertext; jede Liste neu (die von EMPTY teilt sich sonst jeder Fehlerfall)."""
+    return {**EMPTY, **{k: [] for k, v in EMPTY.items() if isinstance(v, list)}, "error": error}
 
 # USB-Audio der Controller (DualSense, DualShock 4): nie anbieten, nie von selbst wählen
 _PAD_NAME = re.compile(r"wireless controller|dualsense|dualshock", re.I)
@@ -58,9 +63,9 @@ def parse_pw_dump(text: str) -> dict:
     try:
         objs = json.loads(text)
     except (ValueError, TypeError) as e:
-        return {**EMPTY, "sinks": [], "sources": [], "hdmi_ports": [], "error": f"pw-dump unlesbar: {e}"}
+        return _empty(f"pw-dump unlesbar: {e}")
     if not isinstance(objs, list):
-        return {**EMPTY, "sinks": [], "sources": [], "hdmi_ports": [], "error": "pw-dump unlesbar"}
+        return _empty("pw-dump unlesbar")
     objs = [o for o in objs if isinstance(o, dict) and isinstance(o.get("type"), str)]
 
     defaults: dict = {}
@@ -179,8 +184,7 @@ def read_state(run_read) -> dict:
     """Blockierend (rund 20 ms). Liefert immer einen Zustand; Fehler stehen in "error"."""
     rc, out, err = run_read(["pw-dump"], timeout=5)
     if rc != 0:
-        return {**EMPTY, "sinks": [], "sources": [], "hdmi_ports": [],
-                "error": (err or "pw-dump fehlgeschlagen").strip()}
+        return _empty((err or "pw-dump fehlgeschlagen").strip())
     return parse_pw_dump(out)
 
 

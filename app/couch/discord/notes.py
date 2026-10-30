@@ -238,21 +238,29 @@ class Monitor:
         """Flatpak-Kennung des Absenders (Prozess über org.freedesktop.DBus, dann /.flatpak-info)."""
         if not sender:
             return ""
+        own = None                              # eigene Verbindung zum Bus aus address (Prüfmodus), wird wieder zu
         try:
             from gi.repository import Gio, GLib
-            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None) if self._address is None else \
-                Gio.DBusConnection.new_for_address_sync(self._address, _flags(Gio), None, None)
+            if self._address is None:
+                bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            else:
+                bus = own = Gio.DBusConnection.new_for_address_sync(self._address, _flags(Gio), None, None)
             reply = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                   "GetConnectionUnixProcessID", GLib.Variant("(s)", (sender,)),
                                   GLib.VariantType.new("(u)"), Gio.DBusCallFlags.NONE, 2000, None)
-            if self._address is not None:
-                bus.close_sync(None)
             return flatpak_app_of(int(reply.unpack()[0]))
         except Exception as e:  # noqa: BLE001
             log.info("Discord: Absender %s unbekannt: %s", sender, e)
             return ""
+        finally:
+            if own is not None:
+                try:
+                    own.close_sync(None)
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _connect(self, stop: threading.Event) -> bool:
+        conn = None
         try:
             import gi
             gi.require_version("Gio", "2.0")
@@ -267,6 +275,13 @@ class Monitor:
                            Gio.DBusCallFlags.NONE, 5000, None)
         except Exception as e:  # noqa: BLE001
             log.warning("Discord: Mitteilungen lassen sich nicht mitlesen: %s", e)
+            if conn is not None:
+                # Die Verbindung stand schon (samt Filter), nur BecomeMonitor scheiterte: nicht offen liegen lassen
+                self._filter_id = 0
+                try:
+                    conn.close(None, None, None)
+                except Exception:  # noqa: BLE001
+                    log.exception("Discord: Beobachter schließen")
             return False
         if stop.is_set():
             conn.close(None, None, None)

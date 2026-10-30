@@ -47,7 +47,7 @@ TEXT_ADOPT_CANCELLED = "Die Übernahme der Spielstände wurde abgebrochen."
 TEXT_ADOPT_HINT = ("Die Spielstände werden einmalig übernommen. Danach läuft der Spielstand hier "
                    "getrennt von Lutris weiter.")
 
-COPY_STATES = ("wine", "mixed")
+# Zustände, in denen ein eigener Prefix entsteht; kopiert wird bei allen übrigen außer reinem Proton (decide)
 OWN_STATES = ("empty", "missing")
 
 

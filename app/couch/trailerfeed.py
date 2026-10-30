@@ -42,7 +42,7 @@ import urllib.error
 import urllib.request
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Iterator
+from typing import Callable, Iterator
 
 from . import log
 
@@ -351,7 +351,7 @@ class Tee:
             self.fd = -1
             from .installer import trash
             trash.rename_noreplace(self.part, self.name, src_dir_fd=self.dir_fd, dst_dir_fd=self.dir_fd)
-        except (OSError, Exception) as e:  # noqa: BLE001 (Refuse aus trash)
+        except Exception as e:  # noqa: BLE001 (OSError, Refuse aus trash)
             self.abort(str(e))
             return False
         self.failed = True                               # fertig: nichts mehr schreiben

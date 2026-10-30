@@ -9,23 +9,29 @@ const KEEP_FAIL_MS = 60 * 1000;
 const MAX = 40;
 const memo = new Map();           // "<methode> <id>" -> {at, keep, promise}
 
-function ask(method, id, extra) {
-  const params = extra ? { ...extra } : { id };
-  const key = method + " " + (extra ? JSON.stringify(params) : id);
+// Antwort des Kerns unter key merken (auch für die Trophäen, components/trophies.js). Das Promise scheitert nie: Ein Fehler
+// wird zu {ok: false, reason: "error"} und nicht gemerkt, eine Antwort ohne Angaben nur keepFail Millisekunden.
+export function memoCall(cache, key, method, params, { keep, keepFail, max }) {
   const now = Date.now();
-  const hit = memo.get(key);
+  const hit = cache.get(key);
   if (hit && now - hit.at < hit.keep) return hit.promise;
-  const item = { at: now, keep: KEEP_MS, promise: null };
+  const item = { at: now, keep, promise: null };
   item.promise = call(method, params).then((r) => {
-    if (!r || r.ok === false) item.keep = KEEP_FAIL_MS;
+    if (!r || r.ok === false) item.keep = keepFail;
     return r || { ok: false };
   }, (e) => {
     item.keep = 0;
     return { ok: false, reason: "error", message: (e && e.message) || "" };
   });
-  memo.set(key, item);
-  while (memo.size > MAX) memo.delete(memo.keys().next().value);
+  cache.set(key, item);
+  while (cache.size > max) cache.delete(cache.keys().next().value);
   return item.promise;
+}
+
+function ask(method, id, extra) {
+  const params = extra ? { ...extra } : { id };
+  return memoCall(memo, method + " " + (extra ? JSON.stringify(params) : id), method, params,
+    { keep: KEEP_MS, keepFail: KEEP_FAIL_MS, max: MAX });
 }
 
 // Steam-Angaben gibt es nur für Spiele (Systemkacheln und Apps fragen gar nicht erst)

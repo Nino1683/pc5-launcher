@@ -12,7 +12,6 @@ import os
 
 INSTALLATIONS = ("system", "user")
 UPDATE_CMDS = {inst: ["flatpak", "update", "--" + inst, "-y", "--noninteractive"] for inst in INSTALLATIONS}
-UPDATE_CMD = UPDATE_CMDS["system"]          # bis E104 der einzige Aufruf
 
 
 def parse_updates(text: str) -> list[dict]:

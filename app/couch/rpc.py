@@ -40,7 +40,6 @@ TIMEOUTS: dict[str, float | None] = {
 TIMEOUT_PREFIXES: dict[str, float | None] = {"install.": 120.0}   # Archive auf USB-Platten
 
 
-
 def page_json(obj: Any) -> str:
     """JSON-Text für die Seite. Namen aus dem Dateisystem in kaputter Kodierung (os.fsdecode:
     einzelne Surrogate \\udc80…\\udcff) gehen nicht als UTF-8 an WebKit; dann alles als \\u-Escape.
@@ -237,3 +236,16 @@ def resolved(value: Any) -> Future:
     fut: Future = Future()
     fut.set_result(value)
     return fut
+
+
+def chain(src: Future, dst: Future) -> None:
+    """Ergebnis, Fehler oder Absage des fertigen src an dst weitergeben (als Rückruf von src.add_done_callback).
+    Ein abgesagtes src sagt auch dst ab (src.exception() würfe dort CancelledError, und dst bliebe offen)."""
+    if src.cancelled():
+        dst.cancel()
+        return
+    error = src.exception()
+    if error is not None:
+        dst.set_exception(error)
+    else:
+        dst.set_result(src.result())

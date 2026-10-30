@@ -22,7 +22,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from .. import log
+from .. import log, system
 
 VERSION = "0.21.1"
 URL = "https://github.com/legendary-gl/legendary/releases/download/%s/legendary_linux_x64" % VERSION
@@ -64,12 +64,9 @@ def code_from_page(text: str) -> str:
 
 
 def _write_private(path: str, data: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".neu"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-    os.replace(tmp, path)
+    """JSON atomar und nur für dich lesbar (0600). Eigene Zwischendatei je Prozess und Thread (Browser und Home
+    schreiben dieselbe Datei); eine liegengebliebene ältere Zwischendatei bestimmt nie die Rechte (E99)."""
+    system.write_atomic(path, json.dumps(data), 0o600)
 
 
 def store_code(path: str, code: str, clock=time.time) -> None:

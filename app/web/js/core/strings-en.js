@@ -12,6 +12,7 @@ export const EN = {
   error: "Error",
   errorGeneric: "That didn't work.",
   select: "Select",
+  quoted: "“{text}”",
 
   // Home
   tabGames: "Games",
@@ -238,9 +239,9 @@ export const EN = {
   insPlay: "Play",
   insToLibrary: "Go to library",
 
-  trTitle: "Trash",
-  trSub: "Deleted games stay here for {days} days and are then permanently removed.",
-  trEmpty: "The Trash is empty.",
+  trashTitle: "Trash",
+  trashSub: "Deleted games stay here for {days} days and are then permanently removed.",
+  trashEmpty: "The Trash is empty.",
   trRestore: "Restore",
   trPurge: "Delete permanently",
   trPurgeTitle: "Permanently delete “{title}”?",
@@ -946,7 +947,6 @@ export const EN = {
   setupNext: "Next",
   setupBack: "Back",
   setupMore: "Learn more",
-  setupLoading: "Loading…",
   setupUnavailable: "Setup isn't responding right now. Try again in a moment.",
   setupFailedTitle: "That didn't work",
   setupPresent: "Found",

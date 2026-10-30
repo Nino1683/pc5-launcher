@@ -730,12 +730,17 @@ def _index_write(folder: str, items: dict) -> None:
     os.replace(tmp, path)
 
 
+def _mine(items: dict, real: str) -> list[str]:
+    """Namen der Sicherungen von real laut Verzeichnis, die jüngste zuerst."""
+    return [k for _at, k in sorted(((v.get("at") or 0, k) for k, v in items.items() if v.get("source") == real),
+                                   reverse=True)]
+
+
 def backups_of(real: str) -> list[str]:
     """Sicherungen dieser Datei laut Verzeichnis, die jüngste zuerst (nur vorhandene)."""
     folder = backup_dir()
-    items = _index_read(folder)
-    mine = sorted(((v.get("at") or 0, k) for k, v in items.items() if v.get("source") == real), reverse=True)
-    return [os.path.join(folder, k) for _, k in mine if os.path.isfile(os.path.join(folder, k))]
+    found = [os.path.join(folder, k) for k in _mine(_index_read(folder), real)]
+    return [p for p in found if os.path.isfile(p)]
 
 
 def prune(real: str, trash: Callable[[str], None] | None = None, keep: int = BACKUP_KEEP) -> list[str]:
@@ -744,10 +749,9 @@ def prune(real: str, trash: Callable[[str], None] | None = None, keep: int = BAC
     gewöhnliche Datei direkt im Sicherungsordner liegt."""
     folder = backup_dir()
     items = _index_read(folder)
-    mine = sorted(((v.get("at") or 0, k) for k, v in items.items() if v.get("source") == real), reverse=True)
     put_away = trash or default_trash
     gone, changed = [], False
-    for _at, name in mine[max(0, int(keep)):]:
+    for name in _mine(items, real)[max(0, int(keep)):]:
         if not name or "/" in name or name.startswith(".") or name in (INDEX_NAME,):
             continue
         target = os.path.join(folder, name)

@@ -20,6 +20,7 @@ Regeln für Bereiche:
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -185,3 +186,38 @@ def option(value: Any, label: str, note: str = "") -> dict:
     if note:
         o["note"] = note
     return o
+
+
+# --- Hilfen für alle Bereiche ---------------------------------------------------------------
+
+def late_part(extra: dict | None, name: str, log: logging.Logger | None = None) -> Any:
+    """Ein spät gebundener Teil der Verdrahtung (deps.extra["late"](name), z. B. "tv_part"), None ohne ihn. Wirft
+    nie: Ein Fehler beim Holen kostet nur die Zeilen dieses Teils und steht im Protokoll."""
+    late = (extra or {}).get("late")
+    if not callable(late):
+        return None
+    try:
+        return late(name)
+    except Exception:  # noqa: BLE001
+        (log or logging.getLogger("couch.settings")).exception("late(%s)", name)
+        return None
+
+
+def message_of(e: BaseException) -> str:
+    """Der deutsche Satz einer fremden Ausnahme (Feld message wie bei SettingsError, TvError, UpdateError), sonst ""."""
+    message = getattr(e, "message", None)
+    return message if isinstance(message, str) and message else ""
+
+
+def call_or_raise(fn: Callable[..., Any], *args: Any) -> Any:
+    """fn(*args) für Rückrufe des Kerns: Eine fremde Ausnahme mit deutschem Satz (LaunchError, „Es läuft schon ein
+    Vorgang.“ u. Ä.) wird zum SettingsError mit diesem Satz; alles andere bleibt, wie es ist (der Baum meldet es)."""
+    try:
+        return fn(*args)
+    except SettingsError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        message = message_of(e)
+        if message:
+            raise SettingsError(message) from e
+        raise

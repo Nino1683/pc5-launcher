@@ -38,7 +38,7 @@ import threading
 import time
 from typing import Any, Callable
 
-from . import jsontext, log, paths
+from . import jsontext, log, paths, system
 
 _log = log.get("updates")
 
@@ -98,9 +98,11 @@ def proton_release(fetch_json: Callable[[str], Any], flavor: str | None = None) 
 def proton_update(compat_dir: str, fetch_json: Callable[[str], Any]) -> dict | None:
     """Die neueste Fassung, wenn sie noch nicht installiert ist (sonst None)."""
     rel = proton_release(fetch_json)
-    if rel is None or not rel["url"] or rel["name"] in proton_installed(compat_dir):
+    if rel is None or not rel["url"]:
         return None
     installed = proton_installed(compat_dir)
+    if rel["name"] in installed:
+        return None
     rel["installed"] = installed[-1] if installed else ""
     return rel
 
@@ -191,11 +193,7 @@ def load_seen() -> set[str]:
 
 def save_seen(keys: set[str]) -> None:
     try:
-        os.makedirs(paths.state_dir(), exist_ok=True)
-        tmp = seen_file() + ".neu"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write(jsontext.dumps(sorted(keys)))
-        os.replace(tmp, seen_file())
+        system.write_atomic(seen_file(), jsontext.dumps(sorted(keys)))
     except OSError as e:
         _log.warning("updates-seen.json nicht schreibbar: %s", e)
 

@@ -294,15 +294,13 @@ class NetworkArea:
         (sie sind angehalten, solange die Einstellungen offen sind). Ohne Verdrahtung (Tests):
         deps.extra["busy"]."""
         extra = self.deps.extra
-        late = extra.get("late")
-        busy = late("busy") if callable(late) else None
-        main = late("main") if callable(late) else None
+        busy, main = R.late_part(extra, "busy", log), R.late_part(extra, "main", log)
         if callable(busy) and callable(getattr(main, "call", None)):
             reasons = list(main.call(busy) or [])
         else:
             fn = extra.get("busy")
             reasons = list(fn() or []) if callable(fn) else []
-        app = late("app") if callable(late) else None
+        app = R.late_part(extra, "app", log)
         state = getattr(app, "state", None)
         downloads = state.value("downloads") if callable(getattr(state, "value", None)) else None
         if any(isinstance(d, dict) and d.get("state") in ("running", "queued") for d in downloads or []):

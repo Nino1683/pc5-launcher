@@ -32,8 +32,9 @@ import weakref
 from concurrent.futures import Future
 from typing import Any, Callable
 
-from . import log, paths, system
+from . import log, paths
 from .rpc import RpcError
+from .wiring import read3 as _read3     # run_read der Quellen: (rc, stdout, stderr)
 
 _log = log.get("wiring.library")
 
@@ -72,12 +73,6 @@ _STATUS_TEXT = {
 _NO_NET_STATUS = ("skip", "disabled", "backoff", "offline", "resting")
 
 _PARTS: "weakref.WeakValueDictionary[int, LibraryPart]" = weakref.WeakValueDictionary()
-
-
-def _read3(argv: Any, timeout: float = 10) -> tuple[int, str, str]:
-    """run_read der Quellen: (rc, stdout, stderr) über couch.system."""
-    r = system.run_read([str(a) for a in argv], timeout=float(timeout))
-    return r.returncode, r.stdout or "", r.stderr or ""
 
 
 def net_allowed() -> bool:

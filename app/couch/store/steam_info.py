@@ -236,10 +236,6 @@ def video_codec(codecs: str) -> str:
     return next((c.strip() for c in codecs.split(",") if c.strip().startswith(("avc1", "avc3"))), "avc1.640029")
 
 
-def audio_codec(codecs: str) -> str:
-    return next((c.strip() for c in codecs.split(",") if c.strip().startswith("mp4a")), "mp4a.40.2")
-
-
 class SteamInfo:
     """Angaben, Neuigkeiten und Trailer je Steam-App-ID. get(url) liefert Bytes (Netz-Attrappe in Tests)."""
 

@@ -204,9 +204,19 @@ def german(prefix: str, launcher_id: str) -> None:
     else:
         new = text + ("" if not text or text.endswith("\n") else "\n") + "language:\n  code: de-DE\n"
     if new != text:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(new)
+        # Datei des Launchers: erst ganz geschrieben, dann ersetzt. Scheitert das, bleibt er eben auf Englisch;
+        # das Einrichten selbst ist dann trotzdem fertig (Weiterleitung, neues Einlesen)
+        tmp = path + ".couch"
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(new)
+            os.replace(tmp, path)
+        except OSError:
+            try:
+                os.unlink(tmp)          # nur die eigene Zwischendatei
+            except OSError:
+                pass
 
 
 def installer_path(cache_dir: str, launcher_id: str) -> str:

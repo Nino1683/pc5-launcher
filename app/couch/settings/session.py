@@ -256,16 +256,7 @@ class SessionArea:
             fn = self.deps.extra.get("power")
             if not callable(fn):
                 raise SettingsError("Das ist gerade nicht verfügbar.")
-            try:
-                fn(_POWER[row_id])
-            except SettingsError:
-                raise
-            except Exception as e:  # noqa: BLE001
-                # der Kern meldet „Es läuft schon ein Vorgang.“ u. Ä. mit einem deutschen Satz
-                message = getattr(e, "message", None)
-                if isinstance(message, str) and message:
-                    raise SettingsError(message) from e
-                raise
+            R.call_or_raise(fn, _POWER[row_id])     # der Kern meldet „Es läuft schon ein Vorgang.“ u. Ä. als Satz
             return None
         if row_id == "session.reset":
             return self._reset()

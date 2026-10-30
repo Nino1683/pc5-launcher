@@ -33,7 +33,8 @@ GENERIC_ERROR = "Das hat nicht geklappt."
 # Zeilen vom Typ confirm-action (ID bis zum ersten ":"): Unumkehrbares, das der Kern nur nach einer
 # bestätigten Rückfrage ausführt (settings.action mit confirmed: true, sonst fragt der Kern selbst).
 # Maßgeblich ist der Typ der Zeile auf ihrer Seite; diese Liste gilt nur, wenn die Zeile auf keiner
-# gezeichneten Seite stand. tests/features/settings-system/test_contract.py hält sie vollständig.
+# gezeichneten Seite stand. tests/wiring/settings/test_confirm_core.py hält sie vollständig (jede
+# confirm-action-Zeile aller gezeichneten Seiten und die, die nur mit eigenem Zustand erscheinen).
 CONFIRM_PREFIXES = frozenset({
     "accessories.bt.remove", "network.wifi.forget", "storage.local.delete", "games.steam.open",
     "session.steam", "session.desktop", "session.restart", "session.reset",
@@ -44,6 +45,8 @@ CONFIRM_PREFIXES = frozenset({
     "system.proton.get", "system.proton.build.reload", "system.proton.build.remove",
     # E116: den PC5 Launcher von GitHub aktualisieren, danach neu starten (schließt laufende Spiele)
     "system.launcher.update", "system.launcher.restart",
+    # fehlten bis 2026-10-30: Proton-CachyOS laden, Start- und Ruhemodus-Video entfernen, Fernseher vergessen (E142)
+    "system.updates.proton.install", "home.intro_video_remove", "home.suspend_video_remove", "display.tvctl.forget",
 })
 GENERIC_CONFIRM = {"title": "Wirklich ausführen?", "text": "Das lässt sich nicht rückgängig machen.",
                    "ok": "Ausführen", "cancel": "Abbrechen"}

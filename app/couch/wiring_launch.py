@@ -20,9 +20,10 @@ from concurrent.futures import Future
 from typing import Any, Callable
 
 from . import launch as launch_mod
-from . import log, paths, system
+from . import log, paths
 from .launch import builders, prefix
 from .launch.spec import LaunchError, LaunchSpec
+from .wiring import read3     # lesender Systemaufruf in der Form der Starter: (rc, stdout, stderr)
 
 _log = log.get("wiring.launch")
 
@@ -82,12 +83,6 @@ def make_context(wiring: Any) -> Any:
         # dieselben Flatpak-Ordner wie die Bibliothek: Sonst hielte der Starter im Prüfmodus für
         # installiert, was nur auf dem echten Rechner liegt (und umgekehrt)
         flatpak_roots=tuple(getattr(sources, "flatpak_dirs", None) or ()))
-
-
-def read3(argv: Any, timeout: float = 10) -> tuple[int, str, str]:
-    """Lesender Systemaufruf in der Form, die die Starter erwarten: (rc, stdout, stderr)."""
-    r = system.run_read([str(a) for a in argv], timeout=float(timeout))
-    return r.returncode, r.stdout or "", r.stderr or ""
 
 
 def setup_launchers(wiring: Any) -> None:

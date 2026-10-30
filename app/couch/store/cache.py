@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 
 
@@ -27,15 +28,20 @@ def _read(path: str):
 
 
 def write(cache_dir: str, path: str, data) -> None:
-    """Atomar ablegen; ein Fehler der Platte ist hier kein Fehler (dann eben ohne Zwischenspeicher)."""
+    """Atomar ablegen; ein Fehler der Platte ist hier kein Fehler (dann eben ohne Zwischenspeicher).
+    Die Zwischendatei gehört genau diesem Thread: Zwei Arbeits-Threads mit demselben Schlüssel schrieben
+    sonst in dieselbe Datei, und im Zwischenspeicher stünde ein Gemisch aus beiden Antworten."""
+    tmp = "%s.%d-%d.neu" % (path, os.getpid(), threading.get_ident())
     try:
         os.makedirs(cache_dir, exist_ok=True)
-        tmp = path + ".neu"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
         os.replace(tmp, path)
     except OSError:
-        pass
+        try:
+            os.unlink(tmp)                  # nur die eigene Zwischendatei
+        except OSError:
+            pass
 
 
 def cached(cache_dir: str, key: str, fetch, ttl: float, *, clock=time.time, force: bool = False, check=None,

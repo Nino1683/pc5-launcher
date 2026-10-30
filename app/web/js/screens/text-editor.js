@@ -20,7 +20,7 @@
 // ansehen ja, alle Bearbeiten-Aktionen aus.
 // Die Liste zeichnet nur den sichtbaren Ausschnitt: ein fester Satz Zeilen-Elemente, die beim Rollen
 // neu beschriftet werden. Der Fokus bleibt dabei auf dem Element der gewählten Zeile.
-import { h, icon, cssPx } from "../core/dom.js";
+import { h, hint, icon, cssPx } from "../core/dom.js";
 import { call, isMock } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -120,10 +120,6 @@ function keepDraft(draft) {
 
 function sameStamp(a, b) {
   return !!a && !!b && String(a.mtime_ns) === String(b.mtime_ns) && Number(a.size) === Number(b.size) && (a.sha256 || "") === (b.sha256 || "");
-}
-
-function hint(glyph, text) {
-  return h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
 }
 
 function create(params = {}) {

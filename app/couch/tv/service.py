@@ -263,7 +263,11 @@ class TvService:
     def _idle_close(self) -> None:
         if self._lock.acquire(timeout=5.0):
             try:
-                self._drop_remote()
+                # Nur der neueste Zeitgeber schließt: cancel() hält einen schon laufenden nicht auf. Wartete er hier,
+                # während ein Befehl das Schloss hielt, schloss er sonst gleich danach dessen frische Verbindung.
+                if self._idle is threading.current_thread():
+                    self._idle = None
+                    self._drop_remote()
             finally:
                 self._lock.release()
 
@@ -300,9 +304,10 @@ class TvService:
     # ------------------------------------------------------------ ADB (wahlfrei)
     def _adb(self, allow_prompt: bool = False, on_prompt: Callable[[], None] | None = None,
              step_s: float | None = None) -> AdbClient:
-        host = self._check(self.store.get("host") or "")
+        host = self.store.get("host") or ""
         if not host:
-            raise TvError(TEXT_NOT_PAIRED, "NotPaired")
+            raise TvError(TEXT_NOT_PAIRED, "NotPaired")      # vor _check: ohne Adresse ist nichts gekoppelt
+        self._check(host)
         kw = {"connect_s": step_s, "step_s": step_s} if step_s else {}
         client = AdbClient(host, self.adb_port, keys.adb_key(self.folder), **kw)
         client.connect(allow_prompt=allow_prompt, on_prompt=on_prompt)

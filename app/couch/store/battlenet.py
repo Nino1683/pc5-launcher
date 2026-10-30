@@ -481,7 +481,7 @@ def merge(cards: list[dict]) -> list[dict]:
         if c:
             groups.setdefault(c["id"], []).append(c)
     out = []
-    for slug, group in groups.items():
+    for group in groups.values():
         lead = min(group, key=lambda c: (c["price"] != "Kostenlos", c.get("raw_price") or 0.0))
         c = dict(lead)
         if len({g["title"] for g in group}) > 1:

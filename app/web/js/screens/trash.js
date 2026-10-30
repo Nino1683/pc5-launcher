@@ -16,9 +16,9 @@ function dateText(stamp) {
 
 function create() {
   const screen = createListScreen({
-    title: S.trTitle,
+    title: S.trashTitle,
     hints: [["btn-cross", S.select], ["btn-circle", S.hintBack]],
-    handlers: { emptyText: S.trEmpty, onPress: (row) => { press(row); return true; } },
+    handlers: { emptyText: S.trashEmpty, onPress: (row) => { press(row); return true; } },
   });
   let items = [];
   const progress = new Map();     // trash_id -> Prozent beim endgültigen Löschen
@@ -45,7 +45,7 @@ function create() {
     items = (result && result.items) || [];
     // Was der Kern nicht mehr als „wird gelöscht“ meldet, ist auch hier nicht mehr gesperrt
     for (const id of [...progress.keys()]) if (!items.some((i) => i.trash_id === id && i.purging)) progress.delete(id);
-    screen.setSub(result ? fmt(S.trSub, { days: result.days || 14 }) : S.errorGeneric);
+    screen.setSub(result ? fmt(S.trashSub, { days: result.days || 14 }) : S.errorGeneric);
     screen.list.setRows(items.map(rowOf));
     nav.ensure();
   }
@@ -60,8 +60,8 @@ function create() {
     if (choice === "restore") {
       try {
         const result = await call("install.restore", { trashId: item.trash_id });
-        toast({ title: S.trTitle, body: (result && result.message) || S.errorGeneric, icon: result && result.ok ? "restart" : "warn", sound: false });
-      } catch (e) { toast({ title: S.trTitle, body: e.message || S.errorGeneric, icon: "warn" }); }
+        toast({ title: S.trashTitle, body: (result && result.message) || S.errorGeneric, icon: result && result.ok ? "restart" : "warn", sound: false });
+      } catch (e) { toast({ title: S.trashTitle, body: e.message || S.errorGeneric, icon: "warn" }); }
       load();
     } else if (choice === "purge") {
       // Größe nennt die Rückfrage, sobald der Kern sie im Papierkorb mitliefert
@@ -72,9 +72,9 @@ function create() {
       ended.delete(item.trash_id);
       try {
         const result = await call("install.purge", { trashId: item.trash_id });
-        if (result && result.ok === false) toast({ title: S.trTitle, body: result.message || S.errorGeneric, icon: "warn" });
+        if (result && result.ok === false) toast({ title: S.trashTitle, body: result.message || S.errorGeneric, icon: "warn" });
         else if (!ended.has(item.trash_id)) { progress.set(item.trash_id, 0); screen.list.setRows(items.map(rowOf)); }
-      } catch (e) { toast({ title: S.trTitle, body: e.message || S.errorGeneric, icon: "warn" }); }
+      } catch (e) { toast({ title: S.trashTitle, body: e.message || S.errorGeneric, icon: "warn" }); }
     }
   }
 
@@ -88,7 +88,7 @@ function create() {
       if (!p) return;
       ended.add(p.trashId);
       progress.delete(p.trashId);
-      toast({ title: S.trTitle, body: p.message || "", icon: p.ok ? "trash" : "warn", sound: false });
+      toast({ title: S.trashTitle, body: p.message || "", icon: p.ok ? "trash" : "warn", sound: false });
       load();
     }),
   ];

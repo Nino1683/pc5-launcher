@@ -3060,5 +3060,8 @@
  "⬇ %d": "⬇ %d",
  "Nach jedem Start des PC5 Launchers, auch nach einem Neustart des Rechners, startet Claude Code im Hintergrund und lädt die letzte Unterhaltung wie „Weitermachen“. Beim Einschalten startet es gleich. Die Kachel Claude Code oder ihre Karte im Control Center holt es nach vorn.": "Every time the PC5 Launcher starts, including after the computer restarts, Claude Code starts in the background and loads the last conversation, like “Continue”. Turning this on starts it right away. The Claude Code tile or its card in the Control Center brings it to the front.",
  "Claude Code läuft schon. Ab dem nächsten Start startet es mit.": "Claude Code is already running. From the next start on, it starts with the PC5 Launcher.",
- "Claude Code startet im Hintergrund und lädt die letzte Unterhaltung.": "Claude Code is starting in the background and loading the last conversation."
+ "Claude Code startet im Hintergrund und lädt die letzte Unterhaltung.": "Claude Code is starting in the background and loading the last conversation.",
+ "Die Sicherung ließ sich nicht schreiben: Es gibt schon zu viele aus dieser Minute.": "The backup couldn't be written: there are already too many from this minute.",
+ "Ergebnis lässt sich nicht als JSON darstellen (%s)": "The result can't be shown as JSON (%s)",
+ "Ob „%s“ gerade an anderer Stelle läuft, ließ sich nicht prüfen. Versuch es gleich noch einmal.": "Couldn't check whether “%s” is running somewhere else right now. Try again in a moment."
 }

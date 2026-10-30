@@ -6,7 +6,7 @@
 // E141: „Ausblenden“ für Apps mit dem Weg zurück (Einstellungen › Apps › Ausgeblendete Apps); Schließen fragt mit dem
 // Satz des Kerns nach, wenn es etwas abbräche (app.closeNote, z. B. ein Download im App Store).
 import { call, on, role } from "../core/bridge.js";
-import { h, icon, cssMs, cssPx, settledRect, reducedMotion } from "../core/dom.js";
+import { h, hint, cssMs, cssPx, settledRect, reducedMotion } from "../core/dom.js";
 import { nav } from "../core/nav.js";
 import { sound } from "../core/sound.js";
 import { S, fmt } from "../core/strings.js";
@@ -439,7 +439,6 @@ export async function adjustLogo(entry) {
   const saved = logoValue(entry.options && entry.options.logo);
   const now = { x: 0, y: 0, s: 1, ...saved };
   const size = h("span.logo-adjust-size");
-  const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
   const save = h("div.btn.logo-adjust-save", { "data-focus": true }, h("span.btn-label", { text: S.logoSave }));
   const panel = h("div.logo-adjust",
     h("div.logo-adjust-head", h("span.logo-adjust-title", { text: S.logoAdjust }), size),

@@ -123,8 +123,8 @@ export function mediaViewer({ items, start = 0 }) {
     },
     onClose() { serial += 1; releaseVideo(); unsub(); },
   });
-  // Seite nicht mehr zu sehen oder eine App vorn: Ton aus, Ansicht zu
-  const unsub = store.subscribe(["visible", "foreground"], () => {
+  // Seite nicht mehr zu sehen (auch unter dem Bildschirmschoner, store.visible) oder eine App vorn: Ton aus, Ansicht zu
+  const unsub = store.subscribe(["visible", "foreground", "saver"], () => {
     if (store.visible === false || store.state.foreground) layer.close();
   });
   layer.stats = stats;

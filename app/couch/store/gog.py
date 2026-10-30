@@ -13,7 +13,7 @@ import time
 import urllib.parse
 
 from . import cache
-from .steam import LIST_TTL, DETAIL_TTL, StoreError, _get, clip, strip_html
+from .steam import LIST_TTL, DETAIL_TTL, StoreError, _get, clip, price_text, strip_html
 
 CATALOG = "https://catalog.gog.com/v1/catalog"
 PRODUCT = "https://api.gog.com/products/%d?expand=description,screenshots&locale=de-DE"
@@ -167,7 +167,6 @@ class GogStore:
         base, final = cents(price.get("basePrice")), cents(price.get("finalPrice"))
         if final < 0:
             return {}
-        from .steam import price_text
         out = {"price": "Kostenlos" if final == 0 else price_text(final), "original": "", "discount": 0}
         if 0 <= final < base:
             out.update(original=price_text(base), discount=round(100 - 100 * final / base))

@@ -25,7 +25,9 @@ export function openMenu(items, opts = {}) {
     }
     const layer = openLayer({
       panel, name: "menu", cls: opts.layerCls || "",
-      initial: opts.initial ? panel.querySelector('[data-id="' + opts.initial + '"]') : null,
+      // Kennung verglichen statt in einen Selektor gesetzt: Pfade (Startdatei) dürfen " und \ enthalten,
+      // querySelector warf dann, und das Menü ging gar nicht erst auf
+      initial: opts.initial ? [...panel.querySelectorAll(".menu-item")].find((n) => n.dataset.id === String(opts.initial)) || null : null,
       onPad: (b, ev) => {
         // Optionen schließt das Menü wieder (07 Abschnitt 8)
         if (b === "options" && !ev.repeat) { layer.close(); return true; }

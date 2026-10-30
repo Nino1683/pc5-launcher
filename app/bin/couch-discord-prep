@@ -17,7 +17,7 @@ Alle anderen Zeilen bleiben, wie sie sind. Steht der Schlüssel schon da, auch m
 von Hand), bleibt er unverändert. Wirkt ab dem Start, vor dem es läuft (die Sandbox liest die Overrides beim Start).
 
 Läuft als prelaunch vor jedem Discord-Start, wenn „Nachrichten als Mitteilung“ an ist. Datei zum Prüfen:
-COUCH_DISCORD_OVERRIDES; im Prüfmodus (COUCH_TEST_ROOT) ohne diese Angabe tut es nichts.
+COUCH_DISCORD_OVERRIDES; im Prüfmodus (COUCH_TEST_ROOT oder COUCH_TEST=1) ohne diese Angabe tut es nichts.
 Rückgabe immer 0: Ein Vorab-Befehl darf den Start nicht verhindern.
 """
 import os
@@ -32,8 +32,8 @@ def overrides_path() -> str | None:
     given = os.environ.get("COUCH_DISCORD_OVERRIDES")
     if given:
         return given
-    if os.environ.get("COUCH_TEST_ROOT"):
-        return None
+    if os.environ.get("COUCH_TEST_ROOT") or os.environ.get("COUCH_TEST") == "1":
+        return None                     # Prüfmodus (wie paths.test_mode): nie die echte Datei
     base = os.environ.get("FLATPAK_USER_DIR") or os.path.join(
         os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "flatpak")
     return os.path.join(base, "overrides", FLATPAK)

@@ -7,7 +7,7 @@
 //   L2/R2  seitenweise      Kreis  zurück
 // Einstieg: Widget „Trophäen“ im Home, Karte und Abschnitt „Trophäen“ im Hub (components/trophies.js meldet die
 // Bildschirme selbst an). Symbole lädt der Kern erst für die Zeilen um den Fokus (trophies.icons).
-import { h, icon } from "../core/dom.js";
+import { h, hint } from "../core/dom.js";
 import { notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -20,7 +20,6 @@ import { TIERS, ensureTrophyStyle, forgetTrophies, percentText, progressBar, rar
 const AROUND = [6, 14];           // Symbole für so viele Zeilen vor und nach dem Fokus
 
 const count = (n) => Number(n || 0).toLocaleString(S.locale);      // „1.234“ bzw. „1,234“ wie die übrigen Zahlen
-const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
 
 function tierName(tier) {
   return (S.trTiers && S.trTiers[tier]) || "";

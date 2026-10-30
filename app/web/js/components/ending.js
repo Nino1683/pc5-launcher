@@ -33,7 +33,7 @@ export function openEnding(action, { note = "" } = {}) {
     note ? h("div.ending-note", { text: note }) : null,
     apps);
   const paint = () => {
-    const titles = (store.state.running || []).filter((r) => r && r.title).map((r) => "„" + r.title + "“");
+    const titles = (store.state.running || []).filter((r) => r && r.title).map((r) => fmt(S.quoted, { text: r.title }));
     apps.textContent = titles.length ? fmt(S.endClosing, { titles: titles.join(", ") }) : "";
     apps.hidden = !titles.length;
   };

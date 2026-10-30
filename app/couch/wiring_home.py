@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any
 
 from . import log, paths
@@ -66,21 +67,27 @@ def read_order() -> list[str]:
     return read_orders()["games"]
 
 
+# Lesen, Ändern, Schreiben in einem Zug: Es schreiben die Hauptschleife (home.setOrder, setHidden) und Arbeits-Threads
+# (Übernehmen einer Sicherung, Apps wieder einblenden), alle über dieselbe .neu-Datei
+_orders_lock = threading.RLock()
+
+
 def write_orders(changes: dict) -> dict[str, list[str]]:
     """Ersetzt die Listen der genannten Reihen (und "hidden"), die anderen bleiben. Liefert den neuen Stand. OSError
     beim Schreiben."""
-    orders = read_orders()
-    for row in ROWS:
-        if row in changes:
-            orders[row] = _clean(changes[row])
-    if HIDDEN in changes:
-        orders[HIDDEN] = _hidden(changes[HIDDEN])
-    os.makedirs(paths.config_dir(), exist_ok=True)
-    tmp = order_file() + ".neu"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(orders, fh, indent=1)
-    os.replace(tmp, order_file())
-    return orders
+    with _orders_lock:
+        orders = read_orders()
+        for row in ROWS:
+            if row in changes:
+                orders[row] = _clean(changes[row])
+        if HIDDEN in changes:
+            orders[HIDDEN] = _hidden(changes[HIDDEN])
+        os.makedirs(paths.config_dir(), exist_ok=True)
+        tmp = order_file() + ".neu"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(orders, fh, indent=1)
+        os.replace(tmp, order_file())
+        return orders
 
 
 def write_order(ids: list) -> list[str]:
@@ -92,10 +99,11 @@ def set_tile_hidden(tile: str, hidden: bool) -> list[str]:
     """E141: eine Kachel aus TILES aus- bzw. wieder einblenden. Liefert die ausgeblendeten. ValueError, OSError."""
     if tile not in TILES:
         raise ValueError(tile)
-    now = [i for i in read_orders()[HIDDEN] if i != tile]
-    if hidden:
-        now.append(tile)
-    return write_orders({HIDDEN: now})[HIDDEN]
+    with _orders_lock:
+        now = [i for i in read_orders()[HIDDEN] if i != tile]
+        if hidden:
+            now.append(tile)
+        return write_orders({HIDDEN: now})[HIDDEN]
 
 
 def extend(wiring: Any) -> None:

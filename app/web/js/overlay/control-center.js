@@ -15,7 +15,7 @@
 // params (overlay.open): {entryId, section?: "power", byPowerKey?: true}
 // Die Reihenfolge der Symbole lesen die Szenarien in tests/e2e/core (cc_goto): Neue Symbole nur
 // nach Absprache einfügen.
-import { h, icon, setIcon, cssPx } from "../core/dom.js";
+import { h, hint, icon, setIcon, cssPx } from "../core/dom.js";
 import { call, on } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { sound } from "../core/sound.js";
@@ -51,11 +51,6 @@ function iconDefs(withMouse, withDiscord, withTv) {
     { id: "settings", icon: "gear", label: S.ccSettings },
     { id: "power", icon: "power", label: S.ccPower },
   ].filter(Boolean);
-}
-
-// Tastenhinweis: Symbol des Pads oder Beschriftung als Kappe ("OPTIONS")
-export function hintItem([glyph, text]) {
-  return h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
 }
 
 export function createControlCenter(params, api) {
@@ -298,7 +293,7 @@ export function createControlCenter(params, api) {
     const node = h("div.cc-panel", { "data-bounds": true, dataset: { id } },
       h("div.cc-panel-title.ell", { text: def.label }),
       h("div.cc-panel-body", list.el, footer),
-      spec.hints ? h("div.hints.cc-panel-hints", spec.hints.map(hintItem)) : null);
+      spec.hints ? h("div.hints.cc-panel-hints", spec.hints.map(([glyph, text]) => hint(glyph, text))) : null);
     // Waagerecht auf das Symbol zentriert, am Rand begrenzt
     const anchor = iconEls.get(id).getBoundingClientRect();
     const width = cssPx(id === "downloads" ? "--cc-panel-w-dl" : "--cc-panel-w");     // Downloads breiter (lange Dateinamen)

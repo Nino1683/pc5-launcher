@@ -195,12 +195,24 @@ def tv_connector(env: dict | None = None, sys_drm: str = SYS_DRM) -> str:
     return connected[0] if connected else ""
 
 
-def find_card(sys_drm: str = SYS_DRM, dev_dri: str = DEV_DRI) -> str:
-    """Die Karte mit Anschlüssen (hier card1; die Nummer ist nicht über Neustarts fest)."""
-    for p in sorted(glob.glob(os.path.join(sys_drm, "card[0-9]*"))):
-        base = os.path.basename(p)
-        if "-" not in base and glob.glob(p + "-*"):
-            return os.path.join(dev_dri, base)
+def find_card(sys_drm: str = SYS_DRM, dev_dri: str = DEV_DRI, connector: str = "") -> str:
+    """Die Karte mit Anschlüssen (hier card1; die Nummer ist nicht über Neustarts fest). Mit connector die Karte, an
+    der dieser Anschluss verbunden ist, sonst die erste, die ihn hat: Bei zwei Grafikkarten (Laptop, Prozessor-Grafik
+    neben der Grafikkarte) hängt der Fernseher oft nicht an der ersten mit Anschlüssen."""
+    cards = [p for p in sorted(glob.glob(os.path.join(sys_drm, "card[0-9]*")))
+             if "-" not in os.path.basename(p) and glob.glob(p + "-*")]
+    if connector:
+        having = [p for p in cards if os.path.isdir("%s-%s" % (p, connector))]
+        for p in having:
+            try:
+                with open(os.path.join("%s-%s" % (p, connector), "status"), encoding="ascii", errors="replace") as f:
+                    if f.read(64).strip() == "connected":
+                        return os.path.join(dev_dri, os.path.basename(p))
+            except OSError:
+                continue
+        cards = having or cards
+    if cards:
+        return os.path.join(dev_dri, os.path.basename(cards[0]))
     return os.path.join(dev_dri, "card0")
 
 
@@ -238,7 +250,7 @@ OUI_DOLBY = 0x00D046
 
 def read_edid(connector: str, card: str | None = None, sys_drm: str = SYS_DRM) -> bytes:
     """EDID eines Anschlusses aus sysfs. Leer, wenn nichts angeschlossen ist."""
-    card = os.path.basename(card or find_card(sys_drm))
+    card = os.path.basename(card or find_card(sys_drm, connector=connector))
     try:
         with open(os.path.join(sys_drm, "%s-%s" % (card, connector), "edid"), "rb") as f:
             return f.read(4096)
@@ -393,7 +405,7 @@ def summarize(connector: str, conn: dict | None, edid: dict | None) -> dict:
 def read(connector: str | None = None, card: str | None = None) -> tuple[dict | None, dict, dict]:
     """(Anschluss, EDID-Angaben, alle Anschlüsse). Blockierend. Wirft OSError. connector None = tv_connector()."""
     connector = tv_connector() if connector is None else connector
-    card = card or find_card()
+    card = card or find_card(connector=connector)
     conns = list_connectors(card)
     c = conns.get(connector)
     edid = parse_edid(read_edid(connector, card)) if c is not None and c["connected"] else {}
@@ -419,7 +431,7 @@ def main(argv: list | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = [a for a in argv if not a.startswith("--")]
     name = args[0] if args else tv_connector()
-    card = find_card()
+    card = find_card(connector=name)
     try:
         c, edid, conns = read(name, card)
     except OSError as e:

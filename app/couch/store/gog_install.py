@@ -182,7 +182,11 @@ def play_task(target: str, product_id: int) -> dict | None:
                 info = json.load(fh)
         except (OSError, ValueError):
             continue
-        tasks = [t for t in info.get("playTasks") or [] if isinstance(t, dict) and t.get("type") == "FileTask" and t.get("path")]
+        # Die Datei kommt aus dem Installer (auch aus fremden Archiven, E114): falsche Typen wie eine kaputte Datei
+        listed = info.get("playTasks") if isinstance(info, dict) else None
+        if not isinstance(listed, list):
+            continue
+        tasks = [t for t in listed if isinstance(t, dict) and t.get("type") == "FileTask" and t.get("path")]
         task = next((t for t in tasks if t.get("isPrimary")), tasks[0] if tasks else None)
         if task:
             rel = on_disk(target, str(task["path"]).replace("\\", "/"))

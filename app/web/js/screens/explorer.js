@@ -90,12 +90,12 @@ function create(params = {}) {
     list.setRows(rows);
     screen.setSub(subText());
     nav.ensure();
-    if (keepId) { const node = list.nodeOf ? list.nodeOf(keepId) : null; if (node) nav.focus(node); }
+    if (keepId) { const node = list.nodeOf(keepId); if (node) nav.focus(node); }
   }
 
   async function go(path, keepId) {
     const mine = ++serial;
-    if (list.setLoading) list.setLoading();
+    list.setLoading();
     let result;
     try {
       result = await call("files.list", path ? { path, hidden } : { hidden });
@@ -242,7 +242,7 @@ function create(params = {}) {
       const name = await askName(S.exNewFolderTitle, S.exNewFolderName);
       if (name) run("mkdir", [], { dest: current.path, name });
     } else if (choice === "trash") {
-      const yes = await confirm({ title: S.exTrashTitle, text: fmt(S.exTrashText, { what: one ? "„" + one.name + "“" : fmt(S.exItems, { n: sel.length }) }), ok: S.exTrash });
+      const yes = await confirm({ title: S.exTrashTitle, text: fmt(S.exTrashText, { what: one ? fmt(S.quoted, { text: one.name }) : fmt(S.exItems, { n: sel.length }) }), ok: S.exTrash });
       if (yes) run("trash", sel.map((e) => e.path));
     } else if (choice === "install") router.go("install-check", { path: one.path, name: one.name });
     else if (choice === "run") runFile(one);
@@ -320,7 +320,7 @@ function create(params = {}) {
       if (button === "circle" && !ev.repeat) { up(); return true; }
       if (button === "square" && !ev.repeat) { toggleMark(); return true; }
       if (button === "triangle" && !ev.repeat) { actions(); return true; }
-      if ((button === "l2" || button === "r2") && list.page) { list.page(button === "r2" ? 1 : -1); return true; }
+      if (button === "l2" || button === "r2") { list.page(button === "r2" ? 1 : -1); return true; }
       return false;
     },
     // Zurück aus dem Text-Editor: Größe und Datum der gespeicherten Datei neu lesen
@@ -372,7 +372,7 @@ function createTrash() {
   async function load(again = 0) {
     const mine = ++serial;
     clearTimeout(poll);
-    if (!again && list.setLoading) list.setLoading();
+    if (!again) list.setLoading();
     for (const quick of again ? [false] : [true, false]) {
       let r;
       try { r = await call("files.trashList", quick ? { sizes: false } : {}); } catch (e) { r = { ok: false, message: (e && e.message) || S.fbFailed, items: [] }; }
@@ -452,7 +452,7 @@ function createTrash() {
     el: screen.el,
     onPad(button, ev) {
       if (button === "triangle" && !ev.repeat) { emptyAll(); return true; }
-      if ((button === "l2" || button === "r2") && list.page) { list.page(button === "r2" ? 1 : -1); return true; }
+      if (button === "l2" || button === "r2") { list.page(button === "r2" ? 1 : -1); return true; }
       return false;
     },
     onShow() { nav.ensure(); list.update(); },

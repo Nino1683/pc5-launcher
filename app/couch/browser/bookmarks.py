@@ -53,7 +53,8 @@ def parse(data: object, prefix: str = "") -> list[dict]:
 
 def _walk(node: dict, title: str, path: str, out: list, budget: list, prefix: str, depth: int) -> None:
     items, folders = [], []
-    for child in node.get("children") or []:
+    children = node.get("children")
+    for child in children if isinstance(children, list) else []:
         if not isinstance(child, dict):
             continue
         if child.get("type") == "url" and budget[0] > 0:

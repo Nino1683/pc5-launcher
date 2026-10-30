@@ -979,12 +979,6 @@
   ]
  },
  {
-  "text": "Abgebrochen",
-  "files": [
-   "app/couch/setup/jobs.py"
-  ]
- },
- {
   "text": "Abgebrochen, bevor es losging.",
   "files": [
    "app/couch/wiring_proton.py"
@@ -4209,7 +4203,8 @@
  {
   "text": "Der Download ist unvollständig. Ein neuer Versuch setzt fort.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/setup/umu.py"
   ]
  },
  {
@@ -5847,6 +5842,12 @@
   ]
  },
  {
+  "text": "Die Sicherung ließ sich nicht schreiben: Es gibt schon zu viele aus dieser Minute.",
+  "files": [
+   "app/couch/backup.py"
+  ]
+ },
+ {
   "text": "Die Sicherung wäre größer als 50 MB. Entferne ein paar eigene Bilder und versuch es noch einmal.",
   "files": [
    "app/couch/backup.py"
@@ -6010,12 +6011,6 @@
   "text": "Die Tastenbelegung besteht aus Paaren aus Taste und Ziel.",
   "files": [
    "app/couch/library/model.py"
-  ]
- },
- {
-  "text": "Die Tastenbelegung gibt es in dieser Fassung noch nicht.",
-  "files": [
-   "app/couch/library/index.py"
   ]
  },
  {
@@ -8014,6 +8009,12 @@
   ]
  },
  {
+  "text": "Ergebnis lässt sich nicht als JSON darstellen (%s)",
+  "files": [
+   "app/couch/ui/host.py"
+  ]
+ },
+ {
   "text": "Erkannt",
   "files": [
    "app/couch/settings/tvctl.py"
@@ -8359,8 +8360,7 @@
   "text": "Fehlgeschlagen",
   "files": [
    "app/couch/settings/backends/osupdate.py",
-   "app/couch/settings/system.py",
-   "app/couch/setup/jobs.py"
+   "app/couch/settings/system.py"
   ]
  },
  {
@@ -8436,7 +8436,6 @@
   "text": "Fertig",
   "files": [
    "app/couch/settings/system.py",
-   "app/couch/setup/jobs.py",
    "app/couch/wiring_proton.py"
   ]
  },
@@ -12103,6 +12102,12 @@
   ]
  },
  {
+  "text": "Ob „%s“ gerade an anderer Stelle läuft, ließ sich nicht prüfen. Versuch es gleich noch einmal.",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "Oberfläche",
   "files": [
    "app/couch/settings/session.py"
@@ -13428,12 +13433,6 @@
   ]
  },
  {
-  "text": "Schon installiert",
-  "files": [
-   "app/couch/setup/jobs.py"
-  ]
- },
- {
   "text": "Schon installiert.",
   "files": [
    "app/couch/setup/jobs.py"
@@ -14620,12 +14619,6 @@
   ]
  },
  {
-  "text": "Test: absichtlicher Fehler (watcher)",
-  "files": [
-   "session/supervisor.py"
-  ]
- },
- {
   "text": "Text erwartet",
   "files": [
    "app/couch/backup.py"
@@ -15620,7 +15613,6 @@
   "text": "Wartet",
   "files": [
    "app/couch/settings/system.py",
-   "app/couch/setup/jobs.py",
    "app/couch/wiring_itch.py",
    "app/couch/wiring_launchers.py",
    "app/couch/wiring_proton.py",

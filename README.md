@@ -5,7 +5,7 @@ Battle.net, Ubisoft and Rockstar, your emulators, apps from Flathub, a browser a
 place on the TV, fully usable with a controller. It runs in the same Gamescope session as Steam Big Picture, and
 Steam is always one button combination away.
 
-Free and open source (GPL-3.0) · Preview version 0.5.0 · Interface in **English and German**
+Free and open source (GPL-3.0) · Preview version 0.5.1 · Interface in **English and German**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=pay.nino.pal%40gmail.com&no_recurring=0&currency_code=EUR)
 
@@ -210,7 +210,7 @@ Battle.net, Ubisoft und Rockstar, die Emulatoren, Apps aus Flathub, ein Browser 
 des Rechners: an einem Ort auf dem Fernseher, ganz mit dem Controller. Er läuft in derselben Gamescope-Sitzung wie
 Steam Big Picture, und Steam ist immer nur eine Tastenkombination entfernt.
 
-Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.5.0 · Oberfläche auf **Deutsch und Englisch**
+Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.5.1 · Oberfläche auf **Deutsch und Englisch**
 
 ### Funktionen
 

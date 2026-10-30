@@ -1357,7 +1357,6 @@ class LauncherStores:
         with self._save_lock:
             if self._saved_jobs == jobs:
                 return
-            self._saved_jobs = jobs
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path + ".neu", "w", encoding="utf-8") as fh:
@@ -1365,6 +1364,8 @@ class LauncherStores:
                 os.replace(path + ".neu", path)
             except OSError as e:
                 _log.warning("launcher-jobs.json: %s", e)
+                return                          # nicht als geschrieben merken: der nächste Stand versucht es wieder
+            self._saved_jobs = jobs
 
     def _resume(self) -> None:
         """Beim Start: gemerkte unsichtbare Aufträge wieder aufnehmen (der Launcher setzt den Download fort)."""

@@ -11,6 +11,7 @@ Einzelheiten 6 h, store/cache.py); ohne Netz gilt der letzte Stand, sonst StoreE
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
@@ -113,7 +114,10 @@ class SteamStore:
         req = {"ids": [{"appid": a} for a in ids], "context": {"language": LANG, "country_code": CC.upper()},
                "data_request": {"include_assets": True}}
         url = ITEMS_URL + "?input_json=" + urllib.parse.quote(json.dumps(req, separators=(",", ":")))
-        data = self._cached("assets-" + "-".join(str(a) for a in ids)[:150], url, DETAIL_TTL)
+        # Schlüssel über alle Nummern (wie GOG): gekürzt teilten sich Listen, die erst hinten (bei den neuen
+        # Spielen mit den größten Nummern) abweichen, eine Antwort, und die neuen Spiele blieben ohne Bild
+        key = "assets-" + hashlib.sha1(",".join(str(a) for a in ids).encode()).hexdigest()[:20]
+        data = self._cached(key, url, DETAIL_TTL)
         out: dict = {}
         items = ((data.get("response") if isinstance(data, dict) else None) or {}).get("store_items") or []
         for it in items:

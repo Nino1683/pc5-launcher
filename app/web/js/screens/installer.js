@@ -55,9 +55,14 @@ async function chooseJobExe(job) {
   return chooseExe({ id: job.entryId || job.jobId || job.id, title: job.title }, { ref: job.jobId || job.id, candidates: job.candidates || [] });
 }
 
+// Dateiauswahl für ein Archiv: Die Wahl ersetzt die Auswahl durch ihre Prüfung (Kreis führt dann zurück, wo der Ablauf begann)
+function archivePicker() {
+  return { mode: "archive", onPick: (entry) => router.replace("install-check", { path: entry.path, name: entry.name }) };
+}
+
 // Datei wählen und prüfen: der Ablauf beginnt in der Dateiauswahl
 export function pickArchive() {
-  router.go("file-browser", { mode: "archive", onPick: (entry) => router.replace("install-check", { path: entry.path, name: entry.name }) });
+  router.go("file-browser", archivePicker());
 }
 
 // ---------------------------------------------------------------- Einstieg
@@ -197,7 +202,7 @@ function createCheck(params) {
   }
 
   async function probe() {
-    if (screen.list.setLoading) screen.list.setLoading();
+    screen.list.setLoading();
     button.hidden = true;
     let result;
     try {
@@ -217,7 +222,7 @@ function createCheck(params) {
 
   async function start() {
     if (busy || !plan) return;
-    if (button.dataset.mode === "other") { router.replace("file-browser", { mode: "archive", onPick: (entry) => router.replace("install-check", { path: entry.path, name: entry.name }) }); return; }
+    if (button.dataset.mode === "other") { router.replace("file-browser", archivePicker()); return; }
     if (button.hasAttribute("data-disabled")) return;
     busy = true;
     const here = router.top;
@@ -340,7 +345,7 @@ function createProgress(params) {
     }
     // Zur Bibliothek: der Fokus steht dort auf dem neuen Spiel
     if (ok) list.push(btn(S.insToLibrary, () => { router.backTo("home"); router.go("library", { tab: "installed", focus: p.entryId || null }); }, !!p.entryId));
-    else list.push(btn(S.ok, () => router.back()), btn(S.insOther, () => router.replace("file-browser", { mode: "archive", onPick: (entry) => router.replace("install-check", { path: entry.path, name: entry.name }) }), true));
+    else list.push(btn(S.ok, () => router.back()), btn(S.insOther, () => router.replace("file-browser", archivePicker()), true));
     actions.replaceChildren(...list);
     nav.focus(actions.firstChild);
   }

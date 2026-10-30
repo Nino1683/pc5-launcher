@@ -411,15 +411,19 @@ def export_zip(host: Host, folder: str | None = None, now: float | None = None, 
     if len(blob) > MAX_ZIP:
         raise BackupError("Die Sicherung wäre größer als 50 MB. Entferne ein paar eigene Bilder und versuch es noch einmal.")
     base = file_name(now, note)
-    target = os.path.join(folder, base)
-    for n in range(2, 100):
-        if not os.path.lexists(target):
-            break
-        target = os.path.join(folder, base[:-4] + " (%d).zip" % n)
-    try:
-        system.write_atomic(target, blob)
-    except OSError as e:
-        raise BackupError("Die Sicherung ließ sich nicht schreiben: %s" % (e.strerror or e)) from None
+    for n in range(1, 100):
+        target = os.path.join(folder, base if n == 1 else base[:-4] + " (%d).zip" % n)
+        if os.path.lexists(target):
+            continue
+        try:
+            system.write_atomic(target, blob, replace=False)    # nie über eine vorhandene Sicherung
+        except FileExistsError:
+            continue                            # eben entstanden (zweite Sicherung in derselben Minute)
+        except OSError as e:
+            raise BackupError("Die Sicherung ließ sich nicht schreiben: %s" % (e.strerror or e)) from None
+        break
+    else:
+        raise BackupError("Die Sicherung ließ sich nicht schreiben: Es gibt schon zu viele aus dieser Minute.")
     _log.info("Einstellungen gesichert: %s (%d Bytes, %s)", target, len(blob), counts)
     return {"path": target, "size": len(blob), "counts": counts}
 

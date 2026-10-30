@@ -27,7 +27,7 @@ from . import HOME_APPID, log, oskdirect, paths, system
 from .launch import build_spec
 from .launch.prefix import TEXT_ADOPT_HINT, AdoptCancelled, AdoptionRequired, size_text
 from .launch.spec import LaunchError, LaunchSpec, apply_pad_keys
-from .rpc import RpcError
+from .rpc import RpcError, chain
 
 _log = log.get("shell")
 
@@ -790,8 +790,12 @@ class Shell:
 
     # ---------------------------------------------------------------- Mitteilungen
     def on_toast(self, item: dict | None = None) -> None:
-        """Mitteilung: Overlay passiv zeigen, solange sie steht (keine Eingabe, App läuft weiter)."""
-        self._show_passive(float(self.config.get("notify.seconds", 5)) + 0.8)   # plus Aus-Animation
+        """Mitteilung: Overlay passiv zeigen, solange sie steht (keine Eingabe, App läuft weiter). Die Dauer ist
+        dieselbe, die mit dem Ereignis toast an die Seite geht (Notifications.seconds, auf 2 bis 30 s begrenzt):
+        Mit einem Wert von Hand außerhalb davon verschwand das Overlay sonst vor der Einblendung."""
+        same = getattr(getattr(self.app, "notify", None), "seconds", None)
+        seconds = same() if callable(same) else float(self.config.get("notify.seconds", 5))
+        self._show_passive(seconds + 0.8)   # plus Aus-Animation
 
     def _show_passive(self, seconds: float) -> None:
         """Overlay für seconds sichtbar halten, ohne Eingabe und ohne die App anzuhalten."""
@@ -1475,8 +1479,7 @@ class Shell:
                 self._launch_failed(entry, result, e)
                 return
             if isinstance(value, Future):
-                value.add_done_callback(lambda f: result.set_exception(f.exception())
-                                        if f.exception() else result.set_result(f.result()))
+                value.add_done_callback(lambda f: chain(f, result))
             else:
                 if not (isinstance(value, dict) and value.get("ok")):
                     # z. B. die Rückfrage „anderes Spiel schließen?“: Das Ladebild von eben

@@ -31,7 +31,8 @@ import os
 import re
 
 from .. import bootvideos, gallery, i18n, paths, themes
-from .rows import AREA_ORDER, Page, SettingsError, action, confirm_action, link, option, select, text, toggle
+from .rows import (AREA_ORDER, Page, SettingsError, action, call_or_raise, confirm_action, link, option, select,
+                   text, toggle)
 
 log = logging.getLogger("couch.settings.home")
 
@@ -307,15 +308,7 @@ class HomeArea:
             fn = self.extra.get("fetch_all_art")
             if not callable(fn):
                 raise SettingsError("Das ist gerade nicht verfügbar.")
-            try:
-                result = fn()
-            except SettingsError:
-                raise
-            except Exception as e:  # noqa: BLE001
-                message = getattr(e, "message", None)
-                if isinstance(message, str) and message:
-                    raise SettingsError(message) from e
-                raise
+            result = call_or_raise(fn)
             result = result if isinstance(result, dict) else {}
             message = str(result.get("message") or "")
             if not message:

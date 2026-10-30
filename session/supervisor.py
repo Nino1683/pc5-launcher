@@ -1448,7 +1448,7 @@ class Supervisor:
         argv = base + ([uri] if uri else [])
         env = self.steam_env()
         if uri and mode == "on-game-exit":
-            env.update(getattr(self, "handover_env", {}))
+            env.update(self.handover_env)
         now = time.monotonic()
         self.steam_started = now
         self.steam_uri = uri if (uri and mode == "on-game-exit" and base != list(NOOP)) else None
@@ -1606,7 +1606,9 @@ class Supervisor:
             self.stop_home("Notgriff")
             self.pending = None
             self.persist()
-            self.restart_at = self.poweroff_at = None
+            # Auch ein Warten auf SIGTERM (SteamOS, hold) endet: Sonst bliebe nach Steam bis zu dessen Ablauf
+            # alles schwarz, statt dass das Home kommt
+            self.restart_at = self.poweroff_at = self.hold_until = None
             self.to_steam(None, "manual")
         elif self.state == self.STEAM:
             self.log("Notgriff (%s): Steam beenden, danach Home" % source)
@@ -1773,9 +1775,7 @@ class Supervisor:
                         self.poller.unregister(fd)
                     except (KeyError, OSError, ValueError):
                         pass
-            if self.raise_at == "watcher":
-                self.raise_at = ""
-                raise RuntimeError("Test: absichtlicher Fehler (watcher)")
+            self.test_raise("watcher")
             return self.watcher.tick(now)
         except Exception:
             self.watch_errors += 1

@@ -21,7 +21,7 @@ import time
 from typing import Any, Callable
 
 from .. import jsontext, log, paths, system
-from . import catalog, folders, plan as plan_mod, state as state_mod, umu
+from . import catalog, folders, state as state_mod, umu
 
 _log = log.get("setup.jobs")
 
@@ -31,8 +31,6 @@ VIEW_S = 1.0
 HELPER_WAIT_S = 15.0
 PLAN_TIMEOUT_S = 90.0
 PROTON_LIST_WAIT_S = 90.0
-ITEM_TEXT = {"waiting": "Wartet", "running": "", "done": "Fertig", "failed": "Fehlgeschlagen",
-             "skipped": "Schon installiert", "cancelled": "Abgebrochen"}
 FINAL = ("done", "failed", "skipped", "cancelled")
 BUSY_TEXT = "Die Einrichtung installiert gerade Emulatoren und Apps."
 JOBS_FILE = "setup-jobs.json"
@@ -390,7 +388,8 @@ class SetupJobs:
                 return
             legendary.ensure()                  # ~3 MB, Prüfsumme fest im Code (E73)
         except Exception as e:  # noqa: BLE001  (EpicError trägt einen deutschen Satz)
-            self._set(job, item, "failed", message=str(getattr(e, "args", [""])[0] or "Das hat nicht geklappt."))
+            # args kann leer sein (raise EpicError()): dann der allgemeine Satz statt eines IndexError
+            self._set(job, item, "failed", message=str((e.args or ("",))[0] or "Das hat nicht geklappt."))
             return
         self._set(job, item, "done")
 

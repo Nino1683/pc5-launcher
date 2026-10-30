@@ -255,7 +255,7 @@ def discover(timeout: float = 2.0, names: list[str] | None = None) -> list[tuple
 
     def probe(name: str) -> None:
         try:
-            d = xfix.repair(display.Display(name))
+            d = _open(name)                 # ohne Socket kein Versuch über TCP (wie bei connect)
             try:
                 sid = _root_value(d, SERVER_ID)
                 pid = _root_value(d, "GAMESCOPE_PID")
@@ -325,10 +325,15 @@ class Gamescope:
         self._window_callbacks: list[Callable[[int, int], None]] = []
         self._cache: dict[str, tuple | None] = {}
         self._atoms: dict[int, str] | None = None      # Atom -> Name der beobachteten Eigenschaften
-        self._size = self._query_size(0)
+        # vor der ersten Anfrage: _fail/_lost brauchen sie schon, wenn die Verbindung gleich hier reißt
         self._sources: list[int] = []
         self._idle = 0
         self._draining = False
+        try:
+            self._size = self._query_size(0)
+        except BaseException:
+            self.close()
+            raise
 
     # ------------------------------------------------------------ Grundlegendes
     @staticmethod

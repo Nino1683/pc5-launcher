@@ -72,10 +72,11 @@ def parse(b: bytes) -> dict[int, list]:
             if i + n > len(b):
                 raise ProtoError("Feld %d abgeschnitten" % num)
             v, i = b[i:i + n], i + n
-        elif wt == 5:
-            v, i = b[i:i + 4], i + 4
-        elif wt == 1:
-            v, i = b[i:i + 8], i + 8
+        elif wt in (1, 5):
+            n = 8 if wt == 1 else 4             # fixed64 bzw. fixed32
+            if i + n > len(b):
+                raise ProtoError("Feld %d abgeschnitten" % num)
+            v, i = b[i:i + n], i + n
         else:
             raise ProtoError("Drahttyp %d" % wt)
         out.setdefault(num, []).append(v)

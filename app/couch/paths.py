@@ -504,18 +504,7 @@ def user_dir(kind: str) -> str:
     fester deutscher Namen): aus user-dirs.dirs, sonst der deutsche Name, falls es den Ordner gibt,
     sonst der englische. Gibt immer einen Pfad zurück, auch wenn er fehlt; legt nichts an.
     Im Prüfmodus unter <COUCH_TEST_ROOT>/home (liest nie die echte Datei des Nutzers)."""
-    kind = str(kind or "").upper()
-    if kind not in USER_DIR_NAMES:
-        raise ValueError("unbekannte Art eines Benutzerordners: %r" % kind)
-    root = test_root()
-    base = os.path.join(root, "home") if root else home()
-    configured = _read_user_dirs(_user_dirs_file(base), base).get(kind)
-    if configured:
-        return configured
-    german, english = USER_DIR_NAMES[kind]
-    if os.path.isdir(os.path.join(base, german)):
-        return os.path.join(base, german)
-    return os.path.join(base, english)
+    return user_dir_at(kind)
 
 
 def tool(name: str) -> str | None:
@@ -541,8 +530,6 @@ def user_dir_at(kind: str, base: str | None = None, missing: str = "en") -> str:
     Tests; gelesen wird dann nur <base>/.config/user-dirs.dirs) und mit Wahl des Namens, wenn weder
     user-dirs.dirs etwas nennt noch einer der beiden Ordner da ist: missing="en" wie user_dir, "de"
     für Ordner, die die Konsole selbst anlegt (Oberfläche deutsch, z. B. Bildschirmfotos)."""
-    if base is None and missing == "en":
-        return user_dir(kind)
     kind = str(kind or "").upper()
     if kind not in USER_DIR_NAMES:
         raise ValueError("unbekannte Art eines Benutzerordners: %r" % kind)

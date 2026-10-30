@@ -40,8 +40,8 @@ import logging
 import os
 import re
 
-from .rows import (AREA_ORDER, Page, SettingsError, action, confirm_action, info, link, option,
-                   select, text, toggle)
+from .rows import (AREA_ORDER, Page, SettingsError, action, call_or_raise, confirm_action, info, late_part, link,
+                   option, select, text, toggle)
 
 log = logging.getLogger("couch.settings.games")
 
@@ -221,14 +221,7 @@ class GamesArea:
 
     def _setup_part(self):
         """E105: der Teil „setup“ (wiring_setup.SetupPart), spät gebunden; None ohne ihn."""
-        late = self.extra.get("late")
-        if not callable(late):
-            return None
-        try:
-            return late("setup_part")
-        except Exception:  # noqa: BLE001
-            log.exception("setup_part")
-            return None
+        return late_part(self.extra, "setup_part", log)
 
     def _has_itch(self) -> bool:
         return callable(self.extra.get("itch_status"))
@@ -526,16 +519,7 @@ class GamesArea:
         fn = self.extra.get(name)
         if not callable(fn):
             raise SettingsError("Das ist gerade nicht verfügbar.")
-        try:
-            return fn(*args)
-        except SettingsError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            # LaunchError und ähnliche tragen einen deutschen Satz in .message
-            message = getattr(e, "message", None)
-            if isinstance(message, str) and message:
-                raise SettingsError(message) from e
-            raise
+        return call_or_raise(fn, *args)         # LaunchError und ähnliche tragen einen deutschen Satz in .message
 
 
 def make_area(deps) -> GamesArea:

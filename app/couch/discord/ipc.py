@@ -170,7 +170,12 @@ class Presence:
                 if self._closed:
                     break
                 serial, wanted = self._serial, self._wanted
-            ok = self._apply(wanted)
+            try:
+                ok = self._apply(wanted)
+            except Exception:  # noqa: BLE001 (Unerwartetes kostet nur diesen Wechsel, nie den Thread)
+                log.exception("Discord: „Spielt gerade“")
+                self._drop()
+                ok = False
             with self._cond:
                 if ok:
                     self._done = serial
@@ -245,7 +250,8 @@ class Presence:
                 raise IpcError("Discord trennt: %s" % (data.get("message") or data.get("code")))
             if data.get("nonce") == nonce:
                 if data.get("evt") == "ERROR":
-                    raise IpcError("abgelehnt: %s" % ((data.get("data") or {}).get("message") or "?"))
+                    err = data.get("data")
+                    raise IpcError("abgelehnt: %s" % ((err.get("message") if isinstance(err, dict) else err) or "?"))
                 return
         raise IpcError("keine Antwort auf SET_ACTIVITY")
 

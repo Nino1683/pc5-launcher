@@ -111,6 +111,9 @@ class AdbClient:
         except (OSError, ConnectionError, struct.error) as e:
             self.close()
             raise TvError(TEXT_NO_ADB, "NoAdb") from e
+        except BaseException:
+            self.close()                        # z. B. on_prompt wirft: der Socket bleibt nie offen liegen
+            raise
 
     def _shell(self, line: str) -> str:
         if self._sock is None:

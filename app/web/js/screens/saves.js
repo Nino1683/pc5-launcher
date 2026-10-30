@@ -8,16 +8,11 @@ import { h, sizeText } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
-import { S, fmt, whenText } from "../core/strings.js";
+import { S, fmt, stampText, whenText } from "../core/strings.js";
 import { createListScreen } from "./file-browser.js";
 import { openMenu } from "../components/menu.js";
 import { confirm, messageDialog } from "../components/dialog.js";
 import { toast } from "../components/toast.js";
-
-function stamp(seconds) {
-  if (!seconds) return "";
-  return new Date(seconds * 1000).toLocaleString(S.locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
 
 // Kurzform eines Kandidaten für das Menü: ab dem Windows-Benutzer bzw. ab dem Home-Ordner
 function shortPath(path) {
@@ -71,13 +66,13 @@ function create(params = {}) {
     const backups = Array.isArray(d.backups) ? d.backups : [];
     if (!backups.length) rows.push({ id: "_none", type: "info", label: S.svNoBackups, enabled: false });
     for (const b of backups) {
-      rows.push({ id: "b:" + b.path, type: "action", label: stamp(b.created), value: sizeText(b.size),
+      rows.push({ id: "b:" + b.path, type: "action", label: stampText(b.created), value: sizeText(b.size),
         note: backupNote(b), icon: "restart", backup: b });
     }
     const keep = nav.current && screen.list.el.contains(nav.current) ? screen.list.rowOf(nav.current.closest(".row")) : null;
     screen.list.setRows(rows);
     nav.ensure();
-    if (keep) { const node = screen.list.nodeOf ? screen.list.nodeOf(keep.id) : null; if (node) nav.focus(node); }
+    if (keep) { const node = screen.list.nodeOf(keep.id); if (node) nav.focus(node); }
   }
 
   async function load() {
@@ -130,7 +125,7 @@ function create(params = {}) {
   }
 
   async function backupMenu(b) {
-    const when = stamp(b.created);
+    const when = stampText(b.created);
     const choice = await openMenu([{ id: "restore", label: S.svRestore, icon: "restart" }, { id: "remove", label: S.svRemove, icon: "trash" }],
       { cls: "menu-center", title: when });
     if (choice === "restore") {

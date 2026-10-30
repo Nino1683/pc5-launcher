@@ -202,7 +202,8 @@ class AppManager:
         return sorted(self._apps.values(), key=lambda a: (a.started, a.app_id))
 
     def by_entry(self, entry_id: str) -> RunningApp | None:
-        for app in self._apps.values():
+        # über eine Kopie: Arbeits-Threads fragen auch (Sichern, Store), während die Hauptschleife einträgt
+        for app in list(self._apps.values()):
             if app.entry_id == entry_id:
                 return app
         return None
@@ -335,11 +336,16 @@ class AppManager:
                              GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR,
                              self._on_pidfd, app)
 
+    @staticmethod
+    def _gone(app: RunningApp) -> bool:
+        """Ohne pidfd nachsehen, ob der reaper endete: als eigenes Kind über Popen, sonst über /proc."""
+        if app._popen is not None:
+            return app._popen.poll() is not None
+        return not tree.alive(app.reaper_pid, app.reaper_starttime or None)
+
     def _poll_exit(self, app: RunningApp) -> None:
         def check(a: RunningApp) -> None:
-            gone = a._popen.poll() is not None if a._popen is not None \
-                else not tree.alive(a.reaper_pid, a.reaper_starttime)
-            if gone:
+            if self._gone(a):
                 self._finish(a)
             else:
                 self._later(a, 0.5, check)
@@ -683,11 +689,8 @@ class AppManager:
             for fd, _event in poller.poll(min(left, 0.25) * 1000):
                 self._finish(by_fd[fd])
             for app in pending:                 # ohne pidfd: nachsehen
-                if app._pidfd < 0 and not app.exited:
-                    gone = app._popen.poll() is not None if app._popen is not None \
-                        else not tree.alive(app.reaper_pid, app.reaper_starttime or None)
-                    if gone:
-                        self._finish(app)
+                if app._pidfd < 0 and not app.exited and self._gone(app):
+                    self._finish(app)
 
     # ------------------------------------------------------------ running.json
     def _record(self, app: RunningApp) -> dict:

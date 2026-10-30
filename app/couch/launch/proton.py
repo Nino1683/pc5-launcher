@@ -475,10 +475,6 @@ def file_contains(path: str, needles: tuple = NATIVE_PAD_TEXT) -> bool:
         return False
 
 
-def exe_knows_pad(path: str) -> bool:
-    return file_contains(path, NATIVE_PAD_TEXT)
-
-
 def game_binaries(exe: str) -> list[str]:
     """Die Startdatei und Unreals *-Shipping.exe bis zwei Ebenen darunter (<Name>/Binaries/Win64)."""
     out = [exe] if exe and os.path.isfile(exe) else []
@@ -489,8 +485,8 @@ def game_binaries(exe: str) -> list[str]:
 
 
 def knows_pad_cached(paths: list[str], cache_file: str) -> bool:
-    """exe_knows_pad über mehrere Dateien, gemerkt je Datei (Größe, Änderungszeit) in cache_file:
-    eine große Programmdatei wird nur beim ersten Start durchsucht."""
+    """Steht NATIVE_PAD_TEXT in einer der Dateien (file_contains)? Gemerkt je Datei (Größe, Änderungszeit)
+    in cache_file: eine große Programmdatei wird nur beim ersten Start durchsucht."""
     return bool(scan_cached(paths, cache_file))
 
 

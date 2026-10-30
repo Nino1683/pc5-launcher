@@ -11,8 +11,8 @@ ihn installiert, wie die Emulatoren etc.“ Bauplan docs/research/e103/SPEC.md 4
   busy       „Die Einrichtung installiert gerade Emulatoren und Apps.“ (Ruhemodus, Ausschalten, Übergabe)
   D4         lief beim letzten Ende eine Installation, kommt nach dem Start eine Mitteilung; fortgesetzt wird
              über setup.start mit setup.state().resume
-  wiring.setup_part  für andere Teile: emulator_rows() und open_emulator() (Einstellungen › Spiele ›
-             Emulatoren, settings/games.py über deps.extra["late"]("setup_part"))
+  wiring.setup_part  für andere Teile: emulator_rows() (Einstellungen › Spiele › Emulatoren,
+             settings/games.py über deps.extra["late"]("setup_part"))
 
 Bei setup.start setzt der Teil library.games_disk und emu.root nur, wenn etwas anderes als „automatisch“
 gewählt ist, und library.roms = True. Installiert wird nur mit Flatpak in der Nutzer-Installation, nur nach

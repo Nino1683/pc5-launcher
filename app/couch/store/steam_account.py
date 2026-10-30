@@ -60,7 +60,7 @@ def cookie_rows(db: str, sql: str, params: tuple = ()) -> list | None:
             return con.execute(sql, params).fetchall()
         finally:
             con.close()
-    except sqlite3.Error:
+    except (sqlite3.Error, OSError):       # OSError: Datei verschwand beim Kopieren (Browser schloss gerade)
         return None
     finally:
         _drop_copy(tmp)
@@ -107,6 +107,8 @@ def userdata(cookies: dict, get=_get, clock=time.time) -> dict:
     try:
         data = get("%s?t=%d" % (USERDATA, int(clock())), cookies)
     except Exception:       # Netz weg, Antwort kaputt: wie abgemeldet, der Store bleibt bedienbar
+        return dict(empty, error=True)
+    if not isinstance(data, dict):
         return dict(empty, error=True)
     owned = {int(x) for x in data.get("rgOwnedApps") or [] if str(x).isdigit()}
     packages = data.get("rgOwnedPackages") or []

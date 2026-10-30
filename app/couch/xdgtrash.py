@@ -221,7 +221,7 @@ def locate(item_id: object, dirs: list[tuple[str, str | None]]) -> tuple[str, st
 
 def restore(item_id: str, dirs: list[tuple[str, str | None]]) -> str:
     """Legt den Eintrag an seinen alten Ort zurück. Liefert den neuen Pfad; wirft ValueError/OSError."""
-    from .files import free_target
+    from .files import rename_free
     where = locate(item_id, dirs)
     if where is None or not os.path.lexists(item_id):
         raise ValueError(TEXT_GONE)
@@ -231,8 +231,8 @@ def restore(item_id: str, dirs: list[tuple[str, str | None]]) -> str:
         raise ValueError("Der alte Ort dieses Eintrags ist nicht bekannt.")
     parent = os.path.dirname(orig)
     os.makedirs(parent, exist_ok=True)
-    target = free_target(parent, os.path.basename(orig))
-    os.rename(item_id, target)                  # derselbe Papierkorb liegt auf demselben Laufwerk
+    # derselbe Papierkorb liegt auf demselben Laufwerk; nie über etwas, das dort inzwischen entstand
+    target = rename_free(item_id, parent, os.path.basename(orig))
     _unlink_quiet(_info_path(trash, name))
     return target
 

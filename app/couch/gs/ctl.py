@@ -111,6 +111,14 @@ def _display(display: str | None) -> str:
 
 def _bind(display: str | None) -> tuple[_Wayland, int]:
     wl = _Wayland(_display(display))
+    try:
+        return wl, _bind_control(wl, display)
+    except BaseException:
+        wl.close()                                          # auch wenn Gamescope mittendrin auflegt
+        raise
+
+
+def _bind_control(wl: _Wayland, display: str | None) -> int:
     registry = wl.new_id()
     wl.send(1, 1, struct.pack("<I", registry))              # wl_display.get_registry
     found = []
@@ -128,9 +136,8 @@ def _bind(display: str | None) -> tuple[_Wayland, int]:
 
     wl.sync(2.0, on_global)
     if not found:
-        wl.close()
         raise GamescopeError("gamescope_control fehlt auf %s (kein Gamescope?)" % _display(display))
-    return wl, found[0]
+    return found[0]
 
 
 def _complete(path: str) -> bool:

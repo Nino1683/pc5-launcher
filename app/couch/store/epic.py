@@ -13,11 +13,10 @@ from __future__ import annotations
 import json
 import re
 import time
-import urllib.error
 import urllib.request
 
 from . import cache
-from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip
+from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, strip_html
 
 GRAPHQL = "https://store.epicgames.com/graphql"
 FREE = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=de&country=DE&allowCountries=DE"
@@ -109,7 +108,6 @@ def _date(text) -> str:
 
 def strip_markdown(text: str) -> str:
     """Epics Beschreibungen: Markdown mit HTML-Kommentaren und eingestreutem HTML -> Text mit Absätzen."""
-    from .steam import strip_html
     text = re.sub(r"<!--.*?-->", "", text or "", flags=re.S)
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)                     # Bilder
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)                 # Verweise: nur der Text

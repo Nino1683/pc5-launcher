@@ -35,10 +35,6 @@ SINGLE = 3                      # so viele Angebote einzeln; mehr auf einmal (St
 LANGS = {"de": "german", "en": "english"}
 
 
-class WishlistError(Exception):
-    pass
-
-
 def price_text(formatted: Any) -> str:
     """„19,99€“ -> „19,99 €“ (Schreibweise des Stores)."""
     text = str(formatted or "").strip()

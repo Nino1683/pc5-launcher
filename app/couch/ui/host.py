@@ -383,6 +383,9 @@ class UiHost:
                 ok = True
             except GLib.Error as e:
                 ok, out = False, e.message
+            except (TypeError, ValueError) as e:
+                # to_json liefert für Funktionen, Symbole und Kreise None: Auch dann gibt es genau eine Antwort
+                ok, out = False, "Ergebnis lässt sich nicht als JSON darstellen (%s)" % type(e).__name__
             if callback:
                 callback(ok, out)
         if asynchronous:
@@ -470,7 +473,7 @@ class UiHost:
         nimmt dann auch kein load_uri mehr an. Also den Prozess beenden: web-process-terminated
         lädt mit einem frischen neu, ohne dass der Supervisor das ganze Home beenden muss."""
         before = self.reloads[role]
-        self._alive[role] = time.monotonic()
+        asked = self._alive[role] = time.monotonic()
         try:
             self._views[role].terminate_web_process()
         except Exception:
@@ -479,7 +482,10 @@ class UiHost:
             return
 
         def check() -> bool:
-            if self.reloads[role] == before:    # das Signal blieb aus: wenigstens neu laden
+            # Kam das Signal (_on_terminated trägt den Absturz ein), lädt es selbst, nach mehreren Abstürzen
+            # aber erst nach bis zu 5 s: dann nicht noch einmal
+            signalled = any(t >= asked for t in self._crashes[role])
+            if self.reloads[role] == before and not signalled:    # das Signal blieb aus: wenigstens neu laden
                 _log.warning("%s: kein Neuladen nach dem Beenden des Web-Prozesses, lade selbst", role)
                 self.reload(role)
             return False

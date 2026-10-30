@@ -50,6 +50,12 @@ export function icon(name, cls) {
   return svg;
 }
 
+// Tastenhinweis (in .hints unten rechts): Symbol des Pads („btn-cross“) oder die Beschriftung als Kappe („OPTIONS“,
+// „L2 R2“). Ein Baustein für alle Bildschirme (vorher sieben gleiche Fassungen)
+export function hint(glyph, text) {
+  return h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
+}
+
 // Symbol nachträglich wechseln (z. B. Ton ein/aus)
 export function setIcon(svg, name) {
   const use = svg.querySelector("use");
@@ -65,6 +71,12 @@ export async function loadIcons(url = "icons.svg") {
   svg.id = "sprite";
   svg.removeAttribute("style");
   document.body.prepend(svg);
+}
+
+// Gestaltung eines Teils einmal nachladen (css/<part>.css, nicht in index.html): Trophäen, Abschnitte und Trailer des Hub
+export function ensureStyle(part) {
+  if (document.querySelector('link[data-part="' + part + '"]')) return;
+  document.head.append(h("link", { rel: "stylesheet", href: "css/" + part + ".css", "data-part": part }));
 }
 
 // Zeit-Token aus tokens.css in Millisekunden (Zahlenwerte stehen nur dort)
@@ -133,7 +145,7 @@ export function enter(el, cls = "is-enter") {
 
 // Bytes als deutsche Angabe ("12,6 GB"); leer bei 0 oder Unsinn
 // Dezimalzeichen nach der Sprache der Seite (?lang=, wie strings.js; 2026-10-25)
-const DECIMAL = typeof location !== "undefined" && new URLSearchParams(location.search).get("lang") === "en" ? "." : ",";
+export const DECIMAL = typeof location !== "undefined" && new URLSearchParams(location.search).get("lang") === "en" ? "." : ",";
 
 export function sizeText(bytes) {
   let value = Number(bytes);

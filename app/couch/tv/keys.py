@@ -18,6 +18,7 @@ import datetime
 import hashlib
 import os
 import struct
+import threading
 from typing import Any
 
 from .. import system
@@ -32,6 +33,10 @@ MISSING = ("Dafür fehlt auf diesem System das Python-Paket „cryptography“ (
            "sich kein Fernseher koppeln.")
 # DigestInfo von SHA-1 (PKCS#1 v1.5): adbd prüft die Unterschrift über das Token so
 _SHA1_INFO = bytes.fromhex("3021300906052b0e03021a05000414")
+# Prüfen, Erzeugen und Schreiben eines Schlüssels am Stück: write_atomic ersetzt per rename. Zwei Threads beim ersten
+# Koppeln (zweimal „Auswählen“) legten sonst je einen Schlüssel an; der zweite überschrieb den ersten, das Zertifikat
+# passte nicht mehr zum Schlüssel, und weil vorhandene Dateien bleiben, ließe sich nie wieder koppeln.
+_KEY_LOCK = threading.Lock()
 
 
 def available() -> bool:
@@ -103,35 +108,33 @@ def _self_signed(key: Any) -> bytes:
     return cert.public_bytes(serialization.Encoding.PEM)
 
 
-def has_client(folder: str) -> bool:
-    return os.path.isfile(os.path.join(folder, CLIENT_KEY)) and os.path.isfile(os.path.join(folder, CLIENT_CERT))
-
-
 def client_files(folder: str) -> tuple[str, str]:
     """(Zertifikat, Schlüssel); legt fehlende an. Ein vorhandener Schlüssel bleibt immer, wie er ist."""
     _need()
-    ensure_folder(folder)
-    key_path, cert_path = os.path.join(folder, CLIENT_KEY), os.path.join(folder, CLIENT_CERT)
-    if os.path.isfile(key_path):
-        key = _load_private(key_path)
-    else:
-        key = _new_rsa()
-        system.write_atomic(key_path, _pem_private(key), mode=0o600)
-    if not os.path.isfile(cert_path):
-        system.write_atomic(cert_path, _self_signed(key), mode=0o600)
+    with _KEY_LOCK:
+        ensure_folder(folder)
+        key_path, cert_path = os.path.join(folder, CLIENT_KEY), os.path.join(folder, CLIENT_CERT)
+        if os.path.isfile(key_path):
+            key = _load_private(key_path)
+        else:
+            key = _new_rsa()
+            system.write_atomic(key_path, _pem_private(key), mode=0o600)
+        if not os.path.isfile(cert_path):
+            system.write_atomic(cert_path, _self_signed(key), mode=0o600)
     return cert_path, key_path
 
 
 def adb_key(folder: str) -> Any:
     """Privater ADB-Schlüssel (legt ihn beim ersten Mal an)."""
     _need()
-    ensure_folder(folder)
-    path = os.path.join(folder, ADB_KEY)
-    if os.path.isfile(path):
-        return _load_private(path)
-    key = _new_rsa()
-    system.write_atomic(path, _pem_private(key), mode=0o600)
-    return key
+    with _KEY_LOCK:
+        ensure_folder(folder)
+        path = os.path.join(folder, ADB_KEY)
+        if os.path.isfile(path):
+            return _load_private(path)
+        key = _new_rsa()
+        system.write_atomic(path, _pem_private(key), mode=0o600)
+        return key
 
 
 def _hex_bytes(n: int) -> bytes:

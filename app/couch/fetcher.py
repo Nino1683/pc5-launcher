@@ -514,17 +514,7 @@ class Fetcher:
             self._save(force=True)
         _log.info("Download %s: %s %s", item["name"], state, error)
         if self.notify is not None:
-            def tell() -> None:
-                try:
-                    if state == "done":
-                        body = ("Im Control Center unter Downloads lässt es sich installieren."
-                                if names.is_archive(item["name"]) else "Liegt im Download-Ordner.")
-                        self.notify.push("Download fertig: %s" % item["name"], body, icon="download")
-                    else:
-                        self.notify.push("Download fehlgeschlagen: %s" % item["name"], error, icon="warn")
-                except Exception:
-                    _log.exception("Mitteilung zum Download")
-            self.post(tell)
+            self.post(self._tell, item["name"], state, error)
 
     def _job_ended(self, item_id: str, job: _Job) -> None:
         with self.lock:
@@ -632,7 +622,7 @@ class Fetcher:
             self._publish()
         if tell and self.notify is not None:
             for item in ended:
-                self.post(self._tell_local, item)
+                self.post(self._tell, item["name"], item["state"], item.get("error") or "")
         return True
 
     def _reap_local(self) -> bool:
@@ -647,16 +637,17 @@ class Fetcher:
                 changed = True
         return changed
 
-    def _tell_local(self, item: dict) -> None:
+    def _tell(self, name: str, state: str, error: str) -> None:
+        """Hauptschleife (über post): Mitteilung zum Ende eines Downloads, eigener wie des Browsers."""
         try:
-            if item["state"] == "done":
+            if state == "done":
                 body = ("Im Control Center unter Downloads lässt es sich installieren."
-                        if names.is_archive(item["name"]) else "Liegt im Download-Ordner.")
-                self.notify.push("Download fertig: %s" % item["name"], body, icon="download")
+                        if names.is_archive(name) else "Liegt im Download-Ordner.")
+                self.notify.push("Download fertig: %s" % name, body, icon="download")
             else:
-                self.notify.push("Download fehlgeschlagen: %s" % item["name"], item.get("error") or "", icon="warn")
+                self.notify.push("Download fehlgeschlagen: %s" % name, error, icon="warn")
         except Exception:
-            _log.exception("Mitteilung zum Download des Browsers")
+            _log.exception("Mitteilung zum Download")
 
     def view(self) -> list[dict]:
         with self.lock:

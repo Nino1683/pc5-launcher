@@ -23,7 +23,8 @@ import logging
 from .. import tv
 from ..tv import keys as tv_keys
 from ..tv import net as tv_net
-from .rows import Page, SettingsError, action, confirm_action, info, link, option, select, text, toggle
+from .rows import (Page, SettingsError, action, confirm_action, info, late_part, link, message_of, option, select,
+                   text, toggle)
 
 log = logging.getLogger("couch.settings.tvctl")
 
@@ -76,6 +77,8 @@ STEPS = [
 ]
 HINT_READ = ("Der PC5 Launcher liest dann nur die Liste der Eingänge, die Namen der Geräte daran und welcher Eingang gerade "
              "läuft (der ist der des PCs), und schaltet die Eingänge um. Sonst nichts.")
+TEXT_SWITCH_ON = "Schalte zuerst „Fernseher übers Netz steuern“ ein."
+TEXT_UNAVAILABLE = "Das ist gerade nicht verfügbar."
 
 
 def owns(ident: str) -> bool:
@@ -83,8 +86,15 @@ def owns(ident: str) -> bool:
 
 
 def _error(e: Exception) -> SettingsError:
-    message = getattr(e, "message", None)
-    return SettingsError(message if isinstance(message, str) and message else "Das hat nicht geklappt.")
+    return SettingsError(message_of(e) or "Das hat nicht geklappt.")
+
+
+def _call(fn):
+    """Ein Aufruf des Teils (blockierend); jeder Fehler wird zum SettingsError mit dem Satz des TvError."""
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001
+        raise _error(e) from None
 
 
 class TvRows:
@@ -94,14 +104,7 @@ class TvRows:
         self.extra = getattr(deps, "extra", None) or {}
 
     def part(self):
-        late = self.extra.get("late")
-        if not callable(late):
-            return None
-        try:
-            return late("tv_part")
-        except Exception:  # noqa: BLE001
-            log.exception("tv_part")
-            return None
+        return late_part(self.extra, "tv_part", log)
 
     def _status(self) -> dict:
         part = self.part()
@@ -169,8 +172,7 @@ class TvRows:
                               "beim Erkennen der Eingänge." if port else
                               "Der PC5 Launcher kennt den Eingang des PCs nicht. „Eingänge genauer erkennen“ findet "
                               "ihn; bis dahin schaltet er nach dem Aufwachen nicht um."))
-        mode = self.config.get("tv.off_with_pc", tv.DEFAULTS["tv.off_with_pc"])
-        mode = mode if mode in tv.OFF_CHOICES else tv.DEFAULTS["tv.off_with_pc"]
+        mode = tv.off_mode(self.config)             # eingeschaltet: der gespeicherte Wert, Unbekanntes als Vorgabe
         rows.append(select(ROW_OFF, "Beim Ruhemodus und Ausschalten Fernseher ausschalten", mode,
                            [option(k, OFF_LABELS[k], "Braucht „Eingänge genauer erkennen“" if k == "pc" and not adb
                                    else "") for k in tv.OFF_CHOICES],
@@ -187,14 +189,11 @@ class TvRows:
 
     def _found(self, force: bool = False) -> list[dict]:
         part = self.part()
-        try:
-            return [i for i in (part.discover(force) or []) if isinstance(i, dict) and i.get("host")]
-        except Exception as e:  # noqa: BLE001
-            raise _error(e) from None
+        return [i for i in (_call(lambda: part.discover(force)) or []) if isinstance(i, dict) and i.get("host")]
 
     def _pair_rows(self) -> list:
         if not tv.enabled(self.config):
-            return [info("display.tvctl.pair.off", "Schalte zuerst „Fernseher übers Netz steuern“ ein.", enabled=False)]
+            return [info("display.tvctl.pair.off", TEXT_SWITCH_ON, enabled=False)]
         st = self._status()
         rows = [info("display.tvctl.pair.howto", "So geht es", "", hint=HINT_PAIR)]
         if st.get("can_discover", True):
@@ -243,14 +242,14 @@ class TvRows:
     def set(self, row_id: str, value):
         part = self.part()
         if part is None:
-            raise SettingsError("Das ist gerade nicht verfügbar.")
+            raise SettingsError(TEXT_UNAVAILABLE)
         if row_id == ROW_ENABLED:
             if not self._status().get("available", True):
                 raise SettingsError(tv_keys.MISSING)
             self.config.set("tv.enabled", bool(value))
             return {"refresh": True}
         if not tv.enabled(self.config):
-            raise SettingsError("Schalte zuerst „Fernseher übers Netz steuern“ ein.")
+            raise SettingsError(TEXT_SWITCH_ON)
         if row_id == ROW_OFF:
             if value not in tv.OFF_CHOICES:
                 raise SettingsError("Diese Auswahl gibt es nicht.")
@@ -265,18 +264,12 @@ class TvRows:
         if row_id == ROW_ADDRESS:
             return self._picked(lambda: part.pick_address(str(value or "")), str(value or "").strip())
         if row_id == ROW_CODE:
-            try:
-                name = part.submit_code(str(value or ""))
-            except Exception as e:  # noqa: BLE001
-                raise _error(e) from None
+            name = _call(lambda: part.submit_code(str(value or "")))
             return {"message": "„%s“ ist gekoppelt." % name, "page": PAGE}
         raise SettingsError("Diese Einstellung lässt sich nicht ändern.")
 
     def _picked(self, fn, name: str) -> dict:
-        try:
-            result = fn()
-        except Exception as e:  # noqa: BLE001
-            raise _error(e) from None
+        result = _call(fn)
         if result == "paired":
             return {"message": "„%s“ ist gekoppelt. Der Fernseher kannte diesen PC schon." % name, "page": PAGE}
         return {"page": PAGE_CODE}
@@ -284,15 +277,12 @@ class TvRows:
     def action(self, row_id: str, value=None):
         part = self.part()
         if part is None:
-            raise SettingsError("Das ist gerade nicht verfügbar.")
+            raise SettingsError(TEXT_UNAVAILABLE)
         if row_id == ROW_FORGET:
-            try:
-                part.forget()
-            except Exception as e:  # noqa: BLE001
-                raise _error(e) from None
+            _call(part.forget)
             return {"message": "Die Kopplung ist vergessen.", "refresh": True}
         if not tv.enabled(self.config):
-            raise SettingsError("Schalte zuerst „Fernseher übers Netz steuern“ ein.")
+            raise SettingsError(TEXT_SWITCH_ON)
         if row_id.startswith(ROW_PICK):
             host = row_id[len(ROW_PICK):]
             item = next((i for i in self._found() if i.get("host") == host), None)
@@ -304,16 +294,10 @@ class TvRows:
             self._found(force=True)
             return {"refresh": True}
         if row_id == ROW_CODE_NEW:
-            try:
-                part.new_code()
-            except Exception as e:  # noqa: BLE001
-                raise _error(e) from None
+            _call(part.new_code)
             return {"message": "Der Fernseher zeigt einen neuen Code.", "refresh": True}
         if row_id == ROW_READ:
-            try:
-                found = part.learn_inputs()
-            except Exception as e:  # noqa: BLE001
-                raise _error(e) from None
+            found = _call(part.learn_inputs)
             ports = found.get("ports") or []
             current = found.get("current")
             if current:

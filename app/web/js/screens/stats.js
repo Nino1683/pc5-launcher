@@ -6,7 +6,7 @@
 //   L1/R1      Woche, Monat, Insgesamt        Links/Rechts   älter/neuer blättern
 //   L2/R2      in der Liste seitenweise       Kreis          zurück
 // Einstieg: Rundknopf „Statistik“ in der Bibliothek (screens/library.js). Balken stehen über --p, ohne Bewegung.
-import { h, icon } from "../core/dom.js";
+import { h, hint } from "../core/dom.js";
 import { call, notify } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -59,7 +59,6 @@ function create(params = {}) {
   const sessionsEl = h("div.rb-sessions.ell");
   const list = createRowList({ alwaysFocus: true, emptyText: S.rbEmpty, onPress: (row) => { open(row); return true; } });
   list.scrollbar.classList.add("flow-scroll", "rb-scroll");
-  const hint = (glyph, text) => h("div.hint", glyph.startsWith("btn-") ? icon(glyph) : h("span.keycap", { text: glyph }), h("span", { text }));
   const el = h("div.flow.rb",
     titleEl, subEl, h("div.rb-tabs", tabEls),
     h("div.rb-panel", totalEl, compareEl, chart, peakEl, sessionsEl),

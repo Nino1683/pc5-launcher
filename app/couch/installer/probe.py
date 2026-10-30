@@ -623,14 +623,15 @@ def _catalog_rom_dirs(home: str, srm: bool) -> dict:
     fx = sources.fixtures_root()
     disk = setup.abspath_setting("library.games_disk") or (os.path.join(fx, "games") if fx else paths.games_disk())
     root = folders.emu_root(setup.abspath_setting("emu.root"), home, disk)
-    if not root:
+    roms = folders.roms_dir(root)               # "" ohne Emulator-Ordner
+    if not roms:
         return {}
     dirs = [os.path.join(fx, "flatpak")] if fx else ["/var/lib/flatpak", os.path.join(home, ".local/share/flatpak")]
     out = {}
     for system, emus in _catalog.library_systems(srm).items():
         if system == "wiiu" or ROM_SYSTEMS.get(system, ("", ""))[1]:
             continue                            # Wii U und SRM-Systeme: oben
-        folder = folders.roms_dir(root) and os.path.join(folders.roms_dir(root), system)
+        folder = os.path.join(roms, system)
         try:
             if not stat_mod.S_ISDIR(os.lstat(folder).st_mode):
                 continue

@@ -5,10 +5,11 @@
 // Spiels = Platin. Die Pokale sind eigene Symbole (icons.svg trophy, trophy-<stufe>).
 // Bildschirme „trophies“ (Übersicht) und „trophies-game“ (Liste eines Spiels) stehen in screens/trophies.js;
 // openTrophies() meldet sie beim ersten Mal selbst am Router an.
-import { h, icon } from "../core/dom.js";
+import { h, icon, ensureStyle } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { router } from "../core/router.js";
 import { S, fmt, whenText } from "../core/strings.js";
+import { memoCall } from "./gameinfo.js";
 
 // Der Kern liest die Dateien bei jeder Frage neu, wenn sie sich geändert haben; hier nur so lange, dass Karte und
 // Abschnitt desselben Eintrags (und Home/Spielseite im Wechsel) nicht doppelt fragen
@@ -24,21 +25,7 @@ export function hasTrophies(entry) {
 }
 
 function ask(method, id) {
-  const key = method + " " + (id || "");
-  const now = Date.now();
-  const hit = memo.get(key);
-  if (hit && now - hit.at < hit.keep) return hit.promise;
-  const item = { at: now, keep: KEEP_MS, promise: null };
-  item.promise = call(method, id ? { id } : {}).then((r) => {
-    if (!r || r.ok === false) item.keep = KEEP_FAIL_MS;
-    return r || { ok: false };
-  }, (e) => {
-    item.keep = 0;
-    return { ok: false, reason: "error", message: (e && e.message) || "" };
-  });
-  memo.set(key, item);
-  while (memo.size > MAX) memo.delete(memo.keys().next().value);
-  return item.promise;
+  return memoCall(memo, method + " " + (id || ""), method, id ? { id } : {}, { keep: KEEP_MS, keepFail: KEEP_FAIL_MS, max: MAX });
 }
 
 export const trophyGame = (id) => ask("trophies.game", id);
@@ -63,8 +50,7 @@ export async function trophyIcons(id, keys) {
 
 // ---------------------------------------------------------------- Bausteine
 export function ensureTrophyStyle() {
-  if (document.querySelector("link[data-part=trophies]")) return;
-  document.head.append(h("link", { rel: "stylesheet", href: "css/trophies.css", "data-part": "trophies" }));
+  ensureStyle("trophies");
 }
 
 export function tierIcon(tier) {

@@ -7,7 +7,7 @@
 // lib.artPreview, beginnt im Download-Ordner). Neueste Dateien zuerst, Ordner davor. Die Unterzeile
 // nennt den Weg ab dem Ort („Downloads › Archive“), die Zeilen Größe und Datum.
 // Kreis geht einen Ordner hoch, an den Orten zurück. params.onPick(eintrag) bekommt die Wahl.
-import { h, icon, sizeText } from "../core/dom.js";
+import { h, hint, sizeText } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -21,7 +21,7 @@ export function createListScreen({ title = "", sub = "", hints = [], handlers = 
   const list = createRowList({ alwaysFocus: true, ...handlers });
   const titleEl = h("h1.flow-title.ell", { text: title });
   const subEl = h("div.flow-sub.ell", { text: sub, hidden: !sub });
-  const hintItems = (items) => items.map(([glyph, text]) => h("div.hint", icon(glyph), h("span", { text })));
+  const hintItems = (items) => items.map(([glyph, text]) => hint(glyph, text));
   const hintsEl = h("div.hints", hintItems(hints));
   list.scrollbar.classList.add("flow-scroll");
   const el = h("div.flow" + (cls ? "." + cls : ""), titleEl, subEl, h("div.flow-list", list.el), list.scrollbar, side, hintsEl);
@@ -105,7 +105,7 @@ function create(params = {}) {
 
   async function go(path, keepId) {
     const mine = ++serial;
-    if (list.setLoading) list.setLoading();
+    list.setLoading();
     let result;
     try {
       result = image
@@ -123,7 +123,7 @@ function create(params = {}) {
     screen.setHints([["btn-cross", S.select], ["btn-circle", current.path ? S.hintUp : S.hintBack]]);
     const entries = paint(result);
     nav.ensure();
-    if (keepId) { const node = list.nodeOf ? list.nodeOf(keepId) : null; if (node) nav.focus(node); }
+    if (keepId) { const node = list.nodeOf(keepId); if (node) nav.focus(node); }
     if (image) loadThumbs(entries.filter((e) => e.type === "image"), mine);
   }
 
@@ -176,7 +176,7 @@ function create(params = {}) {
     el: screen.el,
     onPad(button, ev) {
       if (button === "circle" && !ev.repeat) { up(); return true; }
-      if ((button === "l2" || button === "r2") && list.page) { list.page(button === "r2" ? 1 : -1); return true; }
+      if (button === "l2" || button === "r2") { list.page(button === "r2" ? 1 : -1); return true; }
       return false;
     },
     onShow() { nav.ensure(); list.update(); },

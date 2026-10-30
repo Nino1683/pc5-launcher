@@ -517,9 +517,13 @@ class JobManager:
                 self._signal_worker(job_id, signal.SIGTERM)
         try:
             proc.stdin.write(json.dumps(spec).encode("utf-8"))    # über stdin: das Kennwort steht auf keiner Befehlszeile
-            proc.stdin.close()
         except OSError:
-            pass
+            pass                                 # Arbeiter schon weg: das meldet _read_events (kein Abschluss)
+        finally:
+            try:
+                proc.stdin.close()               # auch nach einem gescheiterten write, sonst bleibt die Leitung offen
+            except OSError:
+                pass
         del spec
         final = self._read_events(job, proc)
         with self._lock:
@@ -1079,14 +1083,18 @@ class JobManager:
             del self._jobs[old["id"]]
         volatile = ("cancel_requested", "killed", "worker_pid")
         jobs = [{k: v for k, v in job.items() if k not in volatile} for job in self._jobs.values()]
+        path = os.path.join(self._state_dir, JOBS_FILE)
+        tmp = "%s.%d.tmp" % (path, os.getpid())
         try:
             os.makedirs(self._state_dir, exist_ok=True)
-            path = os.path.join(self._state_dir, JOBS_FILE)
-            tmp = "%s.%d.tmp" % (path, os.getpid())
             with open(tmp, "w", encoding="utf-8") as fh:
                 fh.write(jsontext.dumps({"version": 1, "jobs": jobs}, indent=1))
             os.replace(tmp, path)
         except OSError as exc:
+            try:
+                os.unlink(tmp)                   # eigene Zwischendatei, etwa nach „Platte voll“
+            except OSError:
+                pass
             self._log("Auftragsliste nicht gespeichert: %s" % exc)
 
     def _rotate_log(self) -> None:

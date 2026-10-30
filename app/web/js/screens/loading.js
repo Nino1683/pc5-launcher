@@ -6,7 +6,7 @@
 //
 // setupLaunchFlow() verbindet die Ereignisse app.launching und app.error mit diesem Bildschirm
 // und dem Fehlerdialog (aufgerufen aus main.js).
-import { h, icon } from "../core/dom.js";
+import { h, hint } from "../core/dom.js";
 import { call, on } from "../core/bridge.js";
 import { router } from "../core/router.js";
 import { sound } from "../core/sound.js";
@@ -25,12 +25,12 @@ function create(params) {
   const text = h("div.load-text.ell", { text: sameSentence(params.text, titleText) ? "" : params.text || "" });
   const bar = h("div.load-bar.progress.is-plain.is-busy", h("i"));
   const note = h("div.load-note", { hidden: true });
-  const hint = h("div.hints.load-hint", h("div.hint", icon("btn-circle"), h("span", { text: S.launchHintCancel })));
+  const cancelHint = h("div.hints.load-hint", hint("btn-circle", S.launchHintCancel));
   const el = h("div.loading", { dataset: { id: entry.id } },
     hero ? h("img.load-hero", { src: hero, alt: "", decoding: "async" }) : null,
     h("div.load-cover", artBox(entry, { withTitle: false })),
     h("div.load-title.clamp2", { text: titleText }),
-    text, bar, note, hint);
+    text, bar, note, cancelHint);
   let phase = "";
   let asking = false;
 
@@ -51,7 +51,7 @@ function create(params) {
     note.hidden = !(handover || steamGame);
     if (handover) note.textContent = S.loadSteamApp;
     else if (steamGame) note.textContent = S.loadSteamGame;
-    hint.hidden = handover;
+    cancelHint.hidden = handover;
   }
 
   async function cancel() {

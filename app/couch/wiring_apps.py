@@ -77,6 +77,7 @@ TEXT_NOT_FLATPAK = "Diese App lässt sich hier nicht deinstallieren."
 TEXT_BUSY = "Es wird gerade schon eine App deinstalliert. Warte, bis das fertig ist."
 TEXT_RUNNING = "Schließe „%s“ zuerst, dann lässt es sich deinstallieren."
 TEXT_RUNNING_ELSEWHERE = "„%s“ läuft gerade an anderer Stelle, zum Beispiel im Desktop. Schließe es dort zuerst."
+TEXT_UNCHECKED = "Ob „%s“ gerade an anderer Stelle läuft, ließ sich nicht prüfen. Versuch es gleich noch einmal."
 TEXT_NOT_INSTALLED = "„%s“ ist nicht mehr installiert."
 TEXT_DONE = "„%s“ wurde deinstalliert."
 TEXT_DONE_OTHER = "„%s“ wurde deinstalliert. In der anderen Flatpak-Installation ist es noch vorhanden."
@@ -298,7 +299,10 @@ class AppsPart:
         if not where:
             self.rescan()
             return {"ok": True, "message": TEXT_NOT_INSTALLED % title}
-        if self.running_elsewhere(app_id):
+        elsewhere = self.running_elsewhere(app_id)
+        if elsewhere is None:                   # flatpak ps gescheitert: im Zweifel nicht (SAFETY 13, E140)
+            return {"ok": False, "message": TEXT_UNCHECKED % title}
+        if elsewhere:
             return {"ok": False, "message": TEXT_RUNNING_ELSEWHERE % title}
         installation = where[0]                 # die, aus der die Kachel startet (Nutzer vor System)
         argv = uninstall_argv(app_id, installation)
@@ -332,19 +336,17 @@ class AppsPart:
                                       new_session=True)
         return result.returncode, (result.stdout or "") + (result.stderr or "")
 
-    def running_elsewhere(self, app_id: str) -> bool:
-        """Läuft die App außerhalb des PC5 Launchers (flatpak ps, nur lesend)? Im Prüfmodus nie gefragt."""
+    def running_elsewhere(self, app_id: str) -> bool | None:
+        """Läuft die App außerhalb des PC5 Launchers (flatpak ps, nur lesend)? None, wenn sich das nicht prüfen
+        ließ (flatpak ps scheitert oder hängt). Im Prüfmodus nie gefragt."""
         if paths.test_mode():
             return False
-        from .launch import flatpak as launch_flatpak
+        from types import SimpleNamespace
 
-        class _Ctx:
-            @staticmethod
-            def run_read(argv: list, timeout: float = 5) -> tuple:
-                r = system.run_read(argv, timeout=timeout)
-                return r.returncode, r.stdout or "", r.stderr or ""
-        rows = launch_flatpak.running(_Ctx, app_id)
-        return bool(rows)
+        from . import wiring as wiring_mod
+        from .launch import flatpak as launch_flatpak
+        rows = launch_flatpak.running(SimpleNamespace(run_read=wiring_mod.read3), app_id)
+        return None if rows is None else bool(rows)
 
     # ------------------------------------------------------------ Bazaar
     def reveal(self, app: Any) -> None:
@@ -500,7 +502,8 @@ class AppsPart:
 
     def _unwatch_bazaar(self) -> None:
         timer, self._bazaar_timer = self._bazaar_timer, 0
-        if isinstance(timer, int) and timer > 1 and getattr(self.wiring, "apps_every", None) is None:
+        # GLib vergibt Quellen ab 1; der Platzhalter „or 1“ der Tests kommt nur mit apps_every vor
+        if isinstance(timer, int) and timer > 0 and getattr(self.wiring, "apps_every", None) is None:
             try:
                 from gi.repository import GLib
                 GLib.source_remove(timer)

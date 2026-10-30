@@ -7,7 +7,8 @@ import { openLayer } from "./layer.js";
 
 const PAGE = 6;                 // Einträge je L2/R2
 
-function same(a, b) {
+// Werte gleich, auch über den Typ hinweg (Zahl 30 und Text "30" aus der Auswahl); auch für rows.js
+export function sameValue(a, b) {
   return a === b || (a !== null && a !== undefined && b !== null && b !== undefined && String(a) === String(b));
 }
 
@@ -52,7 +53,7 @@ export function openPicker({ options, value, anchor, within = null }) {
     let stopMarquee = () => {};
     const items = [];
     for (const opt of list) {
-      const current = same(opt.value, value);
+      const current = sameValue(opt.value, value);
       const el = h("div.picker-item" + (current ? ".is-current" : "") + (opt.note ? ".has-note" : ""), { "data-focus": true },
         icon("check"),
         h("div.picker-text",

@@ -73,7 +73,9 @@ def extend(wiring: Any) -> None:
     def text_save(params: dict) -> dict:
         return textedit.save_text(params.get("path"), params.get("text"), params.get("expect"))
 
-    for name, fn in (("files.list", bg(list_)), ("files.text", bg(text)), ("files.image", image),
+    # files.image fragt files.allowed (realpath, Einhängungen unter /run/media): im Arbeits-Thread, eine
+    # schlafende FUSE-Platte hielte sonst die Oberfläche an. files.play braucht die Shell (Hauptschleife).
+    for name, fn in (("files.list", bg(list_)), ("files.text", bg(text)), ("files.image", bg(image)),
                      ("files.op", bg(op)), ("files.cancel", cancel), ("files.add", bg(add)), ("files.run", bg(run)),
                      ("files.play", play), ("files.trashList", bg(trash_list)),
                      ("files.textOpen", bg(text_open)), ("files.textSave", bg(text_save))):

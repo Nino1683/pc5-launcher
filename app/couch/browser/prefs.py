@@ -35,11 +35,18 @@ BADGE_COLORS = ("#4285f4", "#e62117", "#5a5f6b", "#de5833", "#9146ff", "#e7414b"
 
 def _web_url(url: object) -> str:
     url = str(url or "").strip()
-    return url if urllib.parse.urlsplit(url).scheme in ("http", "https") and len(url) <= 4096 else ""
+    try:
+        scheme = urllib.parse.urlsplit(url).scheme
+    except ValueError:                  # „http://[x“: kaputte Adresse (Startseite, Favoriten, Lesezeichen)
+        return ""
+    return url if scheme in ("http", "https") and len(url) <= 4096 else ""
 
 
 def host_of(url: str) -> str:
-    host = urllib.parse.urlsplit(url).hostname or ""
+    try:
+        host = urllib.parse.urlsplit(url).hostname or ""
+    except ValueError:
+        return ""
     return host[4:] if host.startswith("www.") else host
 
 

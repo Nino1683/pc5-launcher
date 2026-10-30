@@ -162,9 +162,9 @@ def listing(path: str | None, hidden: bool = False) -> dict:
     """Inhalt eines Ordners. Ohne path: die Orte."""
     places = roots()
     if not path:
+        found = [(r, entry_of(r["path"], r["name"])) for r in places]
         return {"ok": True, "path": None, "parent": None, "name": "",
-                "entries": [dict(entry_of(r["path"], r["name"]) or {}, kind=r["kind"]) for r in places
-                            if entry_of(r["path"])]}
+                "entries": [dict(e, kind=r["kind"]) for r, e in found if e is not None]}
     if not allowed(path, places):
         return {"ok": False, "code": "outside", "message": TEXT_OUTSIDE, "path": path, "entries": []}
     try:
@@ -223,6 +223,22 @@ def free_target(folder: str, name: str) -> str:
         if not os.path.lexists(path):
             return path
         n += 1
+
+
+def rename_free(src: str, folder: str, name: str) -> str:
+    """rename von src nach free_target(folder, name), nie über etwas Vorhandenes (installer/trash.rename_noreplace,
+    renameat2 mit RENAME_NOREPLACE): Ein os.rename ersetzte eine Datei (oder einen leeren Ordner), die zwischen der
+    Suche nach dem freien Namen und dem rename entstand. Dann gilt der nächste freie Name. Liefert das Ziel; nur
+    innerhalb eines Laufwerks (sonst OSError EXDEV)."""
+    from .installer import trash
+    for _ in range(100):
+        target = free_target(folder, name)
+        try:
+            trash.rename_noreplace(src, target)
+            return target
+        except FileExistsError:
+            continue                            # eben entstanden: der nächste freie Name
+    raise FileExistsError(errno.EEXIST, TEXT_EXISTS, os.path.join(folder, name))
 
 
 class SizeTimeout(Exception):
@@ -419,7 +435,9 @@ class FileOps:
         fertig aus und verleitete dazu, das Original zu löschen."""
         try:
             self._copy_any(job, src, target)
-        except BaseException:
+        except BaseException as e:
+            if isinstance(e, FileExistsError) and target in (e.filename, getattr(e, "filename2", None)):
+                raise                           # target entstand eben anderswo: nicht unseres, bleibt unberührt
             try:
                 st = os.lstat(target)
             except OSError:
@@ -433,8 +451,8 @@ class FileOps:
                 else:
                     os.unlink(target)
                 _log.info("Dateiauftrag %s: halbe Kopie %s entfernt", job.op, target)
-            except Exception as e:  # noqa: BLE001
-                _log.warning("Dateiauftrag %s: halbe Kopie %s bleibt liegen: %s", job.op, target, e)
+            except Exception as err:  # noqa: BLE001
+                _log.warning("Dateiauftrag %s: halbe Kopie %s bleibt liegen: %s", job.op, target, err)
             raise
 
     def _copy_any(self, job: Job, src: str, dst: str) -> None:
@@ -454,9 +472,10 @@ class FileOps:
 
     def _copy_file(self, job: Job, src: str, dst: str) -> None:
         job.current = os.path.basename(src)
-        ok = False
+        created = ok = False
         try:
             with open(src, "rb") as fin, open(dst, "xb") as fout:
+                created = True                  # erst jetzt ist dst unsere Datei (gab es sie, warf open)
                 while True:
                     if job.cancel.is_set():
                         raise Cancelled()
@@ -475,7 +494,7 @@ class FileOps:
             _copystat(src, dst)
             ok = True
         finally:
-            if not ok:
+            if created and not ok:
                 try:
                     os.unlink(dst)              # eigene halbe Kopie
                 except OSError:
@@ -492,13 +511,14 @@ class FileOps:
         for src in job.sources:
             if job.cancel.is_set():
                 raise Cancelled()
-            target = free_target(job.dest, os.path.basename(src.rstrip("/")))
+            name = os.path.basename(src.rstrip("/"))
             if src not in far:
-                os.rename(src, target)
+                target = rename_free(src, job.dest, name)
                 if not far:
                     job.done += 1
             else:
                 # anderes Laufwerk: kopieren, dann das Original in den Papierkorb (rückholbar)
+                target = free_target(job.dest, name)
                 self._copy_whole(job, src, target)
                 self.trash_fn(src)
                 via_copy += 1
@@ -569,7 +589,11 @@ class FileOps:
         target = os.path.join(os.path.dirname(src.rstrip("/")), job.name)
         if os.path.lexists(target):
             raise ValueError(TEXT_EXISTS)
-        os.rename(src, target)
+        from .installer import trash
+        try:
+            trash.rename_noreplace(src, target)     # ein os.rename ersetzte, was nach der Prüfung entstand
+        except FileExistsError:
+            raise ValueError(TEXT_EXISTS) from None
         return {"message": "Umbenannt.", "paths": [target]}
 
     def _mkdir(self, job: Job) -> dict:

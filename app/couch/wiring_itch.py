@@ -116,9 +116,7 @@ class ItchDownloads(wiring_store._FolderQueue):
         return job
 
     def _transient(self, e: BaseException) -> bool:
-        if isinstance(e, ItchError):
-            return itch_install.transient(e)
-        return itch_install.transient(e) or wiring_store._net_error(e)
+        return itch_install.transient(e) or wiring_store._net_error(e)    # ItchError ist nie ein Netzfehler von urllib
 
     def _retries(self) -> tuple:
         return ITCH_RETRY_S

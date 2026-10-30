@@ -14,7 +14,7 @@ import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
 import { sound } from "../core/sound.js";
-import { S, fmt } from "../core/strings.js";
+import { S, fmt, stampText } from "../core/strings.js";
 import { createListScreen } from "./file-browser.js";
 import { confirm, dialog, messageDialog } from "../components/dialog.js";
 import { toast } from "../components/toast.js";
@@ -27,11 +27,6 @@ const PARTS = [
   { id: "art", label: S.bkPartArt, count: (a) => fmt(S.bkCountArt, { n: a.art }) },
   { id: "prefs", label: S.bkPartPrefs, count: () => S.bkCountPrefs },
 ];
-
-function stamp(seconds) {
-  if (!seconds) return "";
-  return new Date(seconds * 1000).toLocaleString(S.locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
 
 function noteOf(item) {
   if (!item.ok) return S.bkBroken;
@@ -70,7 +65,7 @@ function create() {
     if (state.items === null) rows.push({ id: "_l", type: "info", label: S.bkLoading, enabled: false });
     else if (!state.items.length) rows.push({ id: "_none", type: "info", label: S.bkNone, enabled: false });
     for (const item of state.items || []) {
-      rows.push({ id: "b:" + item.path, type: "action", label: stamp(item.created) || item.name, value: sizeText(item.size),
+      rows.push({ id: "b:" + item.path, type: "action", label: stampText(item.created) || item.name, value: sizeText(item.size),
         note: noteOf(item), icon: !item.ok ? "warn" : item.safety ? "restart" : "archive", item });
     }
     return rows;
@@ -88,7 +83,7 @@ function create() {
     } else {
       const p = state.preview;
       screen.setTitle(S.bkPreview);
-      screen.setSub([stamp(p.item.created), p.item.system].filter(Boolean).join(" · "));
+      screen.setSub([stampText(p.item.created), p.item.system].filter(Boolean).join(" · "));
       screen.list.setRows(previewRows());
     }
     nav.ensure();
@@ -155,7 +150,7 @@ function create() {
     state.mode = "preview";
     const m = r.manifest || {};
     const fact = (title, text) => (text ? h("div.bk-block", h("div.saves-label", { text: title }), h("div.bk-text", { text })) : null);
-    factsEl.replaceChildren(...[fact(S.bkCreated, stamp(m.created || item.created)), fact(S.bkSystem, m.system || item.system),
+    factsEl.replaceChildren(...[fact(S.bkCreated, stampText(m.created || item.created)), fact(S.bkSystem, m.system || item.system),
       fact(S.bkFile, item.path)].filter(Boolean));
     paint();
     const first = screen.list.first();

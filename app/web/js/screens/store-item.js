@@ -8,7 +8,7 @@
 // Seite, läuft er stumm im Kopfbild (components/trailer.js, dieselben Abbruchregeln wie im Hub); in „Bilder“ stehen
 // vorn Kacheln „Trailer“ (je Trailer eine), Kreuz spielt ihn groß mit Ton (components/media-viewer.js), Links/Rechts
 // blättert über Trailer und Bilder. Store-Spiele sind nicht installiert: immer nur gestreamt, nichts auf der Platte.
-import { h, icon, cssPx } from "../core/dom.js";
+import { h, icon, cssPx, ensureStyle } from "../core/dom.js";
 import { call } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -21,12 +21,6 @@ import { activateEntry } from "../components/entry-actions.js";
 import { storeTrailer, storeTrailers } from "../components/gameinfo.js";
 import { mediaViewer } from "../components/media-viewer.js";
 import { createTrailer } from "../components/trailer.js";
-
-// Gestaltung des Trailers (.trailer) liegt in css/hub-info.css; die Store-Seite braucht sie auch ohne Hub
-function ensureTrailerStyle() {
-  if (document.querySelector("link[data-part=hub-info]")) return;
-  document.head.append(h("link", { rel: "stylesheet", href: "css/hub-info.css", "data-part": "hub-info" }));
-}
 
 // Browser des PC5 Launchers mit einer Adresse (Kaufen, Anmelden). Läuft vorn etwas anderes, fragt
 // die Seite wie bei jedem Start, ob es geschlossen werden darf.
@@ -140,7 +134,7 @@ function create(params = {}) {
   let serial = 0;
   let loading = false;
   // E132: Trailer im Kopfbild (stumm) und als Kacheln; die App-ID kennt die Seite erst mit der Antwort von store.item
-  ensureTrailerStyle();
+  ensureStyle("hub-info");              // Gestaltung des Trailers (.trailer) liegt dort; die Store-Seite braucht sie auch ohne Hub
   let trailers = [];
   let trailerFor = "";
   const steamId = () => (storeId === "steam" && /^\d+$/.test(id) ? id

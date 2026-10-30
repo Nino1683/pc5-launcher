@@ -12,8 +12,6 @@ es gibt hier keine Adressen dafür (SAFETY 13).
 """
 from __future__ import annotations
 
-FLATHUB = "flathub"
-
 # ---------------------------------------------------------------- Systeme (Ordnernamen wie EmuDeck/ES-DE)
 # ordner: (Name in der Oberfläche, Marke auf der Kachel)
 SYSTEMS = {

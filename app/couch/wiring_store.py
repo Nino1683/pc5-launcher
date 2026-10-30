@@ -225,14 +225,16 @@ class SteamDownloads:
             job["cancel"] = True
             job["state"] = "cancelling"
             self._save()
+        self.start()
         self.wake.set()
         return True
 
     # ------------------------------------------------------------ Faden
     def start(self) -> None:
-        if self.thread is None or not self.thread.is_alive():
-            self.thread = threading.Thread(target=self._run, name="couch-store-steam", daemon=True)
-            self.thread.start()
+        with self.lock:                         # wie in _run: sonst endete ein Faden, der den neuen Auftrag nicht sah
+            if self.thread is None or not self.thread.is_alive():
+                self.thread = threading.Thread(target=self._run, name="couch-store-steam", daemon=True)
+                self.thread.start()
 
     def stop(self) -> None:
         self.closed = True
@@ -248,7 +250,10 @@ class SteamDownloads:
                 busy = True
             self.wiring.main.post(self.publish)
             if not busy:
-                return                          # nichts mehr zu tun; add() startet neu
+                with self.lock:
+                    if not self.queue:
+                        self.thread = None      # nichts mehr zu tun; add() startet neu
+                        return
             self.wake.wait(STEP_S)
             self.wake.clear()
 
@@ -316,6 +321,7 @@ class SteamDownloads:
         for job in finished:
             self._finished(job)
         with self.lock:
+            pending = bool(self.queue)
             left = [j for j in self.queue if not j.get("cancel")]
             # Lädt Steam gar nichts (kein Download hat je angefangen), ist etwas faul: meist gehört
             # das Spiel nicht dem angemeldeten Konto. Dann abbrechen statt ewig zu warten.
@@ -335,7 +341,8 @@ class SteamDownloads:
         if not left:
             if runner_alive:
                 self._stop_runner()
-            return False
+            # Kam ein Abbruch erst während dieses Durchgangs (die Kopie oben kannte ihn nicht), räumt der nächste ab
+            return pending
         if not runner_alive and not client:
             if self.clock() - self.runner_failed_at < 30:
                 return True
@@ -499,16 +506,20 @@ class SteamDownloads:
             log_fh = open(log.capped(paths.app_log("steam-download-helper")), "a")
         except OSError:
             log_fh = None
+        import subprocess
         try:
             from .wiring import _popen_bound
-            self.runner = _popen_bound([helper, "--download"], env=env, stdin=open(os.devnull),
-                                       stdout=log_fh or open(os.devnull, "w"), stderr=log_fh or None)
+            self.runner = _popen_bound([helper, "--download"], env=env, stdin=subprocess.DEVNULL,
+                                       stdout=log_fh or subprocess.DEVNULL, stderr=log_fh or None)
             _log.info("Hintergrund-Steam für Downloads gestartet (PID %d)", self.runner.pid)
         except OSError as e:
             _log.warning("Hintergrund-Steam startet nicht: %s", e)
             now = self.clock()
             self.runner_failed_at = now
             self.fails = [t for t in self.fails if now - t < RUNNER_FAILS_WINDOW_S] + [now]
+        finally:
+            if log_fh is not None:
+                log_fh.close()                  # das Kind hat seine eigene Kopie
 
     def _stop_runner(self) -> None:
         runner = self.runner
@@ -827,13 +838,18 @@ class _FolderQueue(_StoreQueue):
             job["state"] = "cancelling"
             self._save()
             proc = self.proc if job is (self.queue[0] if self.queue else None) else None
+        self._term_group(proc)
+        self.start()                            # ein wartender Auftrag (etwa nach einem Neustart) wird so aufgeräumt
+        return True
+
+    @staticmethod
+    def _term_group(proc: Any) -> None:
+        """SIGTERM an die eigene Sitzung des Installers (start_new_session), falls er noch läuft."""
         if proc is not None and proc.poll() is None:
             try:
                 os.killpg(proc.pid, signal.SIGTERM)
             except OSError:
                 pass
-        self.start()                            # ein wartender Auftrag (etwa nach einem Neustart) wird so aufgeräumt
-        return True
 
     def stop(self) -> None:
         """Ende des Home: anhalten, nichts in den Papierkorb, nichts melden. Die Datei behält den Stand
@@ -843,11 +859,7 @@ class _FolderQueue(_StoreQueue):
             for job in self.queue:
                 job["cancel"].set()
             proc = self.proc
-        if proc is not None and proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
-            except OSError:
-                pass
+        self._term_group(proc)
 
     def _transient(self, e: BaseException) -> bool:
         return _net_error(e)
@@ -1015,6 +1027,9 @@ class _FolderQueue(_StoreQueue):
         with open(log_path, "a") as log_fh:
             self.proc = subprocess.Popen(argv, env=env, cwd=os.path.dirname(installer), stdin=subprocess.DEVNULL,
                                          stdout=log_fh, stderr=log_fh, start_new_session=True)
+            if job["cancel"].is_set():
+                # Abbruch (oder Ende des Home) zwischen Vorbereitung und Start: cancel() sah noch keinen Prozess
+                self._term_group(self.proc)
             try:
                 rc = self.proc.wait(timeout=3 * 3600)
             except subprocess.TimeoutExpired:
@@ -1048,7 +1063,14 @@ class _FolderQueue(_StoreQueue):
         if match and ctx is not None and marker.get("entry_id") == entry_id:
             prefix_dir = os.path.join(ctx.prefix_root_dir(), "local-" + match.group(1))
             if os.path.isdir(prefix_dir) and not os.path.islink(prefix_dir):
-                trash.append(prefix_dir)
+                # wie wiring_install.discard_prefix: nie einen Prefix, in dem gerade Wine läuft (auch ein fremdes)
+                from .launch import proton
+                from .launch.spec import LaunchError
+                try:
+                    proton.prefix_free(prefix_dir, proc_root=self.PROC_ROOT, settle=False)
+                    trash.append(prefix_dir)
+                except LaunchError:
+                    _log.info("%s: Prefix %s bleibt liegen: darin läuft noch Wine", self.NAME, prefix_dir)
         for path in trash:
             try:
                 files.gio_trash(path)
@@ -1067,9 +1089,8 @@ class GogDownloads(_FolderQueue):
     LOG_NAME, REGISTRY = "gog-install", "gog-installed.json"
     EXPECTED = (gog_account.GogError, OSError)
 
-    def __init__(self, wiring: Any, account: "gog_account.GogAccount", clock=time.time):
+    def __init__(self, wiring: Any, account: "gog_account.GogAccount"):
         self.account = account
-        self.clock = clock
         super().__init__(wiring)
 
     def _valid(self, raw: dict) -> bool:
@@ -1077,9 +1098,6 @@ class GogDownloads(_FolderQueue):
 
     def _transient(self, e: BaseException) -> bool:
         return _transient(e)
-
-    def _retries(self) -> tuple:
-        return GOG_RETRY_S
 
     def _marker_extra(self, job: dict) -> dict:
         return {"product": job["id"]}

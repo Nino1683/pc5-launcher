@@ -22,6 +22,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .. import system
+
 # Kennungen der Shop-Webseite (store.ubisoft.com, wa_data; dieselben wie Lutris seit 2026-02).
 # Ubisoft tauscht sie alle paar Monate; UbisoftStore.web_ids() liest die aktuellen von der Shop-Seite.
 APP_ID = "82b650c0-6cb3-40c0-9f41-25a53b62b206"
@@ -73,13 +75,9 @@ def _put(url: str, headers: dict, body: dict | None = None):
 
 
 def _write_private(path: str, data: dict) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    tmp = path + ".neu"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-    os.chmod(tmp, 0o600)        # falls die Datei schon da war (O_CREAT setzt Rechte nur beim Anlegen)
-    os.replace(tmp, path)
+    """JSON atomar und nur für dich lesbar (0600). Eigene Zwischendatei je Prozess und Thread (Browser und Home
+    schreiben dieselbe Datei); eine liegengebliebene ältere Zwischendatei bestimmt nie die Rechte (E99)."""
+    system.write_atomic(path, json.dumps(data), 0o600)
 
 
 def _iso(text) -> float | None:

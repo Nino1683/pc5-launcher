@@ -33,7 +33,7 @@ PACKAGES = (".deb", ".rpm", ".dmg", ".apk", ".pkg", ".aab", ".ipa", ".snap", ".f
 # Dateien, die als „default“ hochgeladen, aber kein Spiel sind (wie Lutris)
 NOT_GAMES = ("wallpaper", "soundtrack", "artbook", "art book", "artwork", "poster", "manual", "source code")
 ARM = ("arm64", "aarch64", "armhf", "armv7", "arm32")
-INNO_ARGS = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/NOICONS"]
+INNO_ARGS = gog_install.INNO_ARGS     # dieselben stillen Schalter wie bei GOG
 RETRY_CODES = (403, 408, 410, 429)     # abgelaufene CDN-Adresse oder Störung: neuer Versuch, frische Adresse
 
 MSG_BROWSER = "Dieses Spiel läuft nur im Browser."

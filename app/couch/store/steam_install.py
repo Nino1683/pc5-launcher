@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 
+from .. import files
 from ..library import steam as steam_lib
 
 FULLY_INSTALLED = 4
@@ -22,22 +23,6 @@ UPDATE_REQUIRED = 2
 UPDATE_STARTED = 1024
 NEW_STATE = UPDATE_REQUIRED | UPDATE_STARTED            # 1026: Steam lädt beim nächsten Start
 SKIP_FS = ("ntfs", "ntfs3", "fuseblk", "vfat", "exfat", "msdos")   # Steam-Spiele dort machen Ärger
-
-
-def _fs_type(path: str) -> str:
-    """Dateisystem des Einhängepunkts, zu dem path gehört (aus /proc/self/mounts)."""
-    best, fs = "", ""
-    try:
-        with open("/proc/self/mounts", encoding="utf-8") as fh:
-            for line in fh:
-                parts = line.split()
-                if len(parts) >= 3:
-                    mnt = parts[1].replace("\\040", " ")
-                    if (path == mnt or path.startswith(mnt.rstrip("/") + "/")) and len(mnt) > len(best):
-                        best, fs = mnt, parts[2]
-    except OSError:
-        pass
-    return fs
 
 
 def libraries(ctx) -> list[dict]:
@@ -49,7 +34,7 @@ def libraries(ctx) -> list[dict]:
         steamapps = os.path.join(path, "steamapps")
         if not lib["mounted"] or not os.access(steamapps, os.W_OK):
             continue
-        fs = _fs_type(os.path.realpath(path))
+        fs = files.fs_type(path)            # löst den Pfad selbst auf (mountinfo, wie der Datei-Explorer)
         if fs in SKIP_FS:
             continue
         try:
@@ -138,10 +123,15 @@ def write_manifest(lib_path: str, appid: int, name: str, installdir: str, owner:
     if os.path.lexists(path):
         raise FileExistsError(path)
     tmp = path + ".couch-neu"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write(manifest_text(appid, name, installdir, owner))
-    os.link(tmp, path)          # schlägt fehl, falls es ihn inzwischen gibt; nie überschrieben
-    os.unlink(tmp)
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(manifest_text(appid, name, installdir, owner))
+        os.link(tmp, path)      # schlägt fehl, falls es ihn inzwischen gibt; nie überschrieben
+    finally:
+        try:
+            os.unlink(tmp)      # nur die eigene Zwischendatei, auch wenn link scheitert
+        except FileNotFoundError:
+            pass
     return path
 
 

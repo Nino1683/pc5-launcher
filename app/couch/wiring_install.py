@@ -167,7 +167,9 @@ class _Hub:
         payload = payload or {}
         if event == "install.done" and payload.get("ok"):
             pending = self._adding.get(str(payload.get("entryId") or ""))
-            if pending is not None and not pending.done():
+            # Auch wenn das Anlegen schon fertig ist: Dessen Rückruf (finished, setzt _add_failed) steht dann
+            # womöglich noch in der Hauptschleife an, und „fertig“ meldete fälschlich „steht in der Bibliothek“
+            if pending is not None:
                 self._hold_done(payload, pending)
                 return
         self._deliver(event, payload)

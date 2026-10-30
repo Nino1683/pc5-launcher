@@ -510,12 +510,7 @@ class SystemArea:
 
     def _launcher(self):
         """Der Dienst selfupdate.SelfUpdate (wiring_selfupdate) oder None: dann entfallen Zeile und Seite."""
-        fn = self.deps.extra.get("late")
-        try:
-            svc = fn("self_update") if callable(fn) else None
-        except Exception:  # noqa: BLE001
-            log.exception("self_update")
-            return None
+        svc = R.late_part(self.deps.extra, "self_update", log)
         return svc if callable(getattr(svc, "status", None)) else None
 
     def _launcher_status(self) -> dict | None:
@@ -646,15 +641,7 @@ class SystemArea:
         fn = self.deps.extra.get("power")
         if not callable(fn):
             raise SettingsError("Das ist gerade nicht verfügbar.")
-        try:
-            fn("restart-session")
-        except SettingsError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            message = getattr(e, "message", None)
-            if isinstance(message, str) and message:
-                raise SettingsError(message) from e
-            raise
+        R.call_or_raise(fn, "restart-session")
         return None
 
     def _proton_update_rows(self) -> list:

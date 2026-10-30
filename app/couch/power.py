@@ -49,7 +49,7 @@ from concurrent.futures import Future
 from typing import Any, Callable
 
 from . import intro, log, paths, sinknote, system
-from .rpc import RpcError
+from .rpc import RpcError, chain
 
 _log = log.get("power")
 
@@ -156,7 +156,7 @@ class Power:
 
     def _menu(self, can: dict[str, bool]) -> dict:
         shell = self.app.shell
-        running = [a for a in self.app.procs.running()]
+        running = list(self.app.procs.running())
         closing, busy = self._interruptions()
         # confirm: die Rückfrage, die zu diesem Eintrag jetzt nötig wäre ({title, text, ok}
         # oder None). Fragt die Seite damit selbst, ruft sie power.do mit confirmed: true.
@@ -260,7 +260,10 @@ class Power:
             except Exception:
                 _log.exception("logind-Abfrage")
                 self._can = {}
-            fut.set_result(self._menu(self._can))
+            try:
+                fut.set_result(self._menu(self._can))
+            except Exception as e:              # sonst bekäme die Seite erst nach der Zeitgrenze eine Antwort
+                fut.set_exception(e)
         work.add_done_callback(lambda f: self.app.shell.sched.soon(lambda: done(f)))
         return fut
 
@@ -350,9 +353,13 @@ class Power:
         fut: Future = Future()
         self.busy = action                          # solange die Frage steht, keine zweite Aktion
         _log.info("power.do %s: Rückfrage (%s)", action, question["text"].replace("\n", " | "))
-        asked = self.app.shell.confirm(question["title"], question["text"],
-                                       [{"value": "yes", "label": question["ok"]},
-                                        {"value": "no", "label": "Abbrechen"}], default="no")
+        try:
+            asked = self.app.shell.confirm(question["title"], question["text"],
+                                           [{"value": "yes", "label": question["ok"]},
+                                            {"value": "no", "label": "Abbrechen"}], default="no")
+        except Exception:
+            self.busy = None                        # wie _ask_key: sonst hieße jede weitere Aktion „Busy“
+            raise
 
         def answered(done: Future) -> None:
             self.busy = None
@@ -365,8 +372,7 @@ class Power:
                 fut.set_exception(e if isinstance(e, RpcError) else RpcError(
                     FAILED.get(action, "Das hat nicht geklappt."), "PowerFailed"))
                 return
-            inner.add_done_callback(lambda f: fut.set_exception(f.exception())
-                                    if f.exception() else fut.set_result(f.result()))
+            inner.add_done_callback(lambda f: chain(f, fut))
         asked.add_done_callback(answered)
         return fut
 

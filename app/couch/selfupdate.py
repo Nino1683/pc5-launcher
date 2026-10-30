@@ -236,17 +236,9 @@ def _net_error(e: BaseException) -> UpdateError:
 # ================================================================ Installation erkennen
 
 def read_small(path: str, limit: int = 256) -> str:
-    """Kurze eigene Textdatei lesen, nie über einen Verweis; "" wenn es sie nicht gibt."""
-    try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    except OSError:
-        return ""
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            return ""
-        return os.read(fd, limit).decode("utf-8", "replace")
-    finally:
-        os.close(fd)
+    """Kurze eigene Textdatei lesen, nie über einen Verweis; "" wenn es sie nicht gibt oder ein Lesefehler kommt
+    (changelog.read_own; vorher ging ein Lesefehler als OSError bis in status() und die Seite)."""
+    return changelog.read_own(path, limit)
 
 
 def install_kind(own: str, data_dir: str, release_dir: str) -> tuple[str, str]:

@@ -182,7 +182,7 @@ function create() {
   return {
     el: screen.el,
     onPad(button) {
-      if ((button === "l2" || button === "r2") && list.page) { list.page(button === "r2" ? 1 : -1); return true; }
+      if (button === "l2" || button === "r2") { list.page(button === "r2" ? 1 : -1); return true; }
       return false;
     },
     onShow(info) { nav.ensure(); list.update(); if (info && info.back) load(); },

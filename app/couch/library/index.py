@@ -30,7 +30,7 @@ from typing import Any, Callable
 
 from .. import jsontext, log, paths, system
 from . import describe
-from .model import OPTION_DEFAULTS, Entry, logo_value, pad_spots_value, source_title
+from .model import OPTION_DEFAULTS, Entry, logo_value, pad_keys_value, pad_spots_value, source_title
 
 _log = log.get("library")
 
@@ -1315,10 +1315,6 @@ class LibraryIndex:
 
 
 # ---------------------------------------------------------------- RPC lib.*
-_human_time = describe.human_time
-_human_date = describe.human_date
-
-
 _RESOLUTIONS = ("native", "1440p", "1080p")          # wie model.OPTION_DEFAULTS und perf.RESOLUTIONS
 PAD_LOOKS = (0.5, 0.75, 1.0, 1.5, 2.0)                 # Spiel-Modus des Pads (E64): Tempo des Umschauens
 _PERF_LEVELS = ("", "off", "fps", "bar", "detailed")
@@ -1380,12 +1376,7 @@ def check_option(key: str, value: Any) -> Any:
             raise ValueError("Umgebungsvariablen müssen Paare aus Name und Text sein.")
         return value
     if key == "pad_keys":
-        # E109 (Teil P12): Tastenbelegung je Spiel, geprüft in model.pad_keys_value ({} = Standard)
-        from . import model
-        check = getattr(model, "pad_keys_value", None)
-        if check is None:
-            raise ValueError("Die Tastenbelegung gibt es in dieser Fassung noch nicht.")
-        return check(value)
+        return pad_keys_value(value)        # E109: Tastenbelegung je Spiel ({} = Standard)
     if not isinstance(value, str):
         raise ValueError("Hier wird ein Text erwartet.")
     return value

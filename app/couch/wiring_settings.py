@@ -1120,7 +1120,7 @@ def epic_update(wiring: Any, app_name: str) -> str:
     """Ein Epic-Spiel über die Warteschlange des Stores aktualisieren (Fortschritt unter Downloads)."""
     dl = getattr(wiring, "epic_downloads", None)
     if dl is None:
-        raise _settings_error("Das ist gerade nicht verfügbar.")
+        raise _settings_error(UNAVAILABLE)
     reg = dl.installed().get(app_name) or {}
     game = next((g for g in (getattr(getattr(wiring, "update_watch", None), "found", {}) or {}).get("games") or []
                  if g.get("app") == app_name), {})
@@ -1157,11 +1157,11 @@ def setup_updates(wiring: Any) -> Any:
     from . import updates
     from .library.apps import APPS, CHROME
     app = wiring.app
-    names = {app[3]: app[1] for app in APPS if app[2] == "flatpak"}    # (id, Titel, Art, Ziel, …): E105 hängt Felder an
+    names = {row[3]: row[1] for row in APPS if row[2] == "flatpak"}    # (id, Titel, Art, Ziel, …): E105 hängt Felder an
     names[CHROME] = "Google Chrome"             # die Kachel „Browser“ ist seit E59 der eigene Browser
 
     def os_state() -> tuple[bool, str]:
-        system_area, updater = _updater(wiring)
+        _system, updater = _updater(wiring)
         if updater is None:
             return False, ""
         st = updater.status()
@@ -1474,7 +1474,7 @@ def update_check(wiring: Any) -> dict | None:
     """Arbeits-Thread: die tägliche Suche nach System-Updates (E32). Der Updater sucht höchstens
     einmal je Tag und nie, solange ein Spiel läuft. Findet er etwas: eine Mitteilung und die
     Marke am Zahnrad. Installiert wird nur auf Knopfdruck in den Einstellungen."""
-    system, updater = _updater(wiring)
+    _system, updater = _updater(wiring)
     if updater is None:
         return None
     try:
@@ -1544,8 +1544,7 @@ def _size_changed(wiring: Any) -> None:
     if p.closed:
         return
 
-    def settled() -> None:
-        p.size_timer = None
+    def settled() -> None:                  # Arbeits-Thread: den Griff nicht anfassen, die Hauptschleife setzt ihn neu
         tree = wiring.tree
         display = tree.area("display") if tree is not None else None
         if display is not None and hasattr(display, "refresh"):
@@ -1573,8 +1572,7 @@ def net_start(wiring: Any) -> None:
         p.scheduler.cancel(p.net_timer)
         p.net_timer = p.scheduler.later(NET_DEBOUNCE_S, changed)
 
-    def changed() -> None:
-        p.net_timer = None
+    def changed() -> None:                  # Arbeits-Thread, wie settled oben: den Griff nicht anfassen
         push_network(wiring, fresh=True)
         _emit_changed(wiring, "network")        # eine offene Netzwerk-Seite zeichnet neu
     p.net = NetWatch(event, popen=p.popen)

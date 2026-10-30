@@ -15,7 +15,7 @@
 //   page               diese Seite öffnen    ui (+params)       eigener Bildschirm, wenn angemeldet (E103)
 //   notes              „Was ist neu“ (E133): Changelog zum Blättern (components/update-notes.js)
 //   confirm            (falls der Kern selbst nachfragt) Rückfrage, dann noch einmal mit confirmed
-import { h, icon } from "../core/dom.js";
+import { h, hint } from "../core/dom.js";
 import { call, on } from "../core/bridge.js";
 import { nav } from "../core/nav.js";
 import { router } from "../core/router.js";
@@ -39,7 +39,7 @@ const SLOW_HINT_MS = 8000;       // antwortet eine Seite so lange nicht, sagt de
 const TRIAL_KEEP = "trial-keep";
 const TRIAL_REVERT = "trial-revert";
 function hints(...items) {
-  return h("div.hints", items.map(([glyph, text]) => h("div.hint", icon(glyph), h("span", { text }))));
+  return h("div.hints", items.map(([glyph, text]) => hint(glyph, text)));
 }
 
 // Bildschirmtastatur für eine Text-Zeile (components/osk-input.js). Bei Abbruch bleibt der alte
