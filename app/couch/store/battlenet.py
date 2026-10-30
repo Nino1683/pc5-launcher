@@ -24,8 +24,8 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from . import cache
-from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, strip_html
+from . import cache, net
+from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, price_label, strip_html
 
 SHOP = "https://eu.shop.battle.net"
 LOCALE = "de-de"
@@ -160,10 +160,8 @@ def _get(url: str, timeout: float = TIMEOUT_S) -> str:
     jar = http.cookiejar.CookieJar()
     jar.set_cookie(_cookie("autoLoginChecked-next", "1", urllib.parse.urlsplit(SHOP).hostname))
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "RSC": "1", "Accept-Language": "de-DE,de;q=0.9",
-                                               "Accept": "text/x-component, text/html;q=0.9, */*;q=0.5"})
-    with opener.open(req, timeout=timeout) as resp:      # noqa: S310 (feste https-Adressen)
-        return resp.read(16 * 1024 * 1024).decode("utf-8", "replace")
+    return net.get_text(url, {"User-Agent": USER_AGENT, "RSC": "1", "Accept-Language": "de-DE,de;q=0.9",
+                              "Accept": "text/x-component, text/html;q=0.9, */*;q=0.5"}, timeout, opener=opener)
 
 
 def _cookie(name: str, value: str, host: str) -> http.cookiejar.Cookie:
@@ -310,8 +308,8 @@ def page_nav(rows: dict) -> list[dict]:
                 if not m or dest in seen:
                     continue
                 seen.add(dest)
-                out.append({"title": _clean(it.get("text")), "kind": m.group(1), "slug": m.group(2),
-                            "genre": _clean(it.get("category"))})
+                out.append({"title": clean_name(it.get("text")), "kind": m.group(1), "slug": m.group(2),
+                            "genre": clean_name(it.get("category"))})
         break
     return out
 
@@ -335,7 +333,7 @@ def page_product(rows: dict) -> dict:
     for p in state.get("products") or []:
         if not isinstance(p, dict) or not p.get("id"):
             continue
-        editions.append({"id": p.get("id"), "name": _clean(p.get("name")),
+        editions.append({"id": p.get("id"), "name": clean_name(p.get("name")),
                          "price": (p.get("priceInfo") or {}).get("price") if isinstance(p.get("priceInfo"), dict) else None,
                          "free": bool(p.get("freeToPlay")), "coming_soon": bool(p.get("comingSoon")),
                          "available": p.get("available") is not False,
@@ -356,9 +354,9 @@ def page_product(rows: dict) -> dict:
         for f in sec.get("features") or []:
             if isinstance(f, dict):
                 img = f.get("image") if isinstance(f.get("image"), dict) else {}
-                feats.append({"name": _clean(f.get("name")), "text": str(f.get("description") or ""),
+                feats.append({"name": clean_name(f.get("name")), "text": str(f.get("description") or ""),
                               "image": str(img.get("url") or ""), "w": _int(img.get("width")), "h": _int(img.get("height"))})
-        sections.append({"title": _clean(sec.get("title")), "summary": str(sec.get("summary") or ""), "features": feats})
+        sections.append({"title": clean_name(sec.get("title")), "summary": str(sec.get("summary") or ""), "features": feats})
     details = page.get("details") if isinstance(page.get("details"), dict) else {}
     ld = {}
     for v in rows.values():
@@ -370,12 +368,12 @@ def page_product(rows: dict) -> dict:
             break
 
     def names(items) -> list[str]:
-        return [_clean((d.get("image") or {}).get("description")) for d in items or []
+        return [clean_name((d.get("image") or {}).get("description")) for d in items or []
                 if isinstance(d, dict) and isinstance(d.get("image"), dict) and (d["image"].get("description") or "").strip()]
-    return {"title": _clean(page.get("title")), "slug": str(page.get("slug") or ""),
+    return {"title": clean_name(page.get("title")), "slug": str(page.get("slug") or ""),
             "code": str(page.get("appGameCode") or ""), "title_id": _int(page.get("titleId")),
-            "category": _clean(page.get("category")),
-            "genre": _clean(((details.get("genre") or {}) if isinstance(details.get("genre"), dict) else {}).get("name")),
+            "category": clean_name(page.get("category")),
+            "genre": clean_name(((details.get("genre") or {}) if isinstance(details.get("genre"), dict) else {}).get("name")),
             "developers": names(page.get("developers")) or names(page.get("publishers")),
             "marketing": str(page.get("marketingText") or ""), "sections": sections, "gallery": gallery,
             "editions": editions,
@@ -383,8 +381,9 @@ def page_product(rows: dict) -> dict:
 
 
 # ---------------------------------------------------------------------- Karten
-def _clean(text) -> str:
-    """Titel ohne ®/™ und feste Leerzeichen („Diablo® IV: Lord of Hatred – …“)."""
+def clean_name(text) -> str:
+    """Titel ohne ®/™/© und feste Leerzeichen („Diablo® IV: Lord of Hatred – …“); auch für die Namen im Konto
+    (battlenet_account)."""
     text = re.sub(r"[®™©]", "", str(text or "")).replace("\xa0", " ")
     return re.sub(r"\s+", " ", text).strip()
 
@@ -400,10 +399,6 @@ def _int(value) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
-
-
-def _euro(text) -> str:
-    return str(text or "").replace("\xa0", " ").strip()
 
 
 def sized(url: str, width: int) -> str:
@@ -424,7 +419,7 @@ def _money(price: dict) -> dict | None:
     (Platin, Kugeln, „Mehr erfahren“, Abos „/Monat“)."""
     if not isinstance(price, dict) or price.get("virtualCurrency"):
         return None
-    full, now = _euro(price.get("fullAmount")), _euro(price.get("discountAmount"))
+    full, now = price_label(price.get("fullAmount")), price_label(price.get("discountAmount"))
     if not full.endswith("€") or (now and not now.endswith("€")):
         return None
     try:
@@ -465,12 +460,12 @@ def card(raw: dict, family: str = "") -> dict | None:
     code = SLUG_CODES[slug] if slug in SLUG_CODES else FAMILY_CODES.get(family, "")
     badge = raw.get("marketingBadge") if isinstance(raw.get("marketingBadge"), dict) else {}
     image = raw.get("image") if isinstance(raw.get("image"), dict) else {}
-    return {"store": "battlenet", "id": slug, "title": _clean(raw.get("title")), "slug": slug,
+    return {"store": "battlenet", "id": slug, "title": clean_name(raw.get("title")), "slug": slug,
             "image": sized(image.get("url"), CARD_WIDTH),
             "price": "Kostenlos" if free else money["price"], "discount": 0 if free else money["discount"],
             "original": "" if free else money["original"], "code": code,
             "title_id": CODES.get(code, {}).get("title_id", 0) if code else 0,
-            "genre": cat, "badge": _clean(badge.get("text")), "raw_price": 0.0 if free else money["raw"]}
+            "genre": cat, "badge": clean_name(badge.get("text")), "raw_price": 0.0 if free else money["raw"]}
 
 
 def merge(cards: list[dict]) -> list[dict]:
@@ -604,7 +599,7 @@ class BattlenetStore:
         (rund 50 Spiele); gefiltert wird im Speicher."""
         page = max(0, int(page))
         if kind == "search":
-            term = _clean(term)[:100].casefold()
+            term = clean_name(term)[:100].casefold()
             if not term:
                 return {"items": [], "total": 0, "more": False}
         elif kind not in {k for k, _label in TABS}:

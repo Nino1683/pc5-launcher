@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 
+from .. import mounts as _mounts
 from . import InstallError
 from . import probe, setupexe, trash
 
@@ -73,22 +74,14 @@ def _root_of(real: str, roots: list) -> dict | None:
     return best
 
 
-def _slow_filesystem(real: str, mountinfo: str = "/proc/self/mountinfo") -> bool:
-    """Liegt real auf FUSE, NTFS, einem Netzlaufwerk oder Ähnlichem? Dann nur das Nötigste lesen."""
-    best, fstype = "", ""
+def _slow_filesystem(real: str, mountinfo: str | None = None) -> bool:
+    """Liegt real (schon aufgelöst) auf FUSE, NTFS, einem Netzlaufwerk oder Ähnlichem? Dann nur das Nötigste lesen.
+    couch.mounts ohne realpath (kein Zugriff auf die langsame Platte); mountinfo nicht lesbar: im Zweifel langsam."""
     try:
-        with open(mountinfo, encoding="utf-8", errors="surrogateescape") as fh:
-            for line in fh:
-                left, _, right = line.partition(" - ")
-                fields = left.split(" ")
-                if len(fields) < 5:
-                    continue
-                point = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), fields[4])
-                if (real == point or real.startswith(point.rstrip("/") + "/")) and len(point) >= len(best):
-                    best, fstype = point, right.split(" ")[0]
+        mount = _mounts.find(real, _mounts.read(mountinfo))
     except OSError:
         return True
-    return fstype.lower().startswith(SLOW_FSTYPES)
+    return (mount.fstype if mount else "").lower().startswith(SLOW_FSTYPES)
 
 
 def archive_type_by_name(name: str) -> str | None:

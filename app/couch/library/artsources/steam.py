@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import json
 
+from ...store.steam import ITEMS_URL  # eine Adresse für Shop und Bilder (artfetch nimmt sie von hier)
 from . import match
 from .base import Source, host_of, image
 
 SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
-ITEMS_URL = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1"
 CDN_URL = "https://shared.akamai.steamstatic.com/store_item_assets/"
 
 # Unser Name -> Schlüssel in der Antwort von GetItems, die beste Fassung zuerst

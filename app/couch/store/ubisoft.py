@@ -21,10 +21,9 @@ import threading
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 
-from . import cache
-from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, price_text, strip_html
+from . import cache, net
+from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, euro, failed_sentence, strip_html
 
 HOME = "https://store.ubisoft.com/de/home"
 ALGOLIA = "https://%s-dsn.algolia.net/1/indexes/%s/query"
@@ -40,6 +39,8 @@ CONFIG_TTL = 12 * 3600
 META_TTL = 4 * DETAIL_TTL
 NOT_REACHABLE = "Der Ubisoft-Shop ist gerade nicht erreichbar."
 NO_DETAILS = "Zu diesem Spiel hat Ubisoft keine Angaben."
+FAILED, FAILED_WITH = "Der Ubisoft-Shop meldet einen Fehler.", "Der Ubisoft-Shop meldet einen Fehler: %s."
+FREE = "Kostenlos"                # 0 € heißt bei Ubisoft kostenlos (Preise als Zahl: steam.euro)
 # Werte der Shop-Seite vom 2026-10-22; gelten, bis die Seite andere nennt
 FALLBACK = {"app": "XELY3U4LOD", "key": "5638539fd9edb8f2c6b024b49ec375bd",
             "index": "production__de_ubisoft__products__de_DE__best_sellers",
@@ -65,23 +66,19 @@ GENRES = (("action", "Action & Abenteuer", ("Action / Adventure",)),
 CARD_W, HERO_W, SHOT_W = 800, 1920, 1280
 
 
-def _read(req) -> tuple[str, str]:
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:     # noqa: S310 (feste https-Adressen)
-        return resp.headers.get("Content-Type", ""), resp.read(16 * 1024 * 1024).decode("utf-8", "replace")
-
-
 def _get(url: str):
     """JSON als dict/list, alles andere (die Shop-Seite) als Text."""
-    kind, body = _read(urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
-                                                            "Accept": "application/json, text/html;q=0.9"}))
-    return json.loads(body) if "json" in kind else body
+    reply = net.call(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, text/html;q=0.9"},
+                     timeout=TIMEOUT_S)
+    text = reply.text()
+    return json.loads(text) if "json" in reply.header("Content-Type") else text
 
 
 def _post(url: str, body: dict, headers: dict):
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
-                                 headers={"User-Agent": USER_AGENT, "Content-Type": "application/json",
-                                          "Accept": "application/json", **headers})
-    return json.loads(_read(req)[1])
+    reply = net.call(url, method="POST", json_body=body, timeout=TIMEOUT_S,
+                     headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json",
+                              **headers})
+    return json.loads(reply.text())
 
 
 def parse_home(text: str) -> dict:
@@ -114,17 +111,6 @@ def _close(error: Exception) -> None:
             error.close()
         except Exception:
             pass
-
-
-def _euro(value) -> str:
-    """69.99 -> „69,99 €“, 0 -> „Kostenlos“, fehlt -> „“."""
-    if value is None or value == "":
-        return ""
-    try:
-        cents = round(float(value) * 100)
-    except (TypeError, ValueError):
-        return ""
-    return "Kostenlos" if cents == 0 else price_text(cents)
 
 
 def _eur(prices) -> float | None:
@@ -229,7 +215,8 @@ class UbisoftStore:
     def _cached(self, key: str, fetch, ttl: float):
         def check(data) -> None:
             if isinstance(data, dict) and data.get("fault"):
-                raise StoreError(str((data["fault"] or {}).get("message") or "Fehler")[:200])
+                fault = data["fault"] if isinstance(data["fault"], dict) else {}
+                raise StoreError(failed_sentence(fault.get("message"), FAILED, FAILED_WITH))
         return cache.cached(self.cache_dir, key, fetch, ttl, clock=self._clock, check=check, on_error=_close,
                             unreachable=NOT_REACHABLE)
 
@@ -300,9 +287,9 @@ class UbisoftStore:
             price = None            # noch nicht zu haben: Ubisoft führt dann 0 € statt keinem Preis
         image = meta.get("i") or str(hit.get("image_link") or "")
         return {"store": "ubisoft", "id": str(hit["objectID"]), "title": _title(hit.get("name") or hit.get("title")),
-                "slug": _slug(hit.get("url")), "image": image, "price": _euro(price),
+                "slug": _slug(hit.get("url")), "image": image, "price": euro(price, FREE),
                 "discount": discount if price is not None and discount > 0 else 0,
-                "original": _euro(base) if price is not None and discount > 0 and base else "",
+                "original": euro(base, FREE) if price is not None and discount > 0 and base else "",
                 "uplay_id": int(meta.get("u") or 0)}
 
     def _meta(self, ids: list[str]) -> dict:
@@ -389,7 +376,8 @@ class UbisoftStore:
             facets = list(FILTERS) + ([["Genre:" + v for v in values]] if values else [])
             params = {"query": term, "hitsPerPage": PAGE, "page": page, "facetFilters": json.dumps(facets),
                       "attributesToRetrieve": FIELDS, "attributesToHighlight": "[]"}
-            data = self._algolia("ubi-search-%s-%d-%s" % (genre, page, term.lower()[:60]), params, LIST_TTL)
+            # der ganze Suchbegriff (wie gesucht, bis 100 Zeichen): mit 60 teilten sich lange Suchen eine Antwort
+            data = self._algolia("ubi-search-%s-%d-%s" % (genre, page, term.lower()), params, LIST_TTL)
             hits = [h for h in data.get("hits") or [] if self._is_game(h)]
             total = int(data.get("nbHits") or 0)
             return {"items": self._cards(hits), "total": total,
@@ -459,9 +447,9 @@ class UbisoftStore:
         price = p.get("price") if isinstance(p.get("price"), (int, float)) else None
         promo = [x.get("promotional_price") for x in p.get("product_promotions") or []
                  if isinstance(x, dict) and isinstance(x.get("promotional_price"), (int, float))]
-        out_price, original, discount = _euro(price), "", 0
+        out_price, original, discount = euro(price, FREE), "", 0
         if price and promo and min(promo) < price:
-            out_price, original, discount = _euro(min(promo)), _euro(price), round(100 - 100 * min(promo) / price)
+            out_price, original, discount = euro(min(promo), FREE), euro(price, FREE), round(100 - 100 * min(promo) / price)
         if price == 0 and coming:
             out_price = ""
         inv = p.get("inventory") if isinstance(p.get("inventory"), dict) else {}

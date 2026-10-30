@@ -42,6 +42,7 @@ import threading
 import time
 from typing import Any, Callable
 
+from .. import system
 from . import (InstallError, ThreadScheduler, games_root as cfg_games_root, reserve_bytes as cfg_reserve_bytes,
                trash_days as cfg_trash_days)
 from . import browse as browse_mod
@@ -607,17 +608,11 @@ class Installer:
                 days = days + [today]
             seen[item["trash_id"]] = days[-10:]
         if path and seen != old:
-            tmp = "%s.tmp-%d" % (path, os.getpid())
             try:
-                os.makedirs(state, mode=0o700, exist_ok=True)
-                with open(tmp, "w", encoding="utf-8") as fh:
-                    json.dump(seen, fh)
-                os.replace(tmp, path)
+                # atomar (Ordner 0700 wie bisher); Rechte wie bisher open(): 0666 durch die umask
+                system.write_atomic(path, json.dumps(seen), 0o666)
             except OSError:
-                try:
-                    os.unlink(tmp)              # eigene Zwischendatei
-                except OSError:
-                    pass                        # ohne Gedächtnis wird eben nichts automatisch gelöscht
+                pass                            # ohne Gedächtnis wird eben nichts automatisch gelöscht
         return seen
 
     def _readd_lost(self, skip: list) -> list:

@@ -35,12 +35,13 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import struct
 import threading
 import time
 
-MOUNTINFO = "/proc/self/mountinfo"
+from .. import mounts as _mounts, system
+
+MOUNTINFO = _mounts.MOUNTINFO
 DEFAULT_DEPTH = 8            # Ordnerebenen unter dem Spielordner (Wert des Prototyps, siehe Bericht 03)
 DEFAULT_TTL = 7 * 86400
 MAX_FILES = 300_000          # Notbremse gegen riesige Bäume
@@ -81,35 +82,19 @@ _PE_VERSION_SIG = b"\xbd\x04\xef\xfe"
 
 # ---------------------------------------------------------------- Einhängungen
 
-def _unescape(field: str) -> str:
-    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
-
-
-def mount_table(mountinfo: str = MOUNTINFO) -> dict[str, str]:
-    """Einhängepunkt -> Dateisystemtyp. Spätere Zeilen überdecken frühere (so wie der Kern)."""
-    table: dict[str, str] = {}
+def mount_table(mountinfo: str | None = None) -> dict[str, str]:
+    """Einhängepunkt -> Dateisystemtyp. Spätere Zeilen überdecken frühere (so wie der Kern; couch.mounts).
+    mountinfo: None = mounts.source(). Nicht lesbar: {}."""
     try:
-        with open(mountinfo, encoding="utf-8", errors="surrogateescape") as fh:
-            for line in fh:
-                left, sep, right = line.rstrip("\n").partition(" - ")
-                fields, tail = left.split(" "), right.split(" ")
-                if sep and len(fields) >= 5 and tail and tail[0]:
-                    table[_unescape(fields[4])] = tail[0]
+        return _mounts.table(_mounts.read(mountinfo))
     except OSError:
-        pass
-    return table
+        return {}
 
 
 def fs_type(path: str, mounts: dict[str, str] | None = None) -> str:
     """Dateisystemtyp des Pfads (längster passender Einhängepunkt); "" wenn unbekannt."""
     mounts = mount_table() if mounts is None else mounts
-    real = os.path.realpath(path)
-    best, best_len = "", -1
-    for point, fstype in mounts.items():
-        if real == point or real.startswith(point.rstrip("/") + "/"):
-            if len(point) > best_len:
-                best, best_len = fstype, len(point)
-    return best
+    return _mounts.longest(os.path.realpath(path), mounts.items()) or ""
 
 
 def skip_fs(fstype: str) -> bool:
@@ -318,7 +303,7 @@ class FsrScanner:
     """
 
     def __init__(self, cache_path: str | None = None, max_depth: int = DEFAULT_DEPTH,
-                 ttl: float = DEFAULT_TTL, mountinfo: str = MOUNTINFO, home: str | None = None):
+                 ttl: float = DEFAULT_TTL, mountinfo: str | None = None, home: str | None = None):
         self.cache_path = cache_path
         self.max_depth = max_depth
         self.ttl = ttl
@@ -413,18 +398,13 @@ class FsrScanner:
                 return False
             data = {"version": CACHE_VERSION, "entries": dict(self._entries)}
             self._dirty = False
-        tmp = "%s.%d.tmp" % (self.cache_path, os.getpid())
         try:
-            os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, separators=(",", ":"))     # ensure_ascii: auch kaputte Dateinamen überleben
-            os.replace(tmp, self.cache_path)
+            text = json.dumps(data, separators=(",", ":"))     # ensure_ascii: auch kaputte Dateinamen überleben
+            os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)     # Ordnerrechte wie bisher (umask)
+            # atomar mit eigener Zwischendatei je Thread (früher nur je Prozess: zwei save() teilten sie sich)
+            system.write_atomic(self.cache_path, text, 0o666)
             return True
         except (OSError, TypeError, ValueError):
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
             with self._lock:
                 self._dirty = True
             return False

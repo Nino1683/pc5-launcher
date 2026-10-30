@@ -34,6 +34,7 @@ import time
 from typing import Any
 
 from . import files, jsontext, log, paths, saves, system
+from . import wiring as wiring_mod
 from .library.model import source_title
 from .settings.games import KEEP_CHOICES, SAVES_DEFAULTS   # eine Tabelle für Auswahl und Vorgabe (E22)
 
@@ -726,4 +727,4 @@ def extend(wiring: Any) -> None:
 
     for name, fn in (("saves.info", info), ("saves.backup", backup), ("saves.restore", restore),
                      ("saves.remove", remove), ("saves.choose", choose)):
-        rpc.register(name, lambda params, fn=fn: wiring._bg(fn, params or {}))
+        rpc.register(name, wiring_mod.pooled(wiring, fn))

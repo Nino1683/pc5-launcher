@@ -36,8 +36,8 @@ Nie wird nach einem App-Namen beendet; Signale gehen nur an Nachkommen des eigen
 Rückgabe: 0 = Bitte zugestellt (bzw. im Probelauf/Prüfmodus gefunden), 3 = keine eigene Instanz
 oder kein Programm in ihr gefunden (dann genügt SIGTERM ans Hauptkind), 1 = flatpak ps gescheitert
 oder die Bitte erreichte niemanden, 2 = Aufruffehler.
-Im Prüfmodus (COUCH_TEST_ROOT gesetzt) geht kein Signal hinaus, es wird nur nach <state>/writes.log
-notiert.
+Im Prüfmodus (couch.paths.test_mode: COUCH_TEST_ROOT gesetzt oder COUCH_TEST=1) geht kein Signal hinaus;
+mit COUCH_TEST_ROOT wird nach <state>/writes.log notiert, sonst nur ausgegeben, was geschähe.
 
 Stand: mit Attrappen geprüft (erfundener Prozessbaum, erfundene "flatpak ps"-Ausgabe, eigene
 Prozesse als Sandbox). An einem echten Flatpak noch nicht gelaufen.
@@ -51,11 +51,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+from couch import APP_ID_MAX, paths  # noqa: E402
 from couch.proc import tree  # noqa: E402
 
-# Bereich unserer App-IDs (Bauplan E3). Steams eigene reaper tragen echte Steam-IDs.
+# Bereich unserer App-IDs (Bauplan E3; obere Grenze aus couch). Steams eigene reaper tragen echte Steam-IDs.
 APP_ID_MIN = 0x7F000000
-APP_ID_MAX = 0x7FFFFFFF
 PS_ARGV = ["flatpak", "ps", "--columns=instance,pid,child-pid,application"]
 KILL_GRACE = 8.0            # wie proc/manager.KILL_GRACE, falls der AppManager nichts mitgibt
 SANDBOX_SHARE = 0.5         # Anteil der Schonfrist, den dieses Skript auf das Ende der Sandbox wartet
@@ -277,16 +277,20 @@ def main(argv=None):
         print("kein Programm in den eigenen Sandboxen gefunden")
         return 3
 
-    test_root = os.environ.get("COUCH_TEST_ROOT") or ""
+    test_root = paths.test_root() or ""
     invented = os.path.realpath(args.proc) != "/proc"
     labels = ["Instanz %s (%s, PID %d)" % (r["instance"], r["application"], r["pid"]) for r in sandboxes]
-    if args.dry_run or (invented and not test_root):
+    # COUCH_TEST=1 ohne COUCH_TEST_ROOT ist auch Prüfmodus (paths.test_mode), nur ohne Ort für writes.log
+    no_note = paths.test_mode() and not test_root
+    if args.dry_run or (invented and not test_root) or no_note:
         for label in labels:
             print("würde beenden: %s" % label)
         for pid in targets:
             print("würde SIGTERM schicken: PID %d (%s)" % (pid, names.get(pid, "?")))
         if invented and not args.dry_run:
             print("erfundener /proc-Baum (%s): es geht kein Signal hinaus" % args.proc)
+        elif no_note and not args.dry_run:
+            print("Prüfmodus ohne COUCH_TEST_ROOT: es geht kein Signal hinaus")
         return 0
     if test_root:
         for pid in targets:

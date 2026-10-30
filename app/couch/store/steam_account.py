@@ -8,14 +8,14 @@ mit den Cookies, die der Browser nach der Anmeldung bei Steam gespeichert hat
 from __future__ import annotations
 
 import contextlib
-import json
 import os
 import shutil
 import sqlite3
 import tempfile
 import time
 import urllib.parse
-import urllib.request
+
+from . import net
 
 USERDATA = "https://store.steampowered.com/dynamicstore/userdata/"
 # Nach der Anmeldung leitet Steam auf redir um; die Marke pc5=angemeldet erkennt der Browser und
@@ -44,26 +44,59 @@ def _drop_copy(tmp: str) -> None:
         os.rmdir(tmp)
 
 
-def cookie_rows(db: str, sql: str, params: tuple = ()) -> list | None:
+COPY_TRIES = 4
+COPY_RETRY_S = 0.25
+
+
+def _files_state(db: str) -> tuple:
+    """(Größe, Änderungszeit, Inode) der Datenbank und ihres Write-Ahead-Protokolls; None für eine fehlende."""
+    out = []
+    for suffix in ("", "-wal"):
+        try:
+            st = os.stat(db + suffix)
+            out.append((st.st_size, st.st_mtime_ns, st.st_ino))
+        except OSError:
+            out.append(None)
+    return tuple(out)
+
+
+def cookie_rows(db: str, sql: str, params: tuple = (), sleep=time.sleep) -> list | None:
     """Zeilen einer Abfrage auf der Cookie-Datenbank des Browsers, gelesen aus einer Kopie (der
     Browser kann die Datei gerade offen haben); None, wenn sie fehlt oder unlesbar ist. Gemeinsam
-    für Steam, Battle.net und Rockstar."""
-    if not os.path.isfile(db):
-        return None
-    tmp = tempfile.mkdtemp(prefix="couch-cookies-")
-    try:
-        for suffix in _COPIED:
-            if os.path.isfile(db + suffix):
-                shutil.copy2(db + suffix, os.path.join(tmp, _COPY + suffix))
-        con = sqlite3.connect(os.path.join(tmp, _COPY))
+    für Steam, Battle.net und Rockstar.
+
+    Schreibt der Browser während des Kopierens (beim Schließen überträgt SQLite das Protokoll in die Datei und
+    löscht es), ergäbe die Kopie einen alten Stand: 2026-10-30 zeigte nach der Anmeldung bei Steam der
+    Store „nicht angemeldet“. Ändert sich Datei oder Protokoll während des Kopierens, wird es nach kurzer Pause
+    wiederholt (höchstens COPY_TRIES Mal)."""
+    for attempt in range(COPY_TRIES):
+        if not os.path.isfile(db):
+            return None
+        before = _files_state(db)
+        tmp = tempfile.mkdtemp(prefix="couch-cookies-")
         try:
-            return con.execute(sql, params).fetchall()
+            try:
+                for suffix in _COPIED:
+                    if os.path.isfile(db + suffix):
+                        shutil.copy2(db + suffix, os.path.join(tmp, _COPY + suffix))
+            except OSError:                 # Datei verschwand beim Kopieren (Browser schloss gerade)
+                if attempt + 1 < COPY_TRIES:
+                    sleep(COPY_RETRY_S)
+                    continue
+                return None
+            if _files_state(db) != before and attempt + 1 < COPY_TRIES:
+                sleep(COPY_RETRY_S)         # während des Kopierens geschrieben: noch einmal
+                continue
+            con = sqlite3.connect(os.path.join(tmp, _COPY))
+            try:
+                return con.execute(sql, params).fetchall()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return None
         finally:
-            con.close()
-    except (sqlite3.Error, OSError):       # OSError: Datei verschwand beim Kopieren (Browser schloss gerade)
-        return None
-    finally:
-        _drop_copy(tmp)
+            _drop_copy(tmp)
+    return None
 
 
 def browser_cookies(db: str, clock=time.time) -> dict:
@@ -83,10 +116,8 @@ def browser_cookies(db: str, clock=time.time) -> dict:
 
 
 def _get(url: str, cookies: dict, timeout: float = 15.0) -> dict:
-    jar = "; ".join("%s=%s" % kv for kv in sorted(cookies.items()))
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json", "Cookie": jar})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:      # noqa: S310 (feste https-Adresse)
-        return json.loads(resp.read(16 * 1024 * 1024).decode("utf-8"))
+    return net.get_json(url, {"User-Agent": USER_AGENT, "Accept": "application/json", "Cookie": net.cookie_header(cookies)},
+                        timeout)
 
 
 def country(cookies: dict) -> str:

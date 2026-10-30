@@ -616,7 +616,7 @@ def _catalog_rom_dirs(home: str, srm: bool) -> dict:
     """E105: {system: <emu.root>/roms/<system>} der Katalog-Systeme mit installiertem Emulator."""
     import stat as stat_mod
     from .. import paths, setup
-    from ..library import sources
+    from ..library import flatpaks, sources
     from ..setup import folders
     if not setup.flag("library.roms", True):
         return {}
@@ -637,7 +637,7 @@ def _catalog_rom_dirs(home: str, srm: bool) -> dict:
                 continue
         except OSError:
             continue
-        if any(os.path.isdir(os.path.join(d, "app", e["flatpak"], "current", "active")) for d in dirs for e in emus):
+        if any(flatpaks.installed(dirs, e["flatpak"]) for e in emus):
             out[system] = folder
     return out
 

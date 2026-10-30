@@ -99,7 +99,9 @@ def extend(wiring: Any) -> None:
         if isinstance(e, backup.BackupError):
             return {"ok": False, "message": e.message}
         _log.exception("Sichern/Übernehmen")
-        return {"ok": False, "message": "Das hat nicht geklappt (%s)." % type(e).__name__}
+        # nie der Name der Ausnahme auf die Seite; OSError mit einem Satz zur Ursache (saves.reason)
+        from .saves import TEXT_FAILED, reason
+        return {"ok": False, "message": reason(e) if isinstance(e, OSError) else TEXT_FAILED}
 
     def export(params: dict) -> dict:
         folder = params.get("dir") or params.get("path") or None
@@ -144,8 +146,9 @@ def extend(wiring: Any) -> None:
             with lock:
                 state["applying"] = False
 
-    app.rpc.register("backup.export", lambda p: wiring._bg(export, p or {}))
-    app.rpc.register("backup.list", lambda p: wiring._bg(listing, p or {}))
-    app.rpc.register("backup.inspect", lambda p: wiring._bg(inspect, p or {}))
-    app.rpc.register("backup.apply", lambda p: wiring._bg(apply, p or {}))
+    from .wiring import pooled
+    app.rpc.register("backup.export", pooled(wiring, export))
+    app.rpc.register("backup.list", pooled(wiring, listing))
+    app.rpc.register("backup.inspect", pooled(wiring, inspect))
+    app.rpc.register("backup.apply", pooled(wiring, apply))
     wiring.busy_checks.append(lambda: BUSY_TEXT if state["applying"] else None)

@@ -13,6 +13,10 @@ den Steam-Client oder eine andere Store-App sieht.
     itch_account.py   itch.io-Konto über OAuth mit PKCE (eigene App-Kennung, nie ein Kennwort):
                       eigene Spiele, Dateien, Download-Adresse, Suche über die API
     itch_install.py   itch.io: Datei wählen, Installer erkennen, laden (wiring_itch.py installiert)
+    net.py            Netz aller Shops: GET/POST mit Zeitgrenze, Lesegrenze und Kopfzeilen des Shops,
+                      Fehlerantworten gelesen und geschlossen (die Sätze bleiben beim Shop bzw. cache.py)
+    cache.py          Zwischenspeicher der Shops (ohne Netz der letzte Stand)
+    login_code.py     Anmelde-Code vom Browser an das Home (GOG, Epic), genau einmal genommen
 
 Gekauft wird auf der Shop-Seite im Browser des PC5 Launchers. Alles hier blockiert (Netz,
 Platte) und gehört in Arbeits-Threads (wiring_store.py, wiring_itch.py).

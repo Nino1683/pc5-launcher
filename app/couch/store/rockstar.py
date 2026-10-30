@@ -15,10 +15,9 @@ import json
 import re
 import time
 import urllib.error
-import urllib.request
 
-from . import cache
-from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, price_text
+from . import cache, net
+from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, euro
 
 STORE = "https://store.rockstargames.com"
 HOME = STORE + "/de"
@@ -33,9 +32,11 @@ TABS = [("rs_games", "Spiele"), ("rs_specials", "Angebote")]
 # purchaseState der SKUs (aus dem Programmcode des Shops): 1 kaufbar, 2 besessen, 3 nicht verfügbar,
 # 4 versteckt, 5 nicht einlösbar
 PURCHASABLE, OWNED, HIDDEN = 1, 2, 4
-# Spielwährung, Upgrades und Red Dead Online allein sind keine Edition des Spiels (sonst stünde bei
-# RDR2 „19,99 €“ für Red Dead Online statt 59,99 € für das Spiel)
-NOT_GAME = re.compile(r"GOLDBAR|SHARKCARD|CASHCARD|UPGRADE|ONLINE_EDITION", re.I)
+# Spielwährung (Goldbarren, Shark Cards) ist nie ein Spiel, auch nicht für „gehört dir“ (rockstar_account)
+CURRENCY = re.compile(r"GOLDBAR|SHARKCARD|CASHCARD", re.I)
+# Dazu sind Upgrades und Red Dead Online allein keine Edition des Spiels (sonst stünde bei RDR2 „19,99 €“
+# für Red Dead Online statt 59,99 € für das Spiel)
+NOT_GAME = re.compile(CURRENCY.pattern + r"|UPGRADE|ONLINE_EDITION", re.I)
 
 # Launcher-Kürzel (aus der Playnite-Erweiterung, Stand 09/2026, und title_metadata.json von Rockstar):
 # exe relativ im Spielordner, folder der übliche Ordnername unter „Rockstar Games“, registry der Name
@@ -94,9 +95,7 @@ _BUILD = re.compile(r'"buildId"\s*:\s*"([A-Za-z0-9_-]{6,64})"')
 
 
 def _get(url: str, timeout: float = TIMEOUT_S) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, text/html"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:   # noqa: S310 (feste https-Adresse)
-        return resp.read(16 * 1024 * 1024).decode("utf-8", "replace")
+    return net.get_text(url, {"User-Agent": USER_AGENT, "Accept": "application/json, text/html"}, timeout)
 
 
 def build_id(html_text: str) -> str:
@@ -185,10 +184,6 @@ def products(page_props: dict) -> list[dict]:
     return out
 
 
-def _euro(value: float) -> str:
-    return price_text(int(round(float(value) * 100)))
-
-
 def price(skus: list[dict]) -> dict:
     """Preis der günstigsten PC-Edition des Spiels: {price, original, discount}; ohne Preis alles leer."""
     games = [s for s in skus if not NOT_GAME.search(s["external"])] or list(skus)
@@ -198,7 +193,7 @@ def price(skus: list[dict]) -> dict:
     best = min(games, key=lambda s: s["sale"])
     sale, original = max(0.0, best["sale"]), best["original"]
     discount = round(100 - 100 * sale / original) if 0 <= sale < original else 0
-    return {"price": "Kostenlos" if sale <= 0 else _euro(sale), "original": _euro(original) if discount else "",
+    return {"price": "Kostenlos" if sale <= 0 else euro(sale), "original": euro(original) if discount else "",
             "discount": discount}
 
 
@@ -320,7 +315,7 @@ class RockstarStore:
                     if url and url not in shots:
                         shots.append(url)
         editions.setdefault(main, str(item["title"]))
-        skus = [s for s in pc_skus(pp.get("skus"), set(editions)) if not re.search(r"GOLDBAR|SHARKCARD|CASHCARD", s["external"])]
+        skus = [s for s in pc_skus(pp.get("skus"), set(editions)) if not CURRENCY.search(s["external"])]
         hero = details.get("hero") if isinstance(details.get("hero"), dict) else {}
         return {"title": str(item["title"]), "main": main, "description": str(item.get("description") or ""),
                 "long": str(item.get("longDescription") or ""), "features": features[:8],
@@ -344,7 +339,7 @@ class RockstarStore:
         for s in sorted(games, key=lambda s: s["sale"]):
             title = names.get(s["item"]) or d["title"]
             if s["currency"] and title not in [e["title"] for e in editions]:
-                editions.append({"title": title, "price": "Kostenlos" if s["sale"] <= 0 else _euro(s["sale"])})
+                editions.append({"title": title, "price": "Kostenlos" if s["sale"] <= 0 else euro(s["sale"])})
         main = [s for s in games if s["item"] == d.get("main")] or games
         release = next((_date(s["release"]) for s in main if s["release"] > 0), "")
         today = time.strftime("%Y-%m-%d", time.gmtime(self._clock()))

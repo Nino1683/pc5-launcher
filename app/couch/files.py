@@ -29,7 +29,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from . import log, paths, xdgtrash
+from . import log, mounts, paths, xdgtrash
 from .browser.downloads import split_ext
 
 _log = log.get("files")
@@ -606,23 +606,10 @@ def same_device(src: str, dest_dir: str) -> bool:
     return os.lstat(src).st_dev == os.stat(dest_dir).st_dev
 
 
-def fs_type(path: str, mountinfo: str = "/proc/self/mountinfo") -> str:
-    """Dateisystem, auf dem path liegt (längster passender Einhängepunkt), "" wenn unbekannt."""
-    real = os.path.realpath(path)
-    best, kind = "", ""
-    try:
-        with open(mountinfo, encoding="utf-8", errors="surrogateescape") as f:
-            for line in f:
-                left, _, right = line.partition(" - ")
-                fields = left.split(" ")
-                if len(fields) < 5 or not right:
-                    continue
-                point = fields[4].replace("\\040", " ").replace("\\011", "\t").replace("\\134", "\\")
-                if (real == point or real.startswith(point.rstrip("/") + "/")) and len(point) >= len(best):
-                    best, kind = point, right.split(" ")[0].lower()
-    except OSError:
-        return ""
-    return kind
+def fs_type(path: str, mountinfo: str | None = None) -> str:
+    """Dateisystem, auf dem path liegt, klein geschrieben (längster passender Einhängepunkt, bei gleichem der
+    spätere; couch.mounts), "" wenn unbekannt. mountinfo: None = mounts.source()."""
+    return mounts.fstype(path, mountinfo).lower()
 
 
 def reflinks(dest_dir: str) -> bool:

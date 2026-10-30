@@ -43,7 +43,6 @@ from __future__ import annotations
 import os
 import re
 import threading
-from concurrent.futures import Future
 from typing import Any
 
 from . import i18n, log, paths, trailerfeed
@@ -63,12 +62,9 @@ HANGS_OFF = 2                   # so viele Hänger mit Trailer, dann keiner mehr
 
 
 def fake_base() -> str | None:
-    """Adresse einer Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner."""
-    from .library.artsources.base import host_of, is_loopback
-    base = os.environ.get(FAKE_ENV) or ""
-    if not paths.test_mode() or not base.startswith("http://") or not is_loopback(host_of(base)):
-        return None
-    return base.rstrip("/")
+    """Adresse einer Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner (fakenet.base_url)."""
+    from . import fakenet
+    return fakenet.base_url(FAKE_ENV)
 
 
 def make_info(wiring: Any) -> steam_info.SteamInfo | None:
@@ -310,15 +306,11 @@ def extend(wiring: Any) -> None:
     part = GameInfoPart(wiring, info)
     wiring.gameinfo = part
 
-    def bg(fn):
-        def call(params: dict) -> Future:
-            return wiring._bg(fn, dict(params or {}))
-        return call
-
-    app.rpc.register("game.info", bg(part.game_info))
-    app.rpc.register("game.news", bg(part.game_news))
-    app.rpc.register("game.trailer", bg(part.game_trailer))
-    app.rpc.register("game.trailers", bg(part.game_trailers))
+    from .wiring import pooled
+    app.rpc.register("game.info", pooled(wiring, part.game_info))
+    app.rpc.register("game.news", pooled(wiring, part.game_news))
+    app.rpc.register("game.trailer", pooled(wiring, part.game_trailer))
+    app.rpc.register("game.trailers", pooled(wiring, part.game_trailers))
     app.rpc.register("game.openNews", lambda params: part.open_news(dict(params or {})))
     part.push_trailers()
     ui = getattr(app, "ui", None)

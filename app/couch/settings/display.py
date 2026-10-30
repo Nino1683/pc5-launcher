@@ -78,7 +78,11 @@ DEFAULTS = {
     "display.overlay_blur": True,
     "display.force_composition": False,
     "display.area_scale": 100,
+    "display.app_scale": 0,              # E145: Größe von Apps, 0 = automatisch (launch/appscale.py)
 }
+APP_SCALE_HINT = ("Wie groß Apps wie Discord, Chrome, der App Store und alle Apps aus dem Reiter „Apps“ auf dem "
+                  "Fernseher erscheinen. Automatisch: 200 % bei 4K, 150 % bei 1440p, sonst 100 %. Gilt beim nächsten "
+                  "Start einer App, nie für Spiele.")
 AREA_MIN, AREA_MAX = 90, 100        # Anzeigebereich in Prozent der Bildfläche (Home und Overlay)
 
 
@@ -180,6 +184,14 @@ class DisplayArea:
             hint="Zeigt vier Marken in den Ecken. Siehst du nicht alle vollständig, schalte am "
                  "Fernseher den Overscan aus (Bildformat „Original“ oder „Punkt für Punkt“) oder "
                  "verkleinere hier die Oberfläche der Konsole."))
+        # E145 (Wunsch 2026-10-30: „Man sollte dies einstellen können“): Größe von Apps, vor dem Fernseher, damit
+        # die abgezählten Fotos der Zeilen davor gültig bleiben
+        from ..launch import appscale
+        scale = appscale.choice(self._cfg("display.app_scale"))
+        rows.append(select(
+            "display.app_scale", "Größe von Apps", scale,
+            [option(v, "Automatisch" if v == 0 else "%d %%" % v) for v in appscale.CHOICES],
+            hint=APP_SCALE_HINT, default=DEFAULTS["display.app_scale"]))
         tv_row = self._tv.link_row()             # E142: immer am Ende (abgezählte Fotos bleiben gültig)
         if tv_row is not None:
             rows.append(tv_row)
@@ -204,6 +216,12 @@ class DisplayArea:
                 raise SettingsError("Diese Auflösung gibt es nicht.")
             self._perf.set(resolution=value)
             return None
+        if row_id == "display.app_scale":
+            from ..launch import appscale
+            if isinstance(value, bool) or value not in appscale.CHOICES:
+                raise SettingsError("Diese Größe lässt sich nicht wählen.")
+            self.config.set("display.app_scale", int(value))
+            return {"message": "Gilt beim nächsten Start einer App.", "refresh": True}
         if row_id == "display.scaling_filter":
             if value not in SCALING_FILTERS:
                 raise SettingsError("Diesen Filter gibt es nicht.")

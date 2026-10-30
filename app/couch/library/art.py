@@ -53,6 +53,7 @@ from urllib.parse import quote, unquote
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 from .. import jsontext
+from ..system import write_atomic
 from . import placeholder
 from .model import source_title
 
@@ -68,6 +69,7 @@ URL_PREFIX = "couch://art/"
 # Steckt im Hash jeder Ableitung: hochzählen, wenn sich ein Rezept ändert
 RECIPE = 8
 MARKER = ".couch-art"
+MARKER_TEXT = "Bilder-Zwischenspeicher von couch. Inhalt darf gelöscht werden.\n"
 IMPORTED_DIR = "lutris-import"           # in <data_dir>: übernommene Bilder (imported.ART_DIR, E134)
 MEMO_FILE = "memo.json"
 DERIVED_PREFIX = "d-"
@@ -1582,15 +1584,24 @@ class ArtResolver:
         except OSError:
             return []
 
+    def _ensure_marker(self) -> None:
+        """Legt den Bilderordner und seine Marke an (es zählt nur, dass sie als Datei dasteht). Atomar und nie über
+        etwas Vorhandenes (write_atomic ohne Ersetzen): Früher schrieb open("w") durch einen Verweis an dieser Stelle
+        hindurch, und zwei Threads schrieben gleichzeitig in dieselbe Datei. Wirft OSError."""
+        os.makedirs(self.art_root, exist_ok=True)
+        marker = os.path.join(self.art_root, MARKER)
+        if os.path.isfile(marker):
+            return
+        try:
+            write_atomic(marker, MARKER_TEXT, 0o666, replace=False)      # Rechte wie bisher open(): umask
+        except FileExistsError:
+            pass        # eben von einem anderen Thread angelegt, oder ein Verweis: der bleibt, gelöscht wird dann nichts
+
     def _ensure_entry_dir(self, entry_id: str) -> str | None:
         """Legt den Ordner des Eintrags an (und die Marke im Bilderordner). None = nicht benutzbar."""
         folder = self.entry_dir(entry_id)
         try:
-            os.makedirs(self.art_root, exist_ok=True)
-            marker = os.path.join(self.art_root, MARKER)
-            if not os.path.isfile(marker):
-                with open(marker, "w", encoding="utf-8") as f:
-                    f.write("Bilder-Zwischenspeicher von couch. Inhalt darf gelöscht werden.\n")
+            self._ensure_marker()
             if os.path.islink(folder):
                 return None                           # ein Verweis an dieser Stelle ist nicht von uns
             os.makedirs(folder, exist_ok=True)
@@ -1665,11 +1676,7 @@ class ArtResolver:
         """Ordner der Vorschaubilder (mit der Marke des Bilderordners). None = nicht benutzbar."""
         folder = os.path.join(self.art_root, PREVIEW_DIR)
         try:
-            os.makedirs(self.art_root, exist_ok=True)
-            marker = os.path.join(self.art_root, MARKER)
-            if not os.path.isfile(marker):
-                with open(marker, "w", encoding="utf-8") as f:
-                    f.write("Bilder-Zwischenspeicher von couch. Inhalt darf gelöscht werden.\n")
+            self._ensure_marker()
             if os.path.islink(folder):
                 return None
             os.makedirs(folder, exist_ok=True)

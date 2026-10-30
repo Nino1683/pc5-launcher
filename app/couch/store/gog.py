@@ -13,7 +13,7 @@ import time
 import urllib.parse
 
 from . import cache
-from .steam import LIST_TTL, DETAIL_TTL, StoreError, _get, clip, price_text, strip_html
+from .steam import LIST_TTL, DETAIL_TTL, StoreError, _get, clip, price_label, price_text, strip_html
 
 CATALOG = "https://catalog.gog.com/v1/catalog"
 PRODUCT = "https://api.gog.com/products/%d?expand=description,screenshots&locale=de-DE"
@@ -45,11 +45,6 @@ def _light(url: str) -> str:
     return m.group(1) + ".webp" if m else url
 
 
-def _euro(text: str) -> str:
-    """„9,09 €“ wie bei Steam (GOG schreibt ein festes Leerzeichen)."""
-    return str(text or "").replace("\xa0", " ").strip()
-
-
 class GogStore:
     def __init__(self, cache_dir: str, get=_get, clock=time.time):
         self.cache_dir = cache_dir
@@ -65,12 +60,12 @@ class GogStore:
     def card(p: dict) -> dict:
         price = p.get("price") if isinstance(p.get("price"), dict) else {}
         discount = re.sub(r"[^0-9]", "", str(price.get("discount") or ""))
-        final = _euro(price.get("final"))
+        final = price_label(price.get("final"))       # GOG schreibt ein festes Leerzeichen
         free = str((price.get("finalMoney") or {}).get("amount") or "") in ("0", "0.00")
         return {"store": "gog", "id": str(p.get("id") or ""), "title": str(p.get("title") or ""),
                 "slug": str(p.get("slug") or ""), "image": _light(p.get("coverHorizontal") or ""),
                 "price": "Kostenlos" if free else final, "discount": int(discount or 0),
-                "original": _euro(price.get("base")) if discount else ""}
+                "original": price_label(price.get("base")) if discount else ""}
 
     def browse(self, kind: str, page: int = 0, genre: str = "", term: str = "") -> dict:
         """Eine Seite einer Liste oder der Suche: {items, total, more}."""

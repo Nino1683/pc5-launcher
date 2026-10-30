@@ -20,12 +20,11 @@ import gi
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib  # noqa: E402
 
-from .. import APP_ID_BASE, HOME_APPID, log  # noqa: E402
+from .. import APP_ID_BASE, APP_ID_MAX, HOME_APPID, log  # noqa: E402
 from . import GamescopeError  # noqa: E402
 
 _log = log.get("focus")
 
-APP_ID_MAX = 0x7FFFFFFF
 STEAM_CLIENT_APPID = 769            # Steams eigene Fenster (Client, Meldungen): nie umbenennen
 # Fenster eines Launchers, während ein Spiel über ihn startet (E94): diese Nummer gehört zu keiner App,
 # Gamescope zeigt sie nie (aus dem Bereich unterhalb unserer App-IDs)

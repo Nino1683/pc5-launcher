@@ -61,7 +61,8 @@ class Server:
             self.sock.bind(path)
         finally:
             os.umask(old)
-        self.source = GLib.unix_fd_add_full(GLib.PRIORITY_DEFAULT, self.sock.fileno(), GLib.IOCondition.IN, self._ready)
+        from .glibfd import fd_add
+        self.source = fd_add(GLib.PRIORITY_DEFAULT, self.sock.fileno(), GLib.IOCondition.IN, self._ready)
 
     def _remove_stale(self) -> None:
         try:

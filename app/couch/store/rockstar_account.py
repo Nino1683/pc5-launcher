@@ -21,9 +21,8 @@ import os
 import re
 import time
 import urllib.parse
-import urllib.request
 
-from . import rockstar
+from . import net, rockstar
 from .steam_account import cookie_rows
 
 STORE = rockstar.STORE
@@ -50,9 +49,15 @@ def is_login_done(uri: str) -> bool:
     state=) zählen nicht, sonst schlösse der Browser, bevor die Cookies gesetzt sind. Für eine
     fertig geladene Seite gedacht; unbestätigt, ob Rockstar genau so zurückleitet."""
     uri = str(uri or "")
+    parts = urllib.parse.urlsplit(uri)
+    host = (parts.hostname or "").lower()
+    # Die Marke selbst auf einer Seite von Rockstar außer der Anmeldung: fertig, egal auf welchem Host Rockstar
+    # zurückleitet (relatives returnUrl; unbestätigt, ob es store.* oder www.* wird)
+    if parts.scheme == "https" and LOGIN_DONE in parts.query and (host == "rockstargames.com" or host.endswith(
+            ".rockstargames.com")) and not host.startswith("signin."):
+        return True
     if not uri.startswith(STORE + "/"):
         return False
-    parts = urllib.parse.urlsplit(uri)
     return not parts.path.startswith("/api/") and not re.search(r"(^|&)(code|state)=", parts.query)
 
 
@@ -75,11 +80,8 @@ def browser_cookies(db: str, clock=time.time) -> dict:
 
 
 def _get(url: str, cookies: dict, timeout: float = 20.0) -> str:
-    jar = "; ".join("%s=%s" % kv for kv in sorted(cookies.items()))
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, text/html",
-                                               "Cookie": jar})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:      # noqa: S310 (feste https-Adresse)
-        return resp.read(16 * 1024 * 1024).decode("utf-8", "replace")
+    return net.get_text(url, {"User-Agent": USER_AGENT, "Accept": "application/json, text/html",
+                              "Cookie": net.cookie_header(cookies)}, timeout)
 
 
 def _expiry(token: str) -> float:
@@ -135,11 +137,11 @@ def owned(cookies: dict, get=_get, clock=time.time) -> dict:
                 # eine andere Edition (etwa Ultimate) steht nur auf der Seite des Spiels
                 try:
                     pp = _props(get(rockstar.DATA % (build, "game/" + p["slug"]), cookies))
-                    mine = any(s["state"] == rockstar.OWNED and not re.search(r"GOLDBAR|SHARKCARD|CASHCARD", s["external"])
+                    mine = any(s["state"] == rockstar.OWNED and not rockstar.CURRENCY.search(s["external"])
                                for s in rockstar.pc_skus(pp.get("skus")))
                 except Exception as e:  # noqa: BLE001 (eine Seite fehlt: die übrigen zählen trotzdem)
                     if hasattr(e, "close"):
-                        e.close()           # HTTPError hält sonst die Antwort offen
+                        e.close()           # HTTPError einer Attrappe hält sonst die Antwort offen (net schließt selbst)
                     mine = False
             if mine:
                 slugs.append(p["slug"])

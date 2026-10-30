@@ -10,22 +10,22 @@ Die GraphQL-Schnittstelle antwortet nur mit einem Browser-Kennzeichen (USER_AGEN
 """
 from __future__ import annotations
 
-import json
 import re
 import time
-import urllib.request
 
-from . import cache
-from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, strip_html
+from . import cache, net
+from .steam import DETAIL_TTL, LIST_TTL, StoreError, clip, failed_sentence, price_label, strip_html
 
 GRAPHQL = "https://store.epicgames.com/graphql"
 FREE = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=de&country=DE&allowCountries=DE"
 SHOP = "https://store.epicgames.com/de/p/%s"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 TIMEOUT_S = 20.0
+MAX_BYTES = 8 * 1024 * 1024
 PAGE = 40
 CATEGORY = "games/edition/base|bundles/games|editors"
 NOT_REACHABLE = "Der Epic-Shop ist gerade nicht erreichbar."
+FAILED, FAILED_WITH = "Der Epic-Shop meldet einen Fehler.", "Der Epic-Shop meldet einen Fehler: %s."
 # Bildgrößen über das Bildernetz von Epic (spart beim Blättern viel Datenmenge)
 CARD_SIZE = "?h=270&quality=medium&resize=1&w=480"
 HERO_SIZE = "?h=1080&quality=high&resize=1&w=1920"
@@ -64,22 +64,12 @@ OFFER_QUERY = """query catalogOfferQuery($namespace: String!, $id: String!, $loc
 
 
 def _post(query: str, variables: dict, timeout: float = TIMEOUT_S):
-    body = json.dumps({"query": query, "variables": variables}).encode()
-    req = urllib.request.Request(GRAPHQL, data=body, headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:   # noqa: S310 (feste https-Adresse)
-        return json.loads(resp.read(8 * 1024 * 1024).decode("utf-8"))
+    return net.send_json(GRAPHQL, {"query": query, "variables": variables},
+                         {"Content-Type": "application/json", "User-Agent": USER_AGENT}, timeout, limit=MAX_BYTES)
 
 
 def _get(url: str, timeout: float = TIMEOUT_S):
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:   # noqa: S310 (feste https-Adresse)
-        return json.loads(resp.read(8 * 1024 * 1024).decode("utf-8"))
-
-
-def _euro(text) -> str:
-    """„24,50 €“ wie bei Steam (Epic schreibt ein festes Leerzeichen); „0“ heißt kostenlos."""
-    text = str(text or "").replace("\xa0", " ").strip()
-    return "Kostenlos" if text in ("0", "0,00 €") else text
+    return net.get_json(url, {"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout, limit=MAX_BYTES)
 
 
 def _image(images, *kinds: str) -> str:
@@ -128,7 +118,9 @@ class EpicStore:
     def _cached(self, key: str, fetch, ttl: float):
         def check(data) -> None:
             if isinstance(data, dict) and data.get("errors") and not data.get("data"):
-                raise StoreError(str((data["errors"][0] or {}).get("message") or "Fehler")[:200])
+                errors = data["errors"] if isinstance(data["errors"], list) else [{}]
+                first = errors[0] if isinstance(errors[0], dict) else {}
+                raise StoreError(failed_sentence(first.get("message"), FAILED, FAILED_WITH))
         return cache.cached(self.cache_dir, key, fetch, ttl, clock=self._clock, check=check, unreachable=NOT_REACHABLE)
 
     def _gql(self, key: str, query: str, variables: dict, ttl: float):
@@ -145,13 +137,14 @@ class EpicStore:
         except (TypeError, ValueError):
             cur = orig = -1
         discount = round(100 - 100 * cur / orig) if 0 <= cur < orig else 0
-        price = "Kostenlos" if cur == 0 else _euro(fmt.get("discountPrice"))
+        # Epic schreibt ein festes Leerzeichen; „0“ heißt kostenlos
+        price = "Kostenlos" if cur == 0 else price_label(fmt.get("discountPrice"), "Kostenlos")
         return {"store": "epic", "id": "%s:%s" % (offer.get("namespace") or "", offer.get("id") or ""),
                 "title": str(offer.get("title") or ""), "slug": _slug(offer),
                 "image": _sized(_image(offer.get("keyImages"), "OfferImageWide", "DieselStoreFrontWide",
                                        "DieselGameBox", "Thumbnail", "featuredMedia"), CARD_SIZE),
                 "price": price, "discount": discount,
-                "original": _euro(fmt.get("originalPrice")) if discount else "",
+                "original": price_label(fmt.get("originalPrice"), "Kostenlos") if discount else "",
                 "tags": [str(t.get("id")) for t in offer.get("tags") or [] if isinstance(t, dict)]}
 
     @staticmethod
@@ -195,7 +188,8 @@ class EpicStore:
         if tag:
             extra["tag"] = tag
         variables = {"count": PAGE, "start": page * PAGE, "category": CATEGORY, **extra}
-        key = "epic-%s-%s-%d-%s" % (kind, genre, page, term.lower()[:60] if kind == "search" else "")
+        # der ganze Suchbegriff (wie gesucht, bis 100 Zeichen): mit 60 teilten sich lange Suchen eine Antwort
+        key = "epic-%s-%s-%d-%s" % (kind, genre, page, term.lower() if kind == "search" else "")
         data = self._gql(key, SEARCH_QUERY, variables, LIST_TTL)
         store = (((data or {}).get("data") or {}).get("Catalog") or {}).get("searchStore") or {}
         items = [self.card(o) for o in store.get("elements") or [] if self._usable(o)]

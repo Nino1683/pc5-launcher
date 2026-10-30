@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -26,6 +27,7 @@ CHUNK = 1024 * 1024
 SETUP_DIR = ".gog-setup"
 USER_AGENT = "PC5-Launcher (GOG)"
 INNO_ARGS = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/NOICONS"]
+INFO_MAX = 1024 * 1024          # goggame-*.info hat ein paar KB; mehr gilt als kaputt
 
 
 class InstallError(Exception):
@@ -169,6 +171,34 @@ def on_disk(root: str, rel: str) -> str:
     return "/".join(out)
 
 
+def read_info(path: str):
+    """JSON einer goggame-*.info oder None. Die Datei kommt aus einem Installer unter Wine (auch aus fremden
+    Archiven, E114): nur eine echte Datei, nie über einen Verweis (O_NOFOLLOW; einer auf /dev/zero füllte sonst den
+    Speicher), keine FIFO (O_NONBLOCK, dann S_ISREG: sie ließe den Auftrag hängen), höchstens INFO_MAX Bytes."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > INFO_MAX:
+            return None
+        with os.fdopen(fd, "rb") as fh:
+            fd = -1                             # gehört jetzt fh
+            raw = fh.read(INFO_MAX + 1)
+    except OSError:
+        return None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    if len(raw) > INFO_MAX:                     # wuchs beim Lesen
+        return None
+    try:
+        return json.loads(raw.decode("utf-8-sig"))
+    except ValueError:                          # auch kein UTF-8
+        return None
+
+
 def play_task(target: str, product_id: int) -> dict | None:
     """Startdatei aus goggame-<id>.info: {exe (relativ zu target, Schreibweise wie auf der Platte), args, working_dir}."""
     candidates = [os.path.join(target, "goggame-%d.info" % product_id)]
@@ -177,11 +207,7 @@ def play_task(target: str, product_id: int) -> dict | None:
     except OSError:
         pass
     for path in candidates:
-        try:
-            with open(path, encoding="utf-8-sig") as fh:
-                info = json.load(fh)
-        except (OSError, ValueError):
-            continue
+        info = read_info(path)
         # Die Datei kommt aus dem Installer (auch aus fremden Archiven, E114): falsche Typen wie eine kaputte Datei
         listed = info.get("playTasks") if isinstance(info, dict) else None
         if not isinstance(listed, list):

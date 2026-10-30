@@ -263,16 +263,23 @@ def https_url(value) -> str | None:
     return value if value.startswith(("https://", "http://")) else None
 
 
+def _side(value) -> int | None:
+    try:
+        value = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return value if value > 0 else None
+
+
 def image(url, width=None, height=None) -> dict | None:
-    """Eine Bild-Angabe, wie images() sie liefert: {"url", "width", "height"} (Größe None = unbekannt)."""
+    """Eine Bild-Angabe, wie images() sie liefert: {"url", "width", "height"} (Größe None = unbekannt).
+
+    Jede Seite für sich: Ist nur eine bekannt, bleibt sie (bis 2026-10-30 wurden dann beide None). Die Abnehmer
+    werten eine Größe nur aus, wenn beide Seiten da sind (artfetch: all(dims), sufficient, measure)."""
     url = https_url(url)
     if not url:
         return None
-    try:
-        width, height = (int(width) or None), (int(height) or None)
-    except (TypeError, ValueError):
-        width = height = None
-    return {"url": url, "width": width, "height": height}
+    return {"url": url, "width": _side(width), "height": _side(height)}
 
 
 class Source:

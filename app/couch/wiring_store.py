@@ -18,6 +18,7 @@ Shops (publish_jobs). Ergebnis als Mitteilung, danach liest die Bibliothek neu.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import secrets
@@ -25,9 +26,11 @@ import signal
 import threading
 import time
 import uuid
-from typing import Any
+from concurrent.futures import Future
+from typing import Any, Callable
 
-from . import APP_ID_BASE, log, paths
+from . import APP_ID_BASE, APP_ID_MAX, log, paths, system
+from .rpc import chain
 from .store import epic as epic_store
 from .store import epic_account
 from .store import gog as gog_store
@@ -39,6 +42,11 @@ _log = log.get("wiring.store")
 STEP_S = 2.0
 ACCOUNT_TTL_S = 120.0
 ERROR_TTL_S = 10.0              # Konto-Abfrage gescheitert (Netz): so bald wieder fragen (E99)
+# Anmeldung im Browser beobachten (watch_login; wiring_launchers nimmt eigene Werte)
+LOGIN_STEP_S = 2.0
+LOGIN_WATCH_S = 15 * 60
+BROWSER_APPEAR_S = 60.0
+LOGIN_CHECKS_S = (1, 3, 6)
 STALL_S = 15 * 60               # so lange läuft das Download-Steam ohne jeden Fortschritt: es lädt das Spiel wohl nicht
 IDLE_STEP_MAX_S = 60.0          # höchstens so viel zählt ein Durchgang dazu (Ruhezustand, hängender Faden)
 RUNNER_MIN_S = 60.0             # endet das Download-Steam früher von selbst, ist das ein Fehlstart (E99)
@@ -46,7 +54,6 @@ RUNNER_FAILS = 5                # so viele Fehlstarts in RUNNER_FAILS_WINDOW_S: 
 RUNNER_FAILS_WINDOW_S = 10 * 60
 PURCHASE_WATCH_S = 20 * 60      # so lange nach „Kaufen“ nachsehen, ob das Spiel jetzt dir gehört
 PURCHASE_STEP_S = 10.0
-APP_ID_MAX = 0x7FFFFFFF
 MSG_NO_SHOP = "Dieser Shop ist gerade nicht verfügbar."     # store.* mit einem Shop ohne eigenen Teil
 STATES = {"queued": "Wartet", "waiting": "Wartet, bis das Steam-Spiel beendet ist", "starting": "Steam startet …",
           "downloading": "Lädt", "cancelling": "Wird abgebrochen …", "removing": "Wird deinstalliert …"}
@@ -63,6 +70,154 @@ def publish_jobs(app: Any, stores: set, jobs: list) -> None:
     merged = [j for j in old if j.get("store") not in stores] + list(jobs)
     merged.sort(key=lambda j: STORE_ORDER.get(j.get("store"), len(STORE_ORDER)))   # stabil: je Shop wie geliefert
     state.update(store_jobs=merged)
+
+
+def notify_result(app: Any, title: str, body: str, ok: bool) -> None:
+    """Hauptschleife: Ergebnis eines Store-Auftrags als Mitteilung (alle Warteschlangen)."""
+    try:
+        app.notify.push(title, body, icon="download" if ok else "warn", sound=None if ok else "error")
+    except Exception:
+        _log.exception("Mitteilung")
+
+
+def bg_then_main(wiring: Any, work: Callable[[], Any], then: Callable[[Any], Any]) -> Any:
+    """work() im Arbeits-Thread (Netz, Platte), danach then(ergebnis) in der Hauptschleife (open_url,
+    shell.launch: nur dort erlaubt). Für Methoden, die die Route in der Hauptschleife ruft (store.buy,
+    store.login): Eine Shop-Seite ohne Zwischenspeicher hielt sonst die Oberfläche bis zu 20 s an.
+    Liefert, was then liefert, als Future; ohne Arbeits-Threads in der Verdrahtung (Tests) gleich. Ein
+    Future von then (shell.launch) wird weitergereicht, Fehler gehen wie sonst als Antwort an die Seite."""
+    bg = getattr(wiring, "_bg", None)
+    prep = bg(work) if callable(bg) else work()
+    if not isinstance(prep, Future):
+        return then(prep)
+    out: Future = Future()
+
+    def step(done: Future) -> None:             # Hauptschleife
+        if done.cancelled():
+            out.cancel()
+            return
+        error = done.exception()                # nicht result(): hängte die Rahmen hier an den Traceback (E99)
+        if error is not None:
+            out.set_exception(error)
+            return
+        try:
+            result = then(done.result())
+        except BaseException as e:  # noqa: BLE001 (geht als Fehler an die Seite)
+            out.set_exception(e)
+            return
+        if isinstance(result, Future):          # Rückfrage „anderes schließen?“ bzw. Vorbereiten (shell.launch)
+            result.add_done_callback(lambda f: chain(f, out))
+        else:
+            out.set_result(result)
+    prep.add_done_callback(lambda f: wiring.main.post(step, f))
+    return out
+
+
+def start_purchase_watch(wiring: Any, store_id: str, pid: Any, title: Any) -> None:
+    """Nach „Kaufen“ in eigenem Faden nachsehen, ob das Spiel jetzt dir gehört (E71,
+    wiring.store_watch_purchase); für alle Shops gleich."""
+    threading.Thread(target=wiring.store_watch_purchase, args=(store_id, pid, str(title or "Das Spiel")),
+                     name="couch-store-kauf", daemon=True).start()
+
+
+def browser_state(app: Any) -> str:
+    """Hauptschleife: "running" (der Browser läuft), "preparing" (die Shell bereitet seinen Start vor) oder ""."""
+    if app.procs.by_entry("app:browser") is not None:
+        return "running"
+    preparing = getattr(getattr(app, "shell", None), "is_preparing", None)
+    return "preparing" if callable(preparing) and preparing("app:browser") else ""
+
+
+def watch_login(wiring: Any, sid: str, logged_in: Callable[[], bool], stopped: threading.Event, *,
+                step: float, watch: float, appear: float, checks: tuple) -> None:
+    """Store-Anmeldung im Browser beobachten (eigener Faden, für alle Shops mit Anmeldung über Cookies): Ist der
+    Browser wieder zu, nach checks Sekunden das Konto frisch lesen und den Store neu laden lassen (store.owned),
+    sobald es angemeldet ist. „Zu“ gilt erst, wenn er da war (oder nach appear nie kam): Solange die Shell ihn
+    vorbereitet, läuft noch keine App (E100). Nötig, weil der Browser seine Cookies erst beim Schließen ganz
+    wegschreibt: Liest der Store genau dann, sieht er noch „nicht angemeldet“ (2026-10-30, Steam)."""
+    app = wiring.app
+    try:
+        began = time.monotonic()
+        seen = False
+        while not stopped.wait(step) and time.monotonic() - began < watch:
+            try:
+                state = wiring.main.call(browser_state, app)
+            except RuntimeError:                # das Home endet
+                return
+            seen = seen or state == "running"
+            if not state and (seen or time.monotonic() - began > appear):
+                break
+        for delay in checks:
+            if stopped.wait(delay):
+                return
+            if logged_in():
+                wiring.main.post(lambda: app.rpc.emit("store.owned", {"store": sid, "id": ""}))
+                return
+    except Exception:  # noqa: BLE001 (eigener Faden: sonst nur ein Traceback auf stderr)
+        _log.exception("Store %s: Anmeldung beobachten", sid)
+
+
+def shop_page(params: dict, browse: Callable[..., dict], annotate: Callable[[list], Any]) -> dict:
+    """store.list eines Shops (E70): eine Seite eines Reiters oder der Suche, {ok, items, total, more}.
+    browse(reiter, seite, genre, suche) wirft StoreError bzw. ValueError; dann ok false mit dem Satz."""
+    try:
+        page = browse(str(params.get("tab") or ""), int(params.get("page") or 0),
+                      str(params.get("genre") or ""), str(params.get("query") or ""))
+    except (steam_store.StoreError, ValueError) as e:
+        return {"ok": False, "message": str(e), "items": [], "total": 0, "more": False}
+    annotate(page["items"])
+    return {"ok": True, **page}
+
+
+def _write_private(path: str, data: Any) -> None:
+    """JSON atomar, mit fsync und nur für dich lesbar (0600) ablegen (system.write_atomic: eigener
+    Temp-Name je Prozess und Faden; eine liegengebliebene Temp-Datei bestimmt nie die Rechte, E99)."""
+    system.write_atomic(path, json.dumps(data, indent=1), 0o600)
+
+
+# Verzeichnisse der über den Store installierten Spiele (GOG, Epic, itch.io), die nicht auf die Platte kamen:
+# Pfad -> (letzter Versuch, Stand). Siehe registry_save.
+REGISTRY_RETRY_S = 30.0
+_unsaved: dict[str, tuple[float, Any]] = {}
+_registry_lock = threading.RLock()
+
+
+def registry_save(path: str, data: Any) -> bool:
+    """Verzeichnis der über den Store installierten Spiele schreiben. Es wird erst geschrieben, wenn das Spiel
+    schon in der Bibliothek steht: Ein Schreibfehler (Platte voll, nur lesbar) darf dann nicht „nicht
+    installiert“ heißen. Vorher meldete die Warteschlange genau das, der Store zeigte das Spiel nicht als
+    installiert, und GOG legte beim nächsten „Installieren“ einen zweiten Ordner an. Jetzt gilt der Stand im
+    Speicher weiter (registry_load), und jeder spätere Zugriff versucht es höchstens alle REGISTRY_RETRY_S
+    noch einmal. False: noch nicht auf der Platte."""
+    with _registry_lock:
+        try:
+            _write_private(path, data)
+        except OSError as e:
+            first = path not in _unsaved
+            _unsaved[path] = (time.monotonic(), data)
+            if first:
+                _log.warning("Store: %s nicht geschrieben (%s), der Stand gilt im Speicher weiter", path, e)
+            return False
+        if _unsaved.pop(path, None) is not None:
+            _log.info("Store: %s ist jetzt geschrieben", path)
+        return True
+
+
+def registry_load(path: str) -> Any:
+    """Inhalt eines Verzeichnisses (siehe registry_save): der Stand, der noch auf die Platte muss, sonst die
+    Datei. Fehlt sie oder ist sie kaputt: None."""
+    with _registry_lock:
+        pending = _unsaved.get(path)
+        if pending is not None and time.monotonic() - pending[0] >= REGISTRY_RETRY_S:
+            registry_save(path, pending[1])
+            pending = _unsaved.get(path)
+        if pending is not None:
+            return copy.deepcopy(pending[1])
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 
 class _Rate:
@@ -176,12 +331,8 @@ class SteamDownloads:
             return []
 
     def _save(self) -> None:
-        tmp = self.file + ".neu"
         try:
-            os.makedirs(os.path.dirname(self.file), exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"queue": self.queue}, fh, indent=1)
-            os.replace(tmp, self.file)
+            _write_private(self.file, {"queue": self.queue})
         except OSError:
             _log.exception("Warteschlange des Stores speichern")
 
@@ -474,13 +625,7 @@ class SteamDownloads:
             self.queue = [j for j in self.queue if j["appid"] != job["appid"]]
             self._save()
         self.rates.pop(job["appid"], None)
-        self.wiring.main.post(self._notify, title, body, ok)
-
-    def _notify(self, title: str, body: str, ok: bool) -> None:
-        try:
-            self.app.notify.push(title, body, icon="download" if ok else "warn", sound=None if ok else "error")
-        except Exception:
-            _log.exception("Mitteilung")
+        self.wiring.main.post(notify_result, self.app, title, body, ok)
 
     def _rescan(self) -> None:
         try:
@@ -546,23 +691,6 @@ GOG_RETRY_S = (30, 60, 120, 240, 480)
 EPIC_STATES = {"queued": "Wartet", "preparing": "Wird vorbereitet …", "downloading": "Lädt",
                "installing": "Wird eingetragen …", "cancelling": "Wird abgebrochen …", "removing": "Wird deinstalliert …",
                "login": "Wartet auf die Anmeldung bei Epic"}
-
-
-def _write_private(path: str, data: Any) -> None:
-    """JSON atomar und nur für dich lesbar (0600) ablegen."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".neu"
-    # Eine liegengebliebene .neu behielte sonst ihre Rechte; ein Verweis wird nie verfolgt (E99)
-    try:
-        os.unlink(tmp)
-    except FileNotFoundError:
-        pass
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=1)
-        fh.flush()
-        os.fsync(fh.fileno())               # nach einem Stromausfall keine leere Warteschlange
-    os.replace(tmp, path)
 
 
 class _StoreQueue:
@@ -691,13 +819,7 @@ class _StoreQueue:
             self.queue = [j for j in self.queue if j is not job]
             self._save()
         self.wiring.main.post(self.publish)
-        self.wiring.main.post(self._notify, title, body, ok)
-
-    def _notify(self, title: str, body: str, ok: bool) -> None:
-        try:
-            self.app.notify.push(title, body, icon="download" if ok else "warn", sound=None if ok else "error")
-        except Exception:
-            _log.exception("Mitteilung")
+        self.wiring.main.post(notify_result, self.app, title, body, ok)
 
     # ------------------------------------------------------------ Anzeige
     def view(self, job: dict) -> dict | None:
@@ -1113,20 +1235,14 @@ class GogDownloads(_FolderQueue):
     @classmethod
     def installed(cls) -> dict:
         """{GOG-Produkt: Eintrag der Bibliothek} der über den Store installierten Spiele."""
-        try:
-            with open(cls.registry_file(), encoding="utf-8") as fh:
-                data = json.load(fh)
-            return {int(k): str(v) for k, v in data.items() if str(k).isdigit()} if isinstance(data, dict) else {}
-        except (OSError, ValueError):
-            return {}
+        data = registry_load(cls.registry_file())
+        return {int(k): str(v) for k, v in data.items() if str(k).isdigit()} if isinstance(data, dict) else {}
 
     def _remember(self, product_id: int, entry_id: str) -> None:
+        """Nach dem Eintragen in die Bibliothek; ein Schreibfehler ändert daran nichts (registry_save)."""
         data = {str(k): v for k, v in self.installed().items()}
         data[str(product_id)] = entry_id
-        tmp = self.registry_file() + ".neu"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=1)
-        os.replace(tmp, self.registry_file())
+        registry_save(self.registry_file(), data)
 
     def _langs(self) -> tuple:
         """Sprachen der Spielfassung nach der Oberfläche: Englisch zuerst, wenn sie englisch ist."""
@@ -1191,7 +1307,7 @@ class GogDownloads(_FolderQueue):
             task = gog_install.play_task(target, job["id"])
             platform = "windows"
         else:
-            self._unpack_linux(first, target)
+            self._unpack_linux(first, target, job)
             task = {"exe": "data/noarch/start.sh", "args": "", "working_dir": ""}
             platform = "linux"
         if cancel.is_set():
@@ -1241,11 +1357,61 @@ class GogDownloads(_FolderQueue):
             raise gog_install.InstallError("Der GOG-Installer ist nicht durchgelaufen (Rückgabewert %s)." % rc)
         _log.info("GOG: %s ausgepackt (Sprache %s)", job["title"], lang or "alle")
 
-    def _unpack_linux(self, installer: str, target: str) -> None:
-        from . import system
-        r = system.run_write(["unzip", "-o", "-q", installer, "data/noarch/*", "-d", target], timeout=3600.0, note="gog")
-        if r.returncode not in (0, 1) or not os.path.isfile(os.path.join(target, "data/noarch/start.sh")):
+    TOOLS: dict | None = None               # nur für Tests: {"bwrap": Attrappe} (installer/probe.tool_argv)
+    UNZIP_TIMEOUT_S = 3600
+
+    @staticmethod
+    def _unzip_tool() -> str | None:
+        """unzip aus dem PATH; im Prüfmodus nur die Attrappe aus COUCH_TEST_UNZIP (wie innoextract, gog_extract)."""
+        if paths.test_mode():
+            fake = os.environ.get("COUCH_TEST_UNZIP") or ""
+            return fake if fake and os.access(fake, os.X_OK) else None
+        import shutil
+        return shutil.which("unzip")
+
+    def _unpack_linux(self, installer: str, target: str, job: dict | None = None) -> None:
+        """Linux-Installer von GOG (Shell-Skript mit angehängtem ZIP): data/noarch mit unzip auspacken, wie
+        innoextract (store/gog_extract.py) im Käfig: unzip läuft in bubblewrap, beschreibbar allein der
+        Zwischenordner <target>/.gog-extract, lesbar eigens der Ordner des Installers. Fehlt bubblewrap, wird nicht
+        ausgepackt (nie ohne Käfig). Info-ZIP legt Verweise aus dem Archiv als Verweise an: Liegt danach ein
+        Verweis oder eine Sonderdatei (FIFO, Gerät) im Zwischenordner, wird nichts übernommen. Sonst wandert data
+        in den Spielordner, der Rest des Zwischenordners in den Papierkorb (gelöscht wird nichts)."""
+        from . import files
+        from .store import gog_extract
+        tool = self._unzip_tool()
+        if tool is None:
+            raise gog_install.InstallError("Zum Auspacken des Linux-Installers fehlt unzip.")
+        installer = os.path.realpath(installer)
+        cancel = job["cancel"] if job else None
+
+        def track(proc: Any) -> None:
+            self.proc = proc                    # Abbrechen beendet die Gruppe von bwrap (cancel, _term_group)
+        try:
+            staging = gog_extract.fresh_staging(target)
+            argv = [tool, "-o", "-q", installer, "data/noarch/*", "-d", staging]
+            with open(log.capped(paths.app_log(self.LOG_NAME)), "a") as log_fh:
+                rc = gog_extract.run_sandboxed(gog_extract.sandbox_argv(argv, installer, writable=staging, tools=self.TOOLS),
+                                      log_fh, cancel, self.UNZIP_TIMEOUT_S, track, env=gog_extract.tool_env(tool))
+        except gog_extract.Refused as e:
+            raise gog_install.InstallError(e.message) from None
+        if cancel is not None and cancel.is_set():
+            raise gog_install.InstallError("Abgebrochen.")
+        # 1: nur Warnungen (die Bytes des Skripts vor dem ZIP)
+        if rc not in (0, 1) or not os.path.isfile(os.path.join(staging, "data", "noarch", "start.sh")):
             raise gog_install.InstallError("Der Linux-Installer ließ sich nicht entpacken.")
+        bad = gog_extract.unsafe_entries(staging)
+        if bad:
+            _log.warning("GOG: Verweise oder Sonderdateien im Zwischenordner, nichts wird übernommen: %s", ", ".join(bad))
+            raise gog_install.InstallError(gog_extract.MSG_UNSAFE)
+        src, dst = os.path.join(staging, "data"), os.path.join(os.path.dirname(staging), "data")
+        if os.path.isdir(dst) and not os.path.islink(dst):
+            gog_extract.merge(src, dst)        # Rest eines unterbrochenen Laufs: zusammenführen
+        else:
+            os.replace(src, dst)
+        try:
+            files.gio_trash(staging)
+        except (OSError, ValueError) as e:
+            _log.warning("GOG: Zwischenordner nicht in den Papierkorb: %s", e)
 
 
 class EpicDownloads(_StoreQueue):
@@ -1397,18 +1563,12 @@ class EpicDownloads(_StoreQueue):
     @classmethod
     def installed(cls) -> dict:
         """{App-Name: {entry, namespace, title}} der über den Store installierten Epic-Spiele."""
-        try:
-            with open(cls.registry_file(), encoding="utf-8") as fh:
-                data = json.load(fh)
-        except (OSError, ValueError):
-            return {}
+        data = registry_load(cls.registry_file())
         return {k: v for k, v in data.items() if isinstance(v, dict)} if isinstance(data, dict) else {}
 
     def _write_registry(self, data: dict) -> None:
-        tmp = self.registry_file() + ".neu"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=1)
-        os.replace(tmp, self.registry_file())
+        """Nach dem Ein- bzw. Austragen in der Bibliothek; ein Schreibfehler ändert daran nichts (registry_save)."""
+        registry_save(self.registry_file(), data)
 
     def _watchers(self, job: dict):
         """(progress, stats) für legendary: Prozent, Ziel und Zahlen in den Auftrag."""
@@ -1502,6 +1662,7 @@ def extend(wiring: Any) -> None:
     wiring.store_publish_jobs = lambda stores, jobs: publish_jobs(app, set(stores), jobs)    # Hauptschleife
     account = {"at": 0.0, "data": None, "good": None}
     account_lock = threading.Lock()
+    login_stop = threading.Event()              # Ende des Home: die Beobachtung der Anmeldung hört auf
 
     def get_account(force: bool = False) -> dict:
         with account_lock:
@@ -1551,13 +1712,7 @@ def extend(wiring: Any) -> None:
 
     def steam_list(params: dict) -> dict:
         """Eine Seite eines Reiters oder der Suche (E70): {items, total, more}."""
-        try:
-            page = shop.browse(str(params.get("tab") or ""), int(params.get("page") or 0),
-                               str(params.get("genre") or ""), str(params.get("query") or ""))
-        except (steam_store.StoreError, ValueError) as e:
-            return {"ok": False, "message": str(e), "items": [], "total": 0, "more": False}
-        annotate(page["items"])
-        return {"ok": True, **page}
+        return shop_page(params, shop.browse, annotate)
 
     def steam_delisted(appid: int, info: dict | None) -> dict:
         """Eigenes Spiel, das der Shop nicht (mehr) führt (E99): eine knappe Seite aus Steams appinfo,
@@ -1663,27 +1818,39 @@ def extend(wiring: Any) -> None:
         return {"ok": True, "message": "Der Download wird abgebrochen."}
 
     def open_url(url: str, close_other: bool = False, close_after: str = "") -> Any:
-        """Adresse im Browser des PC5 Launchers. close_after "steam-login"/"gog-login": Der
-        Browser schließt sich nach der Anmeldung selbst (zurück in den Store)."""
+        """Hauptschleife: Adresse im Browser des PC5 Launchers. close_after "steam-login"/"gog-login": Der
+        Browser schließt sich nach der Anmeldung selbst (zurück in den Store). Läuft er schon, bekommt er den
+        Auftrag als Datei (browser_open_file, alle 2 s gelesen) und kommt nach vorn; die Datei schreibt ein
+        Arbeits-Thread (fsync), die Antwort ist dann ein Future."""
         from .launch import apps
         running = app.procs.by_entry("app:browser")
         if running is not None:
-            try:
-                tmp = paths.browser_open_file() + ".neu"
-                with open(tmp, "w", encoding="utf-8") as fh:
-                    json.dump({"url": url, "at": time.time(), "close": close_after}, fh)
-                os.replace(tmp, paths.browser_open_file())
-            except OSError as e:
-                return {"ok": False, "message": "Der Browser lässt sich gerade nicht ansteuern: %s" % e}
-            app.shell.focus_app(running)
-            return {"ok": True}
+            order = json.dumps({"url": url, "at": time.time(), "close": close_after})
+
+            def hand_over() -> str:             # Arbeits-Thread
+                try:
+                    system.write_atomic(paths.browser_open_file(), order, 0o600)
+                except OSError as e:
+                    _log.warning("Store: Auftrag an den Browser nicht geschrieben: %s", e)
+                    return "Der Browser lässt sich gerade nicht ansteuern. Versuche es gleich noch einmal."
+                return ""
+
+            def to_front(problem: str) -> dict:     # Hauptschleife
+                if problem:
+                    return {"ok": False, "message": problem}
+                app.shell.focus_app(running)
+                return {"ok": True}
+            return bg_then_main(wiring, hand_over, to_front)
         apps.PENDING_OPEN["app:browser"] = (url, time.monotonic(), close_after)
         try:
             # Läuft etwas anderes vorn, fragt die Seite wie bei jedem Start (needsConfirm, closeOther)
             return app.shell.launch("app:browser", close_other=close_other)
         except Exception as e:  # noqa: BLE001
             apps.PENDING_OPEN.pop("app:browser", None)
-            return {"ok": False, "message": getattr(e, "message", str(e))}
+            if not getattr(e, "message", ""):
+                _log.exception("Store: Browser starten")
+            # nur gewollte Sätze an die Seite (LaunchError, RpcError), nie der Text einer Ausnahme
+            return {"ok": False, "message": getattr(e, "message", "") or "Der Browser ließ sich nicht öffnen."}
 
     # ------------------------------------------------------------ Kauf beobachten (E71)
     watching: dict = {}                         # (shop, Nummer) -> Ende der Beobachtung
@@ -1747,13 +1914,16 @@ def extend(wiring: Any) -> None:
             return {"ok": False, "message": "Dieses Spiel gibt es nicht."}
         with account_lock:
             account["at"] = 0.0                 # nach dem Kauf neu fragen
-        threading.Thread(target=watch_purchase, args=("steam", appid, str(params.get("title") or "Das Spiel")),
-                         name="couch-store-kauf", daemon=True).start()
+        start_purchase_watch(wiring, "steam", appid, params.get("title"))
         return open_url("%s/app/%d/" % (steam_store.SHOP, appid), bool(params.get("closeOther")))
 
     def steam_login(params: dict) -> Any:
         with account_lock:
             account["at"] = 0.0
+        threading.Thread(target=watch_login, name="couch-store-anmeldung", daemon=True,
+                         args=(wiring, "steam", lambda: get_account(force=True)["logged_in"], login_stop),
+                         kwargs={"step": LOGIN_STEP_S, "watch": LOGIN_WATCH_S, "appear": BROWSER_APPEAR_S,
+                                 "checks": LOGIN_CHECKS_S}).start()
         return open_url(steam_account.LOGIN, bool((params or {}).get("closeOther")), "steam-login")
 
     # ------------------------------------------------------------ GOG (Teil 2)
@@ -1800,13 +1970,7 @@ def extend(wiring: Any) -> None:
                 "loggedIn": gog_acct.logged_in(), "genres": gog_store.genres()}
 
     def gog_list(params: dict) -> dict:
-        try:
-            page = gog.browse(str(params.get("tab") or ""), int(params.get("page") or 0),
-                              str(params.get("genre") or ""), str(params.get("query") or ""))
-        except (steam_store.StoreError, ValueError) as e:
-            return {"ok": False, "message": str(e), "items": [], "total": 0, "more": False}
-        gog_annotate(page["items"])
-        return {"ok": True, **page}
+        return shop_page(params, gog.browse, gog_annotate)
 
     def gog_item(params: dict) -> dict:
         pid = _appid(params)
@@ -1854,16 +2018,18 @@ def extend(wiring: Any) -> None:
         if pid is None:
             return {"ok": False, "message": "Dieses Spiel gibt es nicht."}
         owned_gog["at"] = 0.0
-        slug = str(params.get("slug") or "")
-        if not slug:
+
+        def look_up() -> str:                   # Arbeits-Thread: die Shop-Seite braucht das Netz
             try:
-                slug = gog.details(pid)["slug"]
+                return gog.details(pid)["slug"]
             except steam_store.StoreError:
-                slug = ""
-        url = gog_store.SHOP % slug if slug else "https://www.gog.com/de/"
-        threading.Thread(target=watch_purchase, args=("gog", pid, str(params.get("title") or "Das Spiel")),
-                         name="couch-store-kauf", daemon=True).start()
-        return open_url(url, bool(params.get("closeOther")))
+                return ""
+
+        def go(slug: str) -> Any:               # Hauptschleife
+            start_purchase_watch(wiring, "gog", pid, params.get("title"))
+            return open_url(gog_store.SHOP % slug if slug else "https://www.gog.com/de/", bool(params.get("closeOther")))
+        slug = str(params.get("slug") or "")
+        return go(slug) if slug else bg_then_main(wiring, look_up, go)
 
     def gog_login(params: dict) -> Any:
         owned_gog["at"] = 0.0
@@ -1938,13 +2104,7 @@ def extend(wiring: Any) -> None:
 
     def epic_list(params: dict) -> dict:
         epic_owned(wait=False)
-        try:
-            page = epic.browse(str(params.get("tab") or ""), int(params.get("page") or 0),
-                               str(params.get("genre") or ""), str(params.get("query") or ""))
-        except (steam_store.StoreError, ValueError) as e:
-            return {"ok": False, "message": str(e), "items": [], "total": 0, "more": False}
-        epic_annotate(page["items"])
-        return {"ok": True, **page}
+        return shop_page(params, epic.browse, epic_annotate)
 
     def epic_item(params: dict) -> dict:
         item_id = str(params.get("id") or "")
@@ -2005,16 +2165,19 @@ def extend(wiring: Any) -> None:
         ns = item_id.split(":")[0]
         if not ns:
             return {"ok": False, "message": "Dieses Spiel gibt es nicht."}
-        slug = str(params.get("slug") or "")
-        if not slug:
+
+        def look_up() -> str:                   # Arbeits-Thread: die Shop-Seite braucht das Netz
             try:
-                slug = epic.details(item_id)["slug"]
+                return epic.details(item_id)["slug"]
             except steam_store.StoreError:
-                slug = ""
-        url = epic_store.SHOP % slug if slug else "https://store.epicgames.com/de/"
-        threading.Thread(target=watch_purchase, args=("epic", ns, str(params.get("title") or "Das Spiel")),
-                         name="couch-store-kauf", daemon=True).start()
-        return open_url(url, bool(params.get("closeOther")))
+                return ""
+
+        def go(slug: str) -> Any:               # Hauptschleife
+            start_purchase_watch(wiring, "epic", ns, params.get("title"))
+            return open_url(epic_store.SHOP % slug if slug else "https://store.epicgames.com/de/",
+                            bool(params.get("closeOther")))
+        slug = str(params.get("slug") or "")
+        return go(slug) if slug else bg_then_main(wiring, look_up, go)
 
     def epic_login(params: dict) -> Any:
         owned_epic["at"] = 0.0
@@ -2160,6 +2323,7 @@ def extend(wiring: Any) -> None:
         return "Der Store lädt gerade „%s“ von Epic." % ejobs[0]["title"] if ejobs else None
     wiring.busy_checks.append(jobs_busy)
     wiring.shutdown_hooks.append(downloads.stop)
+    wiring.shutdown_hooks.append(login_stop.set)
     wiring.shutdown_hooks.append(gog_dl.stop)
     wiring.shutdown_hooks.append(epic_dl.stop)
     for queue in (downloads, gog_dl, epic_dl):  # Aufträge von vor dem Neustart (GOG und Epic: E99)

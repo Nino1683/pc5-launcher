@@ -30,20 +30,13 @@ import gi
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib  # noqa: E402
 
-from .. import APP_ID_BASE, jsontext, log, paths, system  # noqa: E402
+from .. import APP_ID_BASE, APP_ID_MAX, jsontext, log, paths, system  # noqa: E402
 from ..launch.spec import STEAM_LEFTOVERS, LaunchError, LaunchSpec, strip_env  # noqa: E402
+from ..glibfd import fd_add as _fd_add  # noqa: E402
 from . import tree  # noqa: E402
-
-try:                                    # GLib.unix_fd_add_full ist in neuem PyGObject abgekündigt
-    gi.require_version("GLibUnix", "2.0")
-    from gi.repository import GLibUnix
-    _fd_add = GLibUnix.fd_add_full
-except (ValueError, ImportError, AttributeError):
-    _fd_add = GLib.unix_fd_add_full
 
 _log = log.get("proc")
 
-APP_ID_MAX = 0x7FFFFFFF
 KILL_GRACE = 8.0            # Sekunden zwischen höflicher Bitte und SIGKILL (E5)
 POLITE_FOLLOWUP = 2.0       # nach einem polite_stop-Befehl: so lange bis zum SIGTERM hinterher
 POLITE_POLL = 0.05          # Takt, in dem auf das Ende des polite_stop-Befehls gesehen wird

@@ -3,15 +3,17 @@ Battle.net, Ubisoft, Rockstar).
 
 Antworten liegen als JSON in <cache>/store/<shop>/<schlüssel>.json. Jünger als ttl: aus der Datei.
 Sonst neu holen; scheitert das, gilt ohne Netz der letzte Stand, sonst StoreError mit einem deutschen
-Satz. Blockierend (Platte, Netz), gehört in einen Arbeits-Thread.
+Satz (bei einer Fehlerantwort mit eigenem Satz dieser, sonst „nicht erreichbar“). Blockierend (Platte,
+Netz), gehört in einen Arbeits-Thread.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
-import threading
 import time
+
+from .. import system
 
 
 class StoreError(Exception):
@@ -28,27 +30,24 @@ def _read(path: str):
 
 
 def write(cache_dir: str, path: str, data) -> None:
-    """Atomar ablegen; ein Fehler der Platte ist hier kein Fehler (dann eben ohne Zwischenspeicher).
-    Die Zwischendatei gehört genau diesem Thread: Zwei Arbeits-Threads mit demselben Schlüssel schrieben
-    sonst in dieselbe Datei, und im Zwischenspeicher stünde ein Gemisch aus beiden Antworten."""
-    tmp = "%s.%d-%d.neu" % (path, os.getpid(), threading.get_ident())
+    """Atomar ablegen (system.write_atomic); ein Fehler der Platte ist hier kein Fehler (dann eben ohne
+    Zwischenspeicher, die eigene Zwischendatei räumt write_atomic ab). Jeder Aufruf hat seine eigene
+    Zwischendatei: Zwei Arbeits-Threads mit demselben Schlüssel schrieben sonst in dieselbe Datei, und im
+    Zwischenspeicher stünde ein Gemisch aus beiden Antworten. Rechte wie bei open() (0666 durch die umask)."""
     try:
         os.makedirs(cache_dir, exist_ok=True)
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh)
-        os.replace(tmp, path)
+        system.write_atomic(path, json.dumps(data), 0o666)
     except OSError:
-        try:
-            os.unlink(tmp)                  # nur die eigene Zwischendatei
-        except OSError:
-            pass
+        pass
 
 
 def cached(cache_dir: str, key: str, fetch, ttl: float, *, clock=time.time, force: bool = False, check=None,
            unreachable: str = "Der Shop ist gerade nicht erreichbar.", on_error=None, keep: tuple = ()):
-    """fetch() liefert die Antwort. check(data) darf werfen: eine Fehlerantwort gilt wie kein Netz.
-    on_error(e) wird bei jedem Fehler gerufen (etwa um eine HTTP-Antwort zu schließen). keep: Ausnahmen,
-    die unverändert durchgehen, ohne Rückfall auf den letzten Stand (schon ein Satz für die Oberfläche)."""
+    """fetch() liefert die Antwort. check(data) darf werfen: eine Fehlerantwort gilt wie kein Netz (der
+    letzte Stand); ohne ihn geht ein StoreError aus check mit seinem Satz an die Oberfläche (der Shop ist ja
+    erreichbar und sagt, was nicht stimmt), jeder andere Fehler als unreachable. on_error(e) wird bei jedem
+    Fehler gerufen (etwa um eine HTTP-Antwort zu schließen). keep: Ausnahmen, die unverändert durchgehen,
+    ohne Rückfall auf den letzten Stand (schon ein Satz für die Oberfläche)."""
     path = path_for(cache_dir, key)
     try:
         age = clock() - os.path.getmtime(path)
@@ -59,8 +58,10 @@ def cached(cache_dir: str, key: str, fetch, ttl: float, *, clock=time.time, forc
             return _read(path)
         except (OSError, ValueError):
             pass
+    answered = False
     try:
         data = fetch()
+        answered = True
         if check is not None:
             check(data)
     except keep:
@@ -73,6 +74,7 @@ def cached(cache_dir: str, key: str, fetch, ttl: float, *, clock=time.time, forc
                 return _read(path)      # ohne Netz: der letzte Stand
             except (OSError, ValueError):
                 pass
-        raise StoreError(unreachable) from e
+        sentence = str(e) if answered and isinstance(e, StoreError) and str(e) else unreachable
+        raise StoreError(sentence) from e
     write(cache_dir, path, data)
     return data

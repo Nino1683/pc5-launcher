@@ -14,10 +14,9 @@ echten Platten des Nutzers an.
 from __future__ import annotations
 
 import os
-import re
 import shutil
 
-from .. import paths
+from .. import mounts as _mounts, paths   # „mounts“ heißt hier auch die Liste der Aufrufer
 from . import catalog, folders
 
 GIB = 1024 ** 3
@@ -32,30 +31,17 @@ _OS_NAMES = {"bazzite": "Bazzite (Fedora Atomic)", "steamos": "SteamOS", "fedora
 SUPPORTED = ("bazzite", "steamos", "chimeraos", "nobara")
 
 
-def _unescape(field: str) -> str:
-    """mountinfo schreibt Leerzeichen und Sonderzeichen als \\040 usw."""
-    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
-
-
-def read_mounts(path: str = "/proc/self/mountinfo") -> list:
-    """[{target, fstype, source, ro}] aus mountinfo."""
-    out = []
+def read_mounts(path: str = _mounts.MOUNTINFO) -> list:
+    """[{target, fstype, source, ro}] aus mountinfo, über den einen Leser (couch/mounts.py: Oktalfolgen entmaskiert,
+    Namen wie os.path.realpath sie liefert). Wie bisher zählt nur eine Zeile mit Optionen der Einhängung und einer
+    Quelle; ro steht in den Optionen der Einhängung oder des Dateisystems. Unlesbar: []."""
     try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            lines = fh.read(4 << 20).splitlines()
+        table = _mounts.read(path)
     except OSError:
-        return out
-    for line in lines:
-        left, sep, right = line.partition(" - ")
-        if not sep:
-            continue
-        fields, rest = left.split(), right.split()
-        if len(fields) < 6 or len(rest) < 2:
-            continue
-        opts = fields[5].split(",")
-        out.append({"target": _unescape(fields[4]), "fstype": rest[0], "source": _unescape(rest[1]),
-                    "ro": "ro" in opts or "ro" in (rest[2].split(",") if len(rest) > 2 else [])})
-    return out
+        return []
+    return [{"target": m.point, "fstype": m.fstype, "source": m.source,
+             "ro": "ro" in m.options.split(",") or "ro" in m.super_options.split(",")}
+            for m in table if m.options and m.source]
 
 
 def _space(path: str) -> tuple:
@@ -176,11 +162,12 @@ def installation_of(root: str) -> str:
 
 
 def installed_flatpaks(dirs, ids=None) -> dict:
-    """{flatpak-id: "system"|"user"} der Katalog-Apps (Muster library/apps.py: current/active)."""
+    """{flatpak-id: "system"|"user"} der Katalog-Apps (eingerichtet heißt current/active, flatpaks.installed_at)."""
+    from ..library.flatpaks import installed_at
     out: dict = {}
     for app_id in ids if ids is not None else catalog.flatpak_ids():
         for root in dirs:
-            if os.path.isdir(os.path.join(root, "app", app_id, "current", "active")):
+            if installed_at(root, app_id):
                 out.setdefault(app_id, installation_of(root))
     return out
 

@@ -35,7 +35,7 @@ import threading
 import time
 from typing import Any
 
-from . import log, paths
+from . import log, paths, system, wiring_store
 from .library.model import Entry
 from .store import launchers
 from .store.steam import StoreError
@@ -67,6 +67,14 @@ JOB_TEXT = {"queued": "Wartet", "launcher": "%s wird eingerichtet …", "confirm
 # Aufträge, die den Launcher noch nicht gestartet haben: Ein Spielstart darf dann vor (E99)
 NOT_STARTED = ("queued", "waiting")
 MARK = ".couch-installing"           # im Prefix, solange etwas lädt (bin/couch-launcher-game lässt einen fremden Launcher dann laufen)
+SHOP_HOME = {"battlenet": "https://eu.shop.battle.net/de-de", "ubisoft": "https://store.ubisoft.com/de/home",
+             "rockstar": "https://store.rockstargames.com/de"}     # Kaufen ohne eigene Shop-Seite
+# Nach einer Store-Anmeldung im Browser (_after_login): so oft nachsehen, ob der Browser noch offen ist, so lange
+# höchstens, so lange darf er zum Erscheinen brauchen (die Shell bereitet ihn vor), danach so oft nach dem Konto fragen
+LOGIN_STEP_S = 2.0
+LOGIN_WATCH_S = 15 * 60
+BROWSER_APPEAR_S = 60.0
+LOGIN_CHECKS_S = (1, 3, 6, 10)
 
 
 def _module(name: str):
@@ -162,12 +170,8 @@ class LauncherStores:
             return {}
 
     def _write_known(self, data: dict) -> None:
-        tmp = self.registry_file() + ".neu"
         try:
-            os.makedirs(os.path.dirname(tmp), exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, indent=1)
-            os.replace(tmp, self.registry_file())
+            system.write_atomic(self.registry_file(), json.dumps(data, indent=1), 0o600)
         except OSError as e:
             _log.warning("launcher-games.json: %s", e)
 
@@ -293,11 +297,9 @@ class LauncherStores:
         path = os.path.join(paths.state_dir(), "store-owned-%s.json" % sid)
         if data["logged_in"]:
             try:
-                tmp = path + ".neu"
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(tmp, "w", encoding="utf-8") as fh:
-                    json.dump({"at": time.time(), "ids": sorted(data["ids"], key=str), "games": data["games"]}, fh)
-                os.replace(tmp, path)
+                # eigener Temp-Name: account() läuft in mehreren Arbeits-Threads zugleich
+                system.write_atomic(path, json.dumps({"at": time.time(), "ids": sorted(data["ids"], key=str),
+                                                      "games": data["games"]}), 0o600)
             except OSError as e:
                 _log.warning("Store %s: Stand nicht gemerkt: %s", sid, e)
             return data
@@ -311,18 +313,11 @@ class LauncherStores:
             return data
 
     def _after_login(self, sid: str) -> None:
-        """Store-Anmeldung im Browser: Ist der Browser wieder zu, ein paar Mal nachfragen und die Seite
-        neu laden lassen, sobald das Konto angemeldet ist."""
-        end = time.monotonic() + 15 * 60
-        while not self.stopped.wait(2) and time.monotonic() < end:
-            if self.wiring.main.call(self.app.procs.by_entry, "app:browser") is None:
-                break
-        for delay in (1, 3, 6, 10):
-            if self.stopped.wait(delay):
-                return
-            if self.account(sid, force=True)["logged_in"]:
-                self.wiring.main.post(lambda: self.rpc.emit("store.owned", {"store": sid, "id": ""}))
-                return
+        """Store-Anmeldung im Browser beobachten (wiring_store.watch_login, wie bei Steam): Ist der Browser wieder
+        zu, ein paar Mal nachfragen und die Seite neu laden lassen, sobald das Konto angemeldet ist."""
+        wiring_store.watch_login(self.wiring, sid, lambda: self.account(sid, force=True)["logged_in"], self.stopped,
+                                 step=LOGIN_STEP_S, watch=LOGIN_WATCH_S, appear=BROWSER_APPEAR_S,
+                                 checks=LOGIN_CHECKS_S)
 
     def is_owned(self, sid: str, card: dict, acct: dict) -> bool:
         ids = acct["ids"]
@@ -449,13 +444,8 @@ class LauncherStores:
                 "launcher": {"name": NAMES[sid], "installed": self.launcher_ready(sid)}}
 
     def list(self, sid: str, params: dict) -> dict:
-        try:
-            page = self.shop(sid).browse(str(params.get("tab") or ""), int(params.get("page") or 0),
-                                         str(params.get("genre") or ""), str(params.get("query") or ""))
-        except (StoreError, ValueError) as e:
-            return {"ok": False, "message": str(e), "items": [], "total": 0, "more": False}
-        self.annotate(sid, page["items"])
-        return {"ok": True, **page}
+        # self.shop wirft StoreError, wenn das Modul des Shops fehlt: auch das gehört in die Antwort
+        return wiring_store.shop_page(params, lambda *a: self.shop(sid).browse(*a), lambda items: self.annotate(sid, items))
 
     def item(self, sid: str, params: dict) -> dict:
         try:
@@ -490,22 +480,26 @@ class LauncherStores:
         return {"ok": True, "item": d}
 
     def buy(self, sid: str, params: dict) -> Any:
+        """Hauptschleife (Route store.buy): Die Shop-Seite (Adresse, Kennung für die Kaufbeobachtung) braucht
+        das Netz und kommt aus dem Arbeits-Thread; den Browser öffnet danach die Hauptschleife."""
         item_id = str(params.get("id") or "")
-        url = ""
-        try:
-            d = self.shop(sid).details(item_id, params.get("card") if isinstance(params.get("card"), dict) else None)
-            url = d.get("url") or ""
+        card = params.get("card") if isinstance(params.get("card"), dict) else None
+
+        def look_up() -> tuple:                 # Arbeits-Thread
+            try:
+                d = self.shop(sid).details(item_id, card)
+            except StoreError:
+                return "", None
             pid = d.get("title_id") if sid == "battlenet" else d.get("uplay_id") if sid == "ubisoft" else d.get("id")
-        except StoreError:
-            pid = None
-        if not url:
-            url = {"battlenet": "https://eu.shop.battle.net/de-de", "ubisoft": "https://store.ubisoft.com/de/home",
-                   "rockstar": "https://store.rockstargames.com/de"}[sid]
-        if pid:
-            self.owned[sid]["at"] = 0.0
-            threading.Thread(target=self.wiring.store_watch_purchase, args=(sid, pid, str(params.get("title") or "Das Spiel")),
-                             name="couch-store-kauf", daemon=True).start()
-        return self.wiring.store_open_url(url, bool(params.get("closeOther")))
+            return d.get("url") or "", pid
+
+        def go(found: tuple) -> Any:            # Hauptschleife
+            url, pid = found
+            if pid:
+                self.owned[sid]["at"] = 0.0
+                wiring_store.start_purchase_watch(self.wiring, sid, pid, params.get("title"))
+            return self.wiring.store_open_url(url or SHOP_HOME[sid], bool(params.get("closeOther")))
+        return wiring_store.bg_then_main(self.wiring, look_up, go)
 
     def owned_check(self, sid: str):
         def check(pid) -> bool:
@@ -525,15 +519,22 @@ class LauncherStores:
         self.owned[sid]["at"] = 0.0
         self._login_at[sid] = time.monotonic()
         threading.Thread(target=self._after_login, args=(sid,), name="couch-store-anmeldung", daemon=True).start()
-        url = acct.LOGIN_URL
-        if sid == "ubisoft" and hasattr(acct, "login_url"):
+        close_other = bool((params or {}).get("closeOther"))
+
+        def open_login(url: str) -> Any:        # Hauptschleife
+            return self.wiring.store_open_url(url, close_other, "%s-login" % sid)
+        if not (sid == "ubisoft" and hasattr(acct, "login_url")):
+            return open_login(acct.LOGIN_URL)
+
+        def ubisoft_url() -> str:               # Arbeits-Thread: die Anmelde-IDs stehen auf der Shop-Seite (Netz)
             try:
                 ids = self.shop("ubisoft").web_ids() or {}
                 if ids.get("app_id") and ids.get("genome_id"):
-                    url = acct.login_url(ids["app_id"], ids["genome_id"])
+                    return acct.login_url(ids["app_id"], ids["genome_id"])
             except Exception as e:  # noqa: BLE001
                 _log.warning("Ubisoft: Anmelde-IDs nicht lesbar: %s", e)
-        return self.wiring.store_open_url(url, bool((params or {}).get("closeOther")), "%s-login" % sid)
+            return acct.LOGIN_URL
+        return wiring_store.bg_then_main(self.wiring, ubisoft_url, open_login)
 
     # ------------------------------------------------------------ Installieren
     def job_view(self, job: dict) -> dict:
@@ -1181,11 +1182,17 @@ class LauncherStores:
         return ""
 
     def sync(self, sid: str) -> None:
-        """Was im Launcher installiert ist ↔ Einträge der Bibliothek; Aufträge abschließen."""
+        """Was im Launcher installiert ist ↔ Einträge der Bibliothek; Aufträge abschließen. Ist die Registry
+        des Prefix gerade nicht lesbar (Platte schläft oder ist weg, Datei fehlt), bleibt alles, wie es ist."""
         prefix = self.prefix(sid)
         if not os.path.isdir(prefix):
             return
         self.route_urls(sid)
+        if not _registry_readable(prefix):
+            # winreg.read liefert dann {}: Alle Spiele dieses Launchers fielen aus der Bibliothek und kämen beim
+            # nächsten Abgleich mit Mitteilung „ist installiert“ zurück
+            _log.info("Launcher %s: Registry nicht lesbar, Abgleich ausgelassen", sid)
+            return
         found = launchers.installed_games(prefix, sid, self.codes_map(sid))
         known = self.known()
         mine = dict(known.get(sid) or {})
@@ -1228,15 +1235,19 @@ class LauncherStores:
                 self.publish()
                 self._unmark(sid)
                 self._close_if_idle(sid)
-        # Im Launcher deinstalliert: Eintrag weg
+        # Im Launcher deinstalliert: Eintrag weg. Nur, wenn die Registry jetzt noch lesbar ist: Ging sie während
+        # des Lesens verloren, ist found leer, ohne dass etwas deinstalliert wurde
         present = {str(g["code"]) for g in found}
-        for code, entry_id in list(mine.items()):
-            if code not in present:
-                mine.pop(code)
-                changed = True
-                _log.info("Launcher %s: %s ist nicht mehr installiert", sid, code)
-                from . import wiring_library
-                self.wiring.main.post(lambda e=entry_id: wiring_library.remove_local(self.app, e))
+        gone = [(code, entry_id) for code, entry_id in mine.items() if code not in present]
+        if gone and not _registry_readable(prefix):
+            _log.info("Launcher %s: Registry beim Abgleich verloren, nichts wird ausgetragen", sid)
+            gone = []
+        for code, entry_id in gone:
+            mine.pop(code)
+            changed = True
+            _log.info("Launcher %s: %s ist nicht mehr installiert", sid, code)
+            from . import wiring_library
+            self.wiring.main.post(lambda e=entry_id: wiring_library.remove_local(self.app, e))
         if changed:
             known[sid] = mine
             self._write_known(known)
@@ -1352,16 +1363,13 @@ class LauncherStores:
 
     def _save_jobs(self, jobs: list) -> None:
         """Unsichtbare Aufträge überleben einen Neustart des PC5 Launchers: Danach lädt er weiter.
-        Unter eigener Sperre: publish kommt aus mehreren Threads, alle schreiben dieselbe .neu-Datei."""
+        Unter eigener Sperre: publish kommt aus mehreren Threads (ein älterer Stand überschriebe sonst den neuen)."""
         path = os.path.join(paths.state_dir(), "launcher-jobs.json")
         with self._save_lock:
             if self._saved_jobs == jobs:
                 return
             try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path + ".neu", "w", encoding="utf-8") as fh:
-                    json.dump(jobs, fh)
-                os.replace(path + ".neu", path)
+                system.write_atomic(path, json.dumps(jobs), 0o600)
             except OSError as e:
                 _log.warning("launcher-jobs.json: %s", e)
                 return                          # nicht als geschrieben merken: der nächste Stand versucht es wieder
@@ -1470,38 +1478,54 @@ class LauncherStores:
             self.wake.clear()
             if self.stopped.is_set():
                 return
-            with self.lock:
-                queued = [j for j in self.jobs if j["state"] in NOT_STARTED]
-                watched = [j for j in self.jobs if j["state"] in ("confirm", "installing")]
-            # Die Listen sind Momentaufnahmen, und _begin dauert (Launcher einrichten): vor jedem Schritt
-            # prüfen, ob der Auftrag noch ansteht (E99)
-            for job in queued:
-                if self._live(job):
-                    self._begin(job)
-            stores = {j["store"] for j in watched}
-            if time.monotonic() - self._last_sync > SYNC_S:
-                self._last_sync = time.monotonic()
-                stores |= {sid for sid in STORE_IDS if os.path.isdir(self.prefix(sid))}
-            for sid in stores:
-                try:
-                    self.sync(sid)
-                except Exception:  # noqa: BLE001
-                    _log.exception("Abgleich %s", sid)
-            for job in watched:
-                if not self._live(job):
-                    continue
-                self._progress(job)
-                if job["state"] == "confirm" and not job.get("resent") and self._live(job) \
-                        and launchers.login_after(self.prefix(job["store"]), job["store"], job["since"]):
-                    # erst jetzt angemeldet: Den Auftrag von vorher führt der Launcher nicht mehr aus
-                    job["resent"] = True
-                    _log.info("%s: angemeldet, Installation von %s noch einmal angestoßen", NAMES[job["store"]], job["title"])
-                    self._send_to_running(job["store"], launchers.install_args(job["store"], job["code"])[1:])
-                if job.get("hidden") and job["state"] == "confirm" and time.time() - job["since"] > HIDDEN_WAIT_S \
-                        and self._live(job):
-                    self._reveal(job, "nach %d s kein Download" % HIDDEN_WAIT_S)
-                if job["state"] == "confirm" and time.time() - job["since"] > CONFIRM_TIMEOUT_S and self._live(job):
-                    self._fail(job, "In %s wurde die Installation nicht bestätigt." % NAMES[job["store"]])
+            try:
+                self._tick()
+            except Exception:  # noqa: BLE001
+                # Ein Fehler (Platte weg mitten im Schritt, unerwartete Antwort) beendete sonst den Faden: Bis zum
+                # Neustart des Home lud dann nichts mehr weiter, und kein Auftrag wurde je fertig
+                _log.exception("Launcher-Aufträge")
+
+    def _tick(self) -> None:
+        """Ein Durchgang des Fadens couch-launchers: wartende Aufträge beginnen, abgleichen, Fortschritt."""
+        with self.lock:
+            queued = [j for j in self.jobs if j["state"] in NOT_STARTED]
+            watched = [j for j in self.jobs if j["state"] in ("confirm", "installing")]
+        # Die Listen sind Momentaufnahmen, und _begin dauert (Launcher einrichten): vor jedem Schritt
+        # prüfen, ob der Auftrag noch ansteht (E99)
+        for job in queued:
+            if self._live(job):
+                self._begin(job)
+        stores = {j["store"] for j in watched}
+        if time.monotonic() - self._last_sync > SYNC_S:
+            self._last_sync = time.monotonic()
+            stores |= {sid for sid in STORE_IDS if os.path.isdir(self.prefix(sid))}
+        for sid in stores:
+            try:
+                self.sync(sid)
+            except Exception:  # noqa: BLE001
+                _log.exception("Abgleich %s", sid)
+        for job in watched:
+            try:
+                self._watch_job(job)
+            except Exception:  # noqa: BLE001 (ein Auftrag hält die übrigen nicht an)
+                _log.exception("Launcher-Auftrag %s", job.get("title"))
+
+    def _watch_job(self, job: dict) -> None:
+        """Ein laufender Auftrag (confirm, installing): Fortschritt, neu anstoßen, zeigen, aufgeben."""
+        if not self._live(job):
+            return
+        self._progress(job)
+        if job["state"] == "confirm" and not job.get("resent") and self._live(job) \
+                and launchers.login_after(self.prefix(job["store"]), job["store"], job["since"]):
+            # erst jetzt angemeldet: Den Auftrag von vorher führt der Launcher nicht mehr aus
+            job["resent"] = True
+            _log.info("%s: angemeldet, Installation von %s noch einmal angestoßen", NAMES[job["store"]], job["title"])
+            self._send_to_running(job["store"], launchers.install_args(job["store"], job["code"])[1:])
+        if job.get("hidden") and job["state"] == "confirm" and time.time() - job["since"] > HIDDEN_WAIT_S \
+                and self._live(job):
+            self._reveal(job, "nach %d s kein Download" % HIDDEN_WAIT_S)
+        if job["state"] == "confirm" and time.time() - job["since"] > CONFIRM_TIMEOUT_S and self._live(job):
+            self._fail(job, "In %s wurde die Installation nicht bestätigt." % NAMES[job["store"]])
 
     def _progress(self, job: dict) -> None:
         """Battle.net trägt ein Spiel erst am Ende in die Registry ein: Ob es lädt und wie weit, steht in
@@ -1596,6 +1620,19 @@ class LauncherStores:
         self._unmark(job["store"])
         if text != "Abgebrochen." and not quiet:
             self.wiring.main.post(lambda: self.app.notify.push("„%s“ wurde nicht installiert" % job["title"], text, icon="warn"))
+
+
+REG_HEAD = b"WINE REGISTRY"
+
+
+def _registry_readable(prefix: str) -> bool:
+    """Lässt sich system.reg des Prefix lesen, mit Wines Kopfzeile? Sonst heißt ein leeres Ergebnis von
+    launchers.installed_games (winreg.read: {}) nicht, dass nichts mehr installiert ist."""
+    try:
+        with open(os.path.join(prefix, "system.reg"), "rb") as fh:
+            return fh.read(len(REG_HEAD)) == REG_HEAD
+    except OSError:
+        return False
 
 
 def _describe(found: list) -> str:

@@ -35,6 +35,7 @@ from __future__ import annotations
 import os
 import shutil
 
+from .flatpaks import installed as flatpak_set_up
 from .model import Entry
 from .sources import sort_title
 
@@ -76,12 +77,8 @@ SETUP_IDS = {"youtube": "youtube", "kodi": "kodi"}
 def flatpak_installed(ctx, app_id: str) -> bool:
     """Ist das Flatpak eingerichtet? Erst die Ordner (schnell), notfalls ``flatpak info``. Blockierend."""
     roots = [d for d in ctx.flatpak_dirs if os.path.isdir(os.path.join(d, "app"))]
-    for root in roots:
-        # current -> <arch>/<zweig>, darin active -> <commit>; ein halb entferntes Flatpak hat das nicht
-        if os.path.isdir(os.path.join(root, "app", app_id, "current", "active")):
-            return True
     if roots:
-        return False
+        return flatpak_set_up(roots, app_id)     # current/active, wie überall (flatpaks.installed_at)
     try:
         code, _out, _err = ctx.run_read(["flatpak", "info", app_id], timeout=10)
     except Exception:
@@ -188,7 +185,7 @@ def emulator_apps(ctx) -> list[Entry]:
     out = []
     roots = [d for d in ctx.flatpak_dirs if os.path.isdir(os.path.join(d, "app"))]
     for emu in catalog.EMULATORS:
-        if not any(os.path.isdir(os.path.join(r, "app", emu["flatpak"], "current", "active")) for r in roots):
+        if not flatpak_set_up(roots, emu["flatpak"]):
             continue
         out.append(Entry(id="app:emu-" + emu["id"], title=emu["title"], kind="app", source="app", badge="",
                          sort_title=sort_title(emu["title"]), hidden=True,

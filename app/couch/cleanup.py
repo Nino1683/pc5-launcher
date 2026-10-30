@@ -76,7 +76,7 @@ class Context:
     system_trash: Callable[[], list] | None = None       # xdgtrash.list_items(…, sizes=True)
     allowed: Callable[[str], bool] | None = None         # files.allowed: darf der Explorer dort in den Papierkorb legen?
     volumes: list = field(default_factory=list)          # [(id, label, path)] für „Frei: …“
-    mountinfo: str = "/proc/self/mountinfo"
+    mountinfo: str | None = None                         # None: couch.mounts.source() (Prüfmodus: COUCH_TEST_MOUNTINFO)
     min_download: int = MIN_DOWNLOAD
     min_download_days: int = MIN_DOWNLOAD_DAYS
     budget: float = BUDGET_S

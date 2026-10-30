@@ -14,6 +14,7 @@ from __future__ import annotations
 import colorsys
 import functools
 import hashlib
+import io
 import math
 import os
 import re
@@ -21,6 +22,8 @@ import unicodedata
 from dataclasses import dataclass
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageMath
+
+from .. import system
 
 # Steckt im Dateinamen-Hash der erzeugten Bilder: bei jeder Änderung am Aussehen hochzählen,
 # dann erneuern sich die Platzhalter von selbst.
@@ -523,21 +526,16 @@ def render_app_tile(symbol: str, title: str = "", icon: Image.Image | None = Non
 # ------------------------------------------------------------------ Dateien
 
 def save_image(img: Image.Image, out_path: str, quality: int = 90) -> str:
-    """Atomar speichern (erst daneben schreiben, dann umbenennen). JPEG oder PNG nach Endung."""
+    """Atomar speichern (system.write_atomic: erst daneben als „.tmp-…“, dann umbenennen). JPEG oder PNG nach Endung.
+    Die Zwischendatei beginnt mit „.tmp-“, damit das Aufräumen des Bilderordners liegen gebliebene erkennt (art)."""
     folder = os.path.dirname(out_path)
-    os.makedirs(folder, exist_ok=True)
-    tmp = os.path.join(folder, ".tmp-%d-%s" % (os.getpid(), os.path.basename(out_path)))
-    try:
-        if out_path.lower().endswith(".png"):
-            img.save(tmp, "PNG", compress_level=4)
-        else:
-            img.convert("RGB").save(tmp, "JPEG", quality=quality, subsampling=0 if quality >= 92 else 2)
-        os.replace(tmp, out_path)
-    finally:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+    os.makedirs(folder, exist_ok=True)              # Ordnerrechte wie bisher (umask), nicht 0700
+    buf = io.BytesIO()
+    if out_path.lower().endswith(".png"):
+        img.save(buf, "PNG", compress_level=4)
+    else:
+        img.convert("RGB").save(buf, "JPEG", quality=quality, subsampling=0 if quality >= 92 else 2)
+    system.write_atomic(out_path, buf.getvalue(), 0o666, tmp_prefix=".tmp-")     # Rechte wie open(): umask
     return out_path
 
 

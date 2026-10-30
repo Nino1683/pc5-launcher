@@ -11,6 +11,7 @@ Das Hilfsprogramm: app/bin/couch-setup-flatpak; im Prüfmodus nur die Attrappe a
 """
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -30,6 +31,7 @@ PROGRESS_S = 0.25
 VIEW_S = 1.0
 HELPER_WAIT_S = 15.0
 PLAN_TIMEOUT_S = 90.0
+REMOTE_TIMEOUT_S = 150.0            # remote-ensure: Nutzer-Quelle flathub anlegen (Netz)
 PROTON_LIST_WAIT_S = 90.0
 FINAL = ("done", "failed", "skipped", "cancelled")
 BUSY_TEXT = "Die Einrichtung installiert gerade Emulatoren und Apps."
@@ -80,18 +82,25 @@ def in_cage(path: str) -> bool:
 
 
 class Helper:
-    """Ein Lauf des Hilfsprogramms: Zeilen lesen, Rückgabewert, Abbruch über SIGTERM an die eigene PID."""
+    """Ein Lauf des Hilfsprogramms: Zeilen lesen, Rückgabewert, Abbruch über SIGTERM an die eigene PID.
+
+    Wer abbricht, bevor der Lauf angefangen hat (zwischen „als self.helper merken“ und start()), trifft noch keinen
+    Prozess: Dann merkt sich der Helper das, und start() startet nicht mehr (OSError ECANCELED)."""
 
     def __init__(self, argv: list, popen: Callable | None = None, env: dict | None = None):
         self.argv = list(argv)
         self.popen = popen or subprocess.Popen
         self.env = env
         self.proc: Any = None
+        self.stopped = False
         self.lock = threading.Lock()
 
     def start(self, args: list) -> None:
-        self.proc = self.popen(self.argv + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL, text=True, errors="replace", env=self.env)
+        with self.lock:
+            if self.stopped:
+                raise OSError(errno.ECANCELED, "abgebrochen, bevor das Hilfsprogramm lief")
+            self.proc = self.popen(self.argv + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL, text=True, errors="replace", env=self.env)
 
     def lines(self):
         for line in self.proc.stdout:
@@ -123,6 +132,7 @@ class Helper:
     def signal_term(self) -> None:
         """Nur bitten (SIGTERM an die eigene PID), nicht warten: für das Ende des Home."""
         with self.lock:
+            self.stopped = True
             proc = self.proc
         if proc is not None and proc.poll() is None:
             try:
@@ -132,6 +142,7 @@ class Helper:
 
     def terminate(self) -> None:
         with self.lock:
+            self.stopped = True
             proc = self.proc
         if proc is None or proc.poll() is not None:
             return
@@ -403,14 +414,32 @@ class SetupJobs:
                 self._set(job, it, "failed", message="Ohne Flatpak lassen sich keine Emulatoren und Apps installieren."
                           if not paths.test_mode() else "Im Prüfmodus fehlt die Flatpak-Attrappe.")
             return
-        rc, events = helper.run(["remote-ensure"], timeout=150)
+        # Auch dieser Lauf steht in self.helper: Abbrechen und das Ende des Home beenden ihn sofort (bis 2026-10-30
+        # warteten sie bis zu REMOTE_TIMEOUT_S, und danach hieß es „Flathub ist gerade nicht erreichbar“)
+        with self.lock:
+            stopped = job["stop"].is_set()
+            if not stopped:
+                self.helper = helper
+        events: list = []
+        if not stopped:
+            try:
+                _rc, events = helper.run(["remote-ensure"], timeout=REMOTE_TIMEOUT_S)
+            except OSError:
+                if not job["stop"].is_set():
+                    raise                       # wie bisher: der Schritt scheitert („Das hat nicht geklappt.“)
+            finally:
+                with self.lock:
+                    self.helper = None
+        if job["stop"].is_set():
+            for it in wanted:
+                if it["state"] in ("waiting", "running"):
+                    self._set(job, it, "cancelled", message="Abgebrochen.")
+            return
         remote = next((e for e in events if e.get("ev") == "remote"), {})
         if not remote.get("ok"):
             text = remote.get("message") or "Flathub ist gerade nicht erreichbar."
             for it in wanted:
                 self._set(job, it, "failed", message=text, code=remote.get("code") or "failed")
-            return
-        if job["stop"].is_set():
             return
         helper = self._helper()
         with self.lock:
@@ -423,7 +452,8 @@ class SetupJobs:
                 self._helper_event(job, ev, by_flatpak, saw_end)
             rc = helper.finish()
         except OSError as e:
-            _log.warning("Hilfsprogramm startet nicht: %s", e)
+            if not job["stop"].is_set():        # sonst: abgebrochen, bevor es lief (Helper.start)
+                _log.warning("Hilfsprogramm startet nicht: %s", e)
             rc = 1
         finally:
             with self.lock:

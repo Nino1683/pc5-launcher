@@ -3,7 +3,8 @@
 Wunsch 2026-10-29: „Bazaar möchte ich auch im pc5 Launcher wenn ich darin etwas installiere soll es auch im pc5
 launcher erscheinen.“ Gelesen wird je Installation (ctx.flatpak_dirs: /var/lib/flatpak und ~/.local/share/flatpak,
 im Prüfmodus der Attrappen-Baum) nur:
-  <root>/app/<id>/current/active                         ist die App eingerichtet (wie apps.flatpak_installed)
+  <root>/app/<id>/current/active                         ist die App eingerichtet (installed_at; die eine Prüfung
+                                                         für Kacheln, Quellen, Assistent und Starter)
   <root>/exports/share/applications/<id>.desktop         Name, Comment, Categories, NoDisplay, Terminal, Exec, Icon
   <root>/exports/share/icons/hicolor/<größe>/apps/<Icon>.png|.svg   Bild der Kachel
 Nur lesend und blockierend (je App ein paar stat und eine kleine Datei); wirft nie.
@@ -65,12 +66,30 @@ def roots(ctx) -> list:
     return sorted(found, key=lambda item: item[1] != "user")
 
 
+def active_dir(root: str, app_id: str) -> str:
+    return os.path.join(root, "app", app_id, "current", "active")
+
+
+def installed_at(root: str, app_id) -> bool:
+    """Ist die App in dieser Installation eingerichtet? current -> <arch>/<zweig>, darin active -> <commit>. Ein halb
+    entferntes Flatpak (abgebrochenes Deinstallieren, Zweig ohne Auswahl) hat current, aber kein active: Es gilt als
+    nicht installiert, sonst bestünde es die Prüfung vor dem Start und scheiterte erst dabei. Nur stat."""
+    if not isinstance(app_id, str) or not app_id or "/" in app_id or not root:
+        return False
+    return os.path.isdir(active_dir(root, app_id))
+
+
+def installed(dirs, app_id) -> bool:
+    """In einer der Installationen dirs eingerichtet? Für alle Stellen, die das fragen (library/apps.py, roms.py,
+    emulators.py, setup/detect.py, launch/flatpak.py). Nur stat."""
+    return any(installed_at(root, app_id) for root in dirs or ())
+
+
 def installed_in(ctx, app_id: str) -> list:
     """Installationen ("user", "system"), in denen die App eingerichtet ist; Nutzer zuerst. Nur stat."""
     if not valid_id(app_id):
         return []
-    return [kind for root, kind in roots(ctx)
-            if os.path.isdir(os.path.join(root, "app", app_id, "current", "active"))]
+    return [kind for root, kind in roots(ctx) if installed_at(root, app_id)]
 
 
 # ---------------------------------------------------------------- Desktop-Datei
@@ -254,9 +273,9 @@ def load(ctx) -> list[Entry]:
         for app_id in ids:
             if not valid_id(app_id) or app_id in skip or app_id.startswith(OWN_PREFIXES):
                 continue
-            active = os.path.join(root, "app", app_id, "current", "active")
-            if not os.path.isdir(active):
+            if not installed_at(root, app_id):
                 continue                        # halb entfernt oder nur ein Zweig ohne Auswahl
+            active = active_dir(root, app_id)
             if app_id in seen:
                 seen[app_id]["installations"].append(kind)
                 continue

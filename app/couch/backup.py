@@ -44,7 +44,7 @@ import zipfile
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from . import PRODUCT, VERSION, config as config_mod, jsontext, log, paths, system
+from . import PRODUCT, VERSION, config as config_mod, jsontext, log, mounts, paths, system
 from .library.index import transferable
 
 _log = log.get("backup")
@@ -154,18 +154,12 @@ def default_dir() -> str:
 _NET_FS = ("cifs", "smb", "nfs", "9p", "sshfs", "fuse.sshfs", "davfs", "fuse.davfs", "afs", "ceph", "fuse.rclone")
 
 
-def _mount_types(mountinfo: str = "/proc/self/mountinfo") -> dict[str, str]:
-    out: dict[str, str] = {}
+def _mount_types(mountinfo: str | None = None) -> dict[str, str]:
+    """Einhängepunkt -> Dateisystemtyp (couch.mounts: alle Oktalfolgen entmaskiert, obenauf gilt). Nicht lesbar: {}."""
     try:
-        with open(mountinfo, encoding="utf-8", errors="surrogateescape") as f:
-            for line in f:
-                left, _sep, right = line.partition(" - ")
-                fields = left.split()
-                if len(fields) >= 5 and right:
-                    out[fields[4].replace("\\040", " ")] = right.split()[0]
+        return mounts.table(mounts.read(mountinfo))
     except OSError:
-        pass
-    return out
+        return {}
 
 
 def drives() -> list[str]:

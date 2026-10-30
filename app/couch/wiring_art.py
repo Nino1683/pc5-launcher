@@ -25,20 +25,13 @@ from . import log, paths
 
 _log = log.get("wiring.art")
 
-SGDB_KEY = "library.sgdb_key"
-# Vorgaben der eigenen Schlüssel (E22/E34). library.fetch_art steht schon in config.py.
-DEFAULTS = {
-    SGDB_KEY: "",                      # eigener SteamGridDB-Schlüssel; leer = die Quelle bleibt aus
-}
+SGDB_KEY = "library.sgdb_key"          # Vorgabe "" (leer = die Quelle bleibt aus) in config.DEFAULTS, wie library.fetch_art
 
 
 def fake_store() -> str | None:
-    """Adresse einer Store-Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner."""
-    from .library.artsources.base import host_of, is_loopback
-    base = os.environ.get("COUCH_ART_FAKE_STORE") or ""
-    if not paths.test_mode() or not base.startswith("http://") or not is_loopback(host_of(base)):
-        return None
-    return base.rstrip("/")
+    """Adresse einer Store-Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner (fakenet.base_url)."""
+    from . import fakenet
+    return fakenet.base_url("COUCH_ART_FAKE_STORE")
 
 
 def net_allowed() -> bool:
@@ -93,21 +86,14 @@ def sources_state(app: Any) -> list[dict]:
 
 
 def extend(wiring: Any) -> None:
+    """Vorgaben stehen in config.DEFAULTS; einen laufenden Abruf bricht beim Ende der Bibliotheks-Teil ab
+    (wiring_library.LibraryPart.stop: erst der Bilder-Thread, dann ArtResolver.cancel, einmal)."""
     app = wiring.app
-    add = getattr(app.config, "add_defaults", None)
-    if add is not None:
-        add(dict(DEFAULTS))
     if wiring.art is None:
         _log.warning("Bilder der Bibliothek fehlen: kein Abruf aus dem Netz, keine Vorschaubilder")
         return
     if not net_allowed():
         _log.info("Prüfmodus: Bilder werden nicht aus dem Netz geladen (COUCH_ART_NET=1 erlaubt es)")
-
-    def stop() -> None:
-        # ein laufender Abruf bricht bei der nächsten Anfrage ab; nichts davon wird vermerkt
-        if wiring.art is not None:
-            wiring.art.cancel()
-    wiring.shutdown_hooks.append(stop)
     on_change = getattr(app.config, "on_change", None)
     if on_change is not None:
         on_change(SGDB_KEY, lambda key, value: sgdb_key_changed(wiring, value))

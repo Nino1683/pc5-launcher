@@ -76,10 +76,12 @@ def place(game_dir: str, data_dir: str, fetch=_download) -> str:
         return "missing"
     if os.path.lexists(target):
         return "present" if os.path.isfile(target) and _digest(target) == _digest(source) else "foreign"
-    tmp = target + ".pc5-neu"
-    with open(source, "rb") as src, open(tmp, "wb") as dst:
-        dst.write(src.read())
-    os.replace(tmp, target)
+    with open(source, "rb") as src:
+        data = src.read()
+    # Nie über eine DLL, die zwischen Prüfung und Einsetzen auftaucht (replace=False: FileExistsError); die
+    # Zwischendatei im Spielordner beginnt mit „.pc5-neu-“, damit man sie als unsere erkennt. Rechte wie open()
+    from .. import system
+    system.write_atomic(target, data, mode=0o666, replace=False, tmp_prefix=".pc5-neu-")
     return "placed"
 
 

@@ -16,6 +16,9 @@ und hängt sich am Ende von Wiring.run() ein, wieder jedes für sich. Für sie g
   wiring.resume_hooks    E142: Funktionen ohne Parameter, die nach dem Aufwachen aus dem Ruhemodus
                          laufen (ResumeWatch, Hauptschleife; Langsames in einen eigenen Thread)
 
+Gemeinsame Hilfen für die Teile: pooled (RPC-Methode im Arbeits-Pool), toast (Einblendung ohne Listeneintrag),
+reveal_again (App ohne Fenster durch einen zweiten Start zeigen).
+
 Zwei Dinge gleicht dieses Modul aus:
 - Die Bausteine rechnen mit (rc, stdout, stderr) und dürfen in Arbeits-Threads laufen. Die
   X-Verbindung (gs) und die Beobachter der Einstellungen gehören aber der Hauptschleife. Sie
@@ -25,6 +28,7 @@ Zwei Dinge gleicht dieses Modul aus:
 from __future__ import annotations
 
 import importlib
+import itertools
 import os
 import queue
 import shutil
@@ -62,6 +66,7 @@ PARTS = ("library", "art", "launch", "settings", "install", "files", "saves", "s
          "trophies", "widgets", "videos", "apps", "discord", "tv")
 
 UNAVAILABLE = "Das ist gerade nicht verfügbar."
+REVEAL_WAIT_S = 30.0            # so lange wartet der Faden auf den zweiten Start zum Zeigen (beendet wird er nie)
 # RPC-Methoden je Baustein von Wiring.run(): Fällt er aus, antworten sie mit UNAVAILABLE
 STEP_METHODS = {
     "Leistung": ("perf.get", "perf.set"),
@@ -127,6 +132,74 @@ def _popen_bound(argv: list, **kwargs: Any) -> subprocess.Popen:
     if setpriv:
         argv = [setpriv, "--pdeathsig", "TERM", *argv]
     return _spawner.popen(argv, kwargs)
+
+
+# ---------------------------------------------------------------- Hilfen für die Teile
+def pooled(wiring: Any, fn: Callable[[dict], Any]) -> Callable[[dict], Future]:
+    """RPC-Methode, die fn(params) im gemeinsamen Arbeits-Pool rechnet (Platte, Netz, Prozesse: nie in der
+    Hauptschleife). Die Seite bekommt das Ergebnis, sobald das Future fertig ist."""
+    return lambda params: wiring._bg(fn, dict(params or {}))
+
+
+_toast_ids = itertools.count(1)
+
+
+def toast(wiring: Any, title: str, body: str, icon: str, prefix: str) -> None:
+    """Kurze Einblendung ohne Eintrag in der Liste der Mitteilungen (Discord-Tasten E139, Fernseher E142; ein
+    Listeneintrag wäre nur Rauschen): wie notify.push über das Ereignis toast und notify.on_toast (das Overlay steht
+    dafür passiv). Ohne Einblendungen (notify.popups) nichts. Aus jedem Thread, gesendet wird in der Hauptschleife."""
+    notify = getattr(wiring.app, "notify", None)
+    if notify is None or wiring.config.get("notify.popups", True) is False:
+        return
+
+    def show() -> None:
+        item = {"id": "%s-%d" % (prefix, next(_toast_ids)), "title": title, "body": body, "icon": icon,
+                "time": time.time()}
+        try:
+            wiring.app.rpc.emit("toast", {**item, "seconds": notify.seconds()})
+            if callable(getattr(notify, "on_toast", None)):
+                notify.on_toast(item)
+        except Exception:
+            _log.exception("Einblendung (%s)", prefix)
+    wiring.main.post(show)
+
+
+def reveal_again(wiring: Any, app: Any, label: str, thread: str, logger: Any, drop: tuple = (),
+                 spawn: Callable | None = None) -> None:
+    """Shell.reveal für eine App ohne Fenster (Discord E139, Bazaar E140): dasselbe Programm noch einmal mit der Umgebung
+    der App starten; es reicht das an die laufende Instanz weiter, die ihr Fenster zeigt, der zweite Prozess endet.
+    Hauptschleife; gewartet wird in einem eigenen Faden. drop: Argumente, die der zweite Start nicht bekommt (Discord:
+    --start-minimized). spawn(argv, env, cwd) ersetzt in Tests den Start. Im Prüfmodus nur Attrappen (AppManager-Regel)."""
+    argv = [a for a in (getattr(app.spec, "argv", None) or []) if a not in drop]
+    if not argv:
+        return
+    try:
+        display = wiring.app.gs.game_display()
+    except Exception as e:
+        logger.warning("%s zeigen: kein Display (%s)", label, e)
+        return
+    from .proc import manager
+    env = manager.build_env(getattr(wiring.app, "session_env", {}) or {}, app.spec, display, app.app_id)
+    exe = manager.find_executable(argv[0], env, app.spec.cwd)
+    if exe is None or (paths.test_mode() and not manager.test_mode_allows(exe)):
+        logger.info("%s zeigen: %s wird nicht gestartet", label, argv[0])
+        return
+    run = spawn or (lambda a, e, c: _spawn_and_wait(a, e, c, label, logger))
+    threading.Thread(target=run, args=([exe, *argv[1:]], env, app.spec.cwd), name=thread, daemon=True).start()
+
+
+def _spawn_and_wait(argv: list, env: dict, cwd: Any, label: str, logger: Any) -> None:
+    try:
+        proc = _popen_bound(argv, env=env, cwd=cwd or None, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        logger.warning("%s zeigen: %s", label, e)
+        return
+    try:
+        proc.wait(timeout=REVEAL_WAIT_S)
+    except subprocess.TimeoutExpired:
+        # Nicht beenden: Ist der erste inzwischen weg, ist dieser Start das echte Programm (bei Discord samt Sprachchat)
+        logger.warning("%s zeigen: der zweite Start endet nicht von selbst, er läuft weiter", label)
 
 
 # ---------------------------------------------------------------- in die Hauptschleife

@@ -14,9 +14,9 @@ import threading
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 
 from .. import system
+from . import login_code, net
 
 CLIENT_ID = "46899977096215655"
 CLIENT_SECRET = "9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9"
@@ -55,16 +55,14 @@ def _write_private(path: str, data: dict) -> None:
 
 def store_code(path: str, code: str, clock=time.time) -> None:
     """Vom Browser gerufen: den Code für das Home ablegen."""
-    _write_private(path, {"code": code, "at": clock()})
+    login_code.store(path, code, clock)
 
 
 def _request(url: str, token: str = "", timeout: float = 20.0) -> dict:
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:      # noqa: S310 (feste https-Adressen)
-        return json.loads(resp.read(16 * 1024 * 1024).decode("utf-8"))
+    return net.get_json(url, headers, timeout)
 
 
 class GogAccount:
@@ -109,21 +107,14 @@ class GogAccount:
             raise GogError("GOG ist gerade nicht erreichbar.") from e
 
     def take_code(self) -> bool:
-        """Liegt ein frischer Code vom Browser bereit, gegen Schlüssel tauschen. True: neu angemeldet."""
-        try:
-            with open(self.code_file, encoding="utf-8") as fh:
-                data = json.load(fh)
-            os.unlink(self.code_file)
-        except (OSError, ValueError):
+        """Liegt ein frischer Code vom Browser bereit, gegen Schlüssel tauschen. True: neu angemeldet.
+        Unter derselben Sperre wie das Erneuern: Eine Erneuerung mit dem alten Schlüssel schriebe sonst
+        womöglich nach der neuen Anmeldung und überschriebe sie."""
+        code = login_code.take(self.code_file, CODE_TTL_S, self._clock)
+        if not code:
             return False
-        code = str((data or {}).get("code") or "") if isinstance(data, dict) else ""
-        try:
-            fresh = self._clock() - float(data.get("at") or 0) < CODE_TTL_S
-        except (TypeError, ValueError, AttributeError):
-            fresh = False
-        if not code or not fresh:
-            return False
-        self._save(self._token_call(grant_type="authorization_code", code=code, redirect_uri=REDIRECT))
+        with self._lock:
+            self._save(self._token_call(grant_type="authorization_code", code=code, redirect_uri=REDIRECT))
         return True
 
     def token(self) -> str:

@@ -122,19 +122,24 @@ class TrophyPart:
         if not appids or now - self._refresh_at < REFRESH_GAP_S:
             return
         self._refresh_at = now
-        self.lane.submit(self._refresh, appids)         # läuft nach dieser Antwort (eine Lane, der Reihe nach)
+        self.lane.submit(self._refresh, list(appids))   # läuft nach dieser Antwort (eine Lane, der Reihe nach)
 
-    def _refresh(self, appids: list[int]) -> None:
-        """Arbeits-Thread: veraltete oder fehlende Seltenheiten holen (frische kommen aus dem Zwischenspeicher)."""
-        changed = False
-        for appid in appids:
-            if self.closed:
-                return
-            try:
-                before = self.service.rarity(appid, fetch=False)
-                changed = self.service.rarity(appid) != before or changed
-            except Exception:  # noqa: BLE001
-                _log.exception("Seltenheit von %d", appid)
+    def _refresh(self, appids: list[int], changed: bool = False) -> None:
+        """Arbeits-Thread: veraltete oder fehlende Seltenheiten holen (frische kommen aus dem Zwischenspeicher). Ein
+        Spiel je Auftrag, der Rest kommt wieder hinten in die Lane: Sonst wartete ein trophies.game, das während des
+        Nachholens kommt, hinter den Abrufen aller Spiele (Sekunden). trophies.changed einmal am Ende."""
+        if self.closed or not appids:
+            return
+        appid, rest = appids[0], appids[1:]
+        try:
+            before = self.service.rarity(appid, fetch=False)
+            changed = self.service.rarity(appid) != before or changed
+        except Exception:  # noqa: BLE001
+            _log.exception("Seltenheit von %d", appid)
+        if rest:
+            if not self.closed:
+                self.lane.submit(self._refresh, rest, changed)
+            return
         if changed and not self.closed:
             try:
                 self.app.rpc.emit("trophies.changed", {"id": "", "appid": 0}, "home")

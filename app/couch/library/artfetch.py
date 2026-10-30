@@ -34,6 +34,7 @@ import threading
 import time
 
 from .. import jsontext
+from ..system import write_atomic
 from . import artsources
 from .artsources import match
 from .artsources.base import (IMAGE_TYPES, MAX_BYTES, MAX_JSON_BYTES, MIN_INTERVAL, TIMEOUT,  # noqa: F401
@@ -279,17 +280,8 @@ class ArtFetcher:
 
     @staticmethod
     def _write_json(path: str, data, sort_keys: bool = False) -> None:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = "%s.tmp-%d-%d" % (path, os.getpid(), threading.get_ident())
-        try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(jsontext.dumps(data, indent=1, sort_keys=sort_keys))
-            os.replace(tmp, path)
-        finally:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
+        os.makedirs(os.path.dirname(path), exist_ok=True)       # Ordnerrechte wie bisher (umask), nicht 0700
+        write_atomic(path, jsontext.dumps(data, indent=1, sort_keys=sort_keys), 0o666)     # Rechte wie open()
 
     def status(self, key: str) -> dict | None:
         """Letzter Vermerk zu einem Eintrag: {"status", "reason", "time", "retry_after",
@@ -489,16 +481,8 @@ class ArtFetcher:
         ext = ".png" if fmt == "PNG" else ".jpg"
         os.makedirs(dest_dir, exist_ok=True)
         final = os.path.join(dest_dir, stem + ext)
-        tmp = os.path.join(dest_dir, ".tmp-%d-%d-%s" % (os.getpid(), threading.get_ident(), stem))
-        try:
-            with open(tmp, "wb") as f:
-                f.write(body)
-            os.replace(tmp, final)
-        finally:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
+        # Zwischendatei „.tmp-…“: Die erkennt das Aufräumen des Bilderordners (art._cleanup), falls sie liegen bleibt
+        write_atomic(final, body, 0o666, tmp_prefix=".tmp-")
         twin = os.path.join(dest_dir, stem + (".jpg" if ext == ".png" else ".png"))
         if os.path.lexists(twin):               # alte Fassung mit anderer Endung: genau diese eine Datei
             try:

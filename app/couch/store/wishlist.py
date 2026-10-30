@@ -20,10 +20,9 @@ import urllib.parse
 from typing import Any, Callable
 
 from .. import jsontext, log
-from .steam import SHOP
+from .steam import ITEMS_URL, LANGS, SHOP
 
 _log = log.get("store.wishlist")
-ITEMS_URL = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1"
 STATE_NAME = "wishlist-deals.json"
 CHECK_EVERY_S = 24 * 3600.0
 DUE_SLACK_S = 600.0             # so viel früher gilt die Prüfung schon als fällig (Takt des Zeitgebers)
@@ -32,7 +31,6 @@ CHUNK = 50                      # Nummern je Preisabfrage
 MAX_APPS = 500                  # sehr lange Wunschlisten: die vorderen 500 (zehn Abfragen)
 GAP_S = 1.5                     # zwischen zwei Preisabfragen (appdetails drosselt)
 SINGLE = 3                      # so viele Angebote einzeln; mehr auf einmal (Steam-Sale) als eine Sammelmeldung
-LANGS = {"de": "german", "en": "english"}
 
 
 def price_text(formatted: Any) -> str:

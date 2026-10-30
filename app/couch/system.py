@@ -14,6 +14,7 @@ from __future__ import annotations
 import collections
 import json
 import os
+import secrets
 import subprocess
 import sys
 import threading
@@ -380,15 +381,56 @@ class WriteBehind:
         return True
 
 
-def write_atomic(path: str, data: bytes | str, mode: int = 0o600, replace: bool = True) -> None:
+_TMP_TRIES = 5
+
+
+def _tmp_name(path: str, tmp_prefix: str | None) -> str:
+    """Eigener Name der Zwischendatei: Prozess, Thread und Zufall, damit sich zwei Schreiber nie dieselbe teilen."""
+    tag = "%d-%d-%s" % (os.getpid(), threading.get_ident(), secrets.token_hex(4))
+    if tmp_prefix is None:
+        return "%s.tmp-%s" % (path, tag)
+    return os.path.join(os.path.dirname(path), "%s%s-%s" % (tmp_prefix, tag, os.path.basename(path)))
+
+
+def _fsync_dir(directory: str) -> None:
+    """Macht den neuen Namen im Ordner haltbar. Kann das Dateisystem das nicht (manche FUSE), steht die Datei
+    trotzdem richtig da: dann still weiter."""
+    try:
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def write_atomic(path: str, data: bytes | str, mode: int = 0o600, replace: bool = True, *,
+                 tmp_prefix: str | None = None) -> None:
     """Temp-Datei im selben Ordner + rename: Leser sehen nie eine halbe Datei. replace=False: nie über eine
-    vorhandene Datei (installer/trash.rename_noreplace); gibt es path schon, FileExistsError, und nichts ändert sich."""
+    vorhandene Datei (installer/trash.rename_noreplace); gibt es path schon, FileExistsError, und nichts ändert sich.
+
+    Die Zwischendatei heißt <path>.tmp-<pid>-<thread>-<zufall>; mit tmp_prefix <ordner>/<tmp_prefix><pid>-<thread>-
+    <zufall>-<name> (für Ordner, deren Aufräumen eigene Reste am Namensanfang erkennt, etwa „.tmp-“ bei den Bildern).
+    Sie wird neu angelegt (O_EXCL|O_NOFOLLOW: nie eine vorhandene Datei, nie durch einen Verweis), mit mode durch die
+    umask wie bei open(). Dann fsync der Datei, rename, fsync des Ordners. Bei jedem Fehler vor dem rename wird die
+    eigene Zwischendatei entfernt. Ein Verweis an path wird ersetzt, sein Ziel bleibt unberührt."""
     if isinstance(data, str):
         data = data.encode("utf-8")
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, mode=0o700, exist_ok=True)
-    tmp = "%s.tmp-%d-%d" % (path, os.getpid(), threading.get_ident())
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+    for attempt in range(_TMP_TRIES):
+        tmp = _tmp_name(path, tmp_prefix)
+        try:
+            fd = os.open(tmp, flags, mode)
+            break
+        except FileExistsError:
+            if attempt == _TMP_TRIES - 1:     # nie zu erwarten (Zufall), aber nie über einen fremden Rest
+                raise
+    renamed = False
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
@@ -399,9 +441,12 @@ def write_atomic(path: str, data: bytes | str, mode: int = 0o600, replace: bool 
         else:
             from .installer import trash
             trash.rename_noreplace(tmp, path)
+        renamed = True
+        _fsync_dir(directory)
     except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        if not renamed:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
         raise

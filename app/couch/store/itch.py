@@ -27,10 +27,9 @@ import re
 import threading
 import time
 import urllib.error
-import urllib.request
 import xml.etree.ElementTree as ET
 
-from . import cache
+from . import cache, net
 from .steam import LIST_TTL, StoreError, clip, strip_html
 
 FEED = "https://itch.io/games/%s.xml"
@@ -148,21 +147,20 @@ def _get(url: str, timeout: float = TIMEOUT_S) -> bytes:
     """Ein RSS-Feed von itch.io (Rohdaten). Wirft Throttled bei 429, StoreError bei allem anderen
     (Cloudflare-403, HTML-Fehlerseiten zählen wie kein Netz)."""
     GATE.wait()
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
-                                               "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.1"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:      # noqa: S310 (feste https-Adressen)
-            ctype = str(resp.headers.get("Content-Type") or "").lower()
-            body = resp.read(MAX_FEED_BYTES + 1)
+        reply = net.call(url, headers={"User-Agent": USER_AGENT,
+                                       "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.1"},
+                         timeout=timeout, limit=MAX_FEED_BYTES)
     except urllib.error.HTTPError as e:
-        e.close()
         if e.code == 429:
             GATE.hit_limit()
             raise Throttled(BRAKES) from e
         raise StoreError(UNREACHABLE) from e
-    if len(body) > MAX_FEED_BYTES or "xml" not in ctype:
+    except net.TooLarge as e:
+        raise StoreError(UNREACHABLE) from e
+    if "xml" not in reply.header("Content-Type").lower():
         raise StoreError(UNREACHABLE)
-    return body
+    return reply.body
 
 
 # ------------------------------------------------------------------ RSS lesen

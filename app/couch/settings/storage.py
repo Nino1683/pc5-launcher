@@ -28,7 +28,7 @@ import re
 import threading
 import time
 
-from .. import jsontext, paths
+from .. import jsontext, mounts, paths, system
 from . import rows as R
 from .backends import TtlCache, fmt_bytes
 from .rows import AREA_ORDER, Page, SettingsError
@@ -73,25 +73,11 @@ def read_volume(run_read, path: str, own_mount: bool = True) -> dict:
     return out
 
 
-def fstype_of(path: str, mountinfo: str = "/proc/self/mountinfo") -> str:
-    """Dateisystem, auf dem path liegt (längster passender Einhängepunkt; bei gleichem der spätere, also das
-    obenauf eingehängte wie files.fs_type). "" wenn unbekannt."""
-    real = os.path.realpath(path)
-    best, best_len = "", -1
-    try:
-        with open(mountinfo, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                left, sep, right = line.partition(" - ")
-                fields = left.split()
-                if not sep or len(fields) < 5:
-                    continue
-                # mountinfo maskiert Leerzeichen als \040
-                mp = fields[4].replace("\\040", " ").replace("\\011", "\t").replace("\\134", "\\")
-                if (real == mp or real.startswith(mp.rstrip("/") + "/")) and len(mp) >= best_len:
-                    best, best_len = right.split()[0] if right.split() else "", len(mp)
-    except OSError:
-        return ""
-    return best
+def fstype_of(path: str, mountinfo: str | None = None) -> str:
+    """Dateisystem, auf dem path liegt, wie in mountinfo geschrieben (längster passender Einhängepunkt; bei gleichem
+    der spätere, also das obenauf eingehängte; couch.mounts wie files.fs_type). "" wenn unbekannt.
+    mountinfo: None = mounts.source()."""
+    return mounts.fstype(path, mountinfo)
 
 
 def unsafe_fs(fstype: str) -> bool:
@@ -152,7 +138,7 @@ class FolderSizes:
     gemerkt in <cache>/folder-sizes.json."""
 
     def __init__(self, run_read, scheduler, cache_file: str, on_done=None, clock=time.time,
-                 max_age: float = DU_MAX_AGE, mountinfo: str = "/proc/self/mountinfo"):
+                 max_age: float = DU_MAX_AGE, mountinfo: str | None = None):
         self.run_read = run_read
         self.scheduler = scheduler
         self.cache_file = cache_file
@@ -175,11 +161,9 @@ class FolderSizes:
 
     def _save(self) -> None:
         try:
-            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-            tmp = self.cache_file + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(jsontext.dumps(self._data))
-            os.replace(tmp, self.cache_file)
+            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)     # Ordnerrechte wie bisher (umask)
+            # eigene Zwischendatei je Schreiber (früher fest „.tmp“: zwei gleichzeitige _save teilten sie sich)
+            system.write_atomic(self.cache_file, jsontext.dumps(self._data), 0o666)
         except OSError as e:
             log.warning("Größen-Zwischenspeicher nicht schreibbar: %s", e)
 
@@ -261,7 +245,7 @@ class StorageArea:
         self.sizes = FolderSizes(deps.run_read, deps.scheduler,
                                  os.path.join(deps.paths.cache_dir, "folder-sizes.json"),
                                  on_done=lambda: deps.changed("storage.apps"),
-                                 mountinfo=x.get("mountinfo", "/proc/self/mountinfo"))
+                                 mountinfo=x.get("mountinfo"))
 
     # --- Lesen ---------------------------------------------------------------------------
 

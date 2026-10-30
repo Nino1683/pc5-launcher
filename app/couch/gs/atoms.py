@@ -32,14 +32,8 @@ from Xlib import X, Xatom, display, error  # noqa: E402
 from Xlib.ext import res as xres  # noqa: E402
 
 from .. import log, xfix  # noqa: E402
+from ..glibfd import fd_add as _fd_add  # noqa: E402
 from . import GamescopeError  # noqa: E402,F401  (hier unter dem festgelegten Namen erreichbar)
-
-try:                                    # GLib.unix_fd_add_full ist in neuem PyGObject abgekündigt
-    gi.require_version("GLibUnix", "2.0")
-    from gi.repository import GLibUnix
-    _fd_add = GLibUnix.fd_add_full
-except (ValueError, ImportError, AttributeError):
-    _fd_add = GLib.unix_fd_add_full
 
 _log = log.get("gs")
 

@@ -50,6 +50,7 @@ import vdf
 from . import fsr as fsr_mod
 from .model import Entry, source_title
 from .sources import clean_text, err_text, same_path, sort_title, title_key, to_int
+from .steamids import SHORTCUT_PREFIX, is_shortcut, shortcut_gameid
 
 STEAMID64_BASE = 76561197960265728
 # appinfo common/type, die als Kachel taugen (Werkzeuge, Laufzeiten, DLC, Musik, Video nicht)
@@ -775,8 +776,7 @@ def apply_shortcut_last_played(entries: list[Entry], shortcuts: list[dict]) -> i
 
 # ---------------------------------------------------------------- Verknüpfungen als Einträge (E25)
 
-SHORTCUT_PREFIX = "steam:shortcut:"
-SHORTCUT_FLAG = 0x02000000          # untere Hälfte der Spielkennung einer Verknüpfung
+# Kennung und Spielkennung einer Verknüpfung: library/steamids.py (SHORTCUT_PREFIX, shortcut_gameid)
 
 # Gründe, aus denen eine Verknüpfung KEIN eigener Eintrag wird (shortcut_exclusion)
 EXCLUDE_EMPTY = "empty"             # ohne Namen oder ohne Programm
@@ -808,11 +808,6 @@ _SYSTEM_DIRS = ("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/", "/usr/libexec/", "
 # Hüllen, hinter denen das eigentliche Programm in den Startoptionen steht
 _WRAPPERS = {"env", "bash", "sh", "python", "python3", "gamemoderun", "mangohud", "gamescope",
              "umu-run", "wine", "proton", "flatpak"}
-
-
-def shortcut_gameid(appid: int) -> int:
-    """Die Nummer für steam://rungameid/… einer Verknüpfung: (appid << 32) | 0x02000000."""
-    return ((int(appid) & 0xFFFFFFFF) << 32) | SHORTCUT_FLAG
 
 
 def _program(sc: dict) -> str:
@@ -879,7 +874,7 @@ def shortcut_exclusion(ctx, sc: dict, others=()) -> str | None:
     if _lutris_call(sc):
         return EXCLUDE_LUTRIS
     for entry in others:
-        if getattr(entry, "id", "").startswith(SHORTCUT_PREFIX):
+        if is_shortcut(entry):
             continue
         if entry.source in ("switch", "wiiu"):
             # Starter und ROM im Aufruf: gehört zum Emulator-Spiel

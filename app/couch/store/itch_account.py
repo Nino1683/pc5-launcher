@@ -26,15 +26,13 @@ import hmac
 import json
 import os
 import re
-import secrets
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 
-from .. import log
-from . import itch
+from .. import log, system
+from . import itch, net
 from .cache import StoreError
 
 _log = log.get("store.itch")
@@ -96,22 +94,12 @@ class ItchLoginNeeded(ItchError):
 # ------------------------------------------------------------------ Dateien
 
 def _write_private(path: str, data: dict) -> None:
-    """JSON atomar und nur für dich lesbar (0600). Der Zwischenname ist je Aufruf eindeutig: Browser
-    (store_code) und Home (take_code legt den Code nach einem Netzfehler zurück) schreiben dieselbe
-    Datei. O_EXCL/O_NOFOLLOW: nie eine liegengebliebene Datei mit fremden Rechten, nie einem Verweis
-    folgen (wie wiring_store._write_private, E99)."""
+    """JSON atomar und nur für dich lesbar (0600), über system.write_atomic: Der Zwischenname ist je Aufruf
+    eindeutig (Browser mit store_code und Home, das den Code nach einem Netzfehler zurücklegt, schreiben
+    dieselbe Datei), O_EXCL/O_NOFOLLOW: nie eine liegengebliebene Datei mit fremden Rechten, nie einem Verweis
+    folgen (E99)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = "%s.%s.neu" % (path, secrets.token_hex(4))
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        _remove(tmp)
-        raise
+    system.write_atomic(path, json.dumps(data), 0o600)
 
 
 def _read(path: str) -> dict:
@@ -220,17 +208,11 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 
 def _request(method: str, url: str, headers: dict | None = None, data: dict | None = None,
              timeout: float = TIMEOUT_S) -> tuple:
-    """Eine Anfrage ohne Umleitungen: (status, kopfzeilen, inhalt). Wirft nur bei Netzfehlern."""
-    body = urllib.parse.urlencode(data).encode("ascii") if data is not None else None
-    req = urllib.request.Request(url, data=body, headers=dict(headers or {}), method=method)
-    try:
-        with _OPENER.open(req, timeout=timeout) as resp:         # noqa: S310 (feste https-Adressen)
-            return resp.status, dict(resp.headers.items()), resp.read(MAX_BYTES)
-    except urllib.error.HTTPError as e:
-        try:
-            return e.code, dict(e.headers.items()) if e.headers else {}, e.read(MAX_BYTES)
-        finally:
-            e.close()
+    """Eine Anfrage ohne Umleitungen: (status, kopfzeilen, inhalt), auch bei Fehlerstatus. Wirft nur bei
+    Netzfehlern (und net.TooLarge über MAX_BYTES)."""
+    reply = net.call(url, method=method, headers=headers, form=data, timeout=timeout, limit=MAX_BYTES,
+                     opener=_OPENER, keep_errors=True, error_limit=MAX_BYTES)
+    return reply.status, dict(reply.headers.items()) if reply.headers else {}, reply.body
 
 
 def _header(headers: dict, name: str) -> str:

@@ -38,16 +38,16 @@ from __future__ import annotations
 import os
 import pathlib
 import re
-import shlex
 import sqlite3
 
 import yaml
 
+from .. import system as _system      # „system“ heißt hier auch der Abschnitt der YAML
 from . import fsr as fsr_mod
 from .imported import (ART_DIR, EMULATOR_STARTERS, NEEDS_STEAM, art_folder, game_root, is_vr_title,
                        prefix_state)
 from .model import Entry
-from .sources import clean_text, err_text, expand_home, sort_title, title_key, to_float
+from .sources import args_list, clean_text, err_text, expand_home, sort_title, title_key, to_float
 
 _YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
@@ -89,17 +89,6 @@ def _load_yaml(path: str) -> dict:
 def _section(cfg, key: str) -> dict:
     value = cfg.get(key) if isinstance(cfg, dict) else None
     return value if isinstance(value, dict) else {}
-
-
-def _split_args(value) -> list[str]:
-    if isinstance(value, (list, tuple)):
-        return [str(v) for v in value]
-    if value in (None, ""):
-        return []
-    try:
-        return shlex.split(str(value))
-    except ValueError:                               # offene Anführungszeichen: wörtlich trennen
-        return str(value).split()
 
 
 def _str_map(value) -> dict:
@@ -279,7 +268,7 @@ def _entry(ctx, row, name, slug, runner, system_defaults, runner_cfg, lutris_dat
     if not os.path.isabs(exe):
         exe = os.path.join(directory or working_dir or expand_home(str(game.get("prefix") or ""), ctx.home), exe)
     working_dir = working_dir or os.path.dirname(exe)
-    args = _split_args(game.get("args"))
+    args = args_list(game.get("args"))          # 0 und false sind wie in Lutris keine Argumente
     base = {
         "slug": slug, "lutris_id": row.get("id"), "exe": exe, "args": args,
         "working_dir": working_dir, "env": env, "lutris_art": _art(ctx, slug),
@@ -368,9 +357,10 @@ def _art_sources(ctx, slug: str, found: dict) -> dict:
 
 
 def _copy_file(src: str, folder: str, name: str) -> str | None:
-    """src nach <folder>/<name> kopieren (Zwischendatei, dann rename). Nur gewöhnliche Dateien bis ART_MAX_BYTES;
-    gelesen wird nur src. Rückgabe: Pfad der Kopie oder None."""
-    tmp = os.path.join(folder, ".%s.%d.tmp" % (name, os.getpid()))
+    """src nach <folder>/<name> kopieren (couch.system.write_atomic: eigene Zwischendatei, dann rename; ein Verweis am Ziel
+    wird ersetzt, nie verfolgt). Nur gewöhnliche Dateien bis ART_MAX_BYTES; gelesen wird nur src. Rückgabe: Pfad der
+    Kopie oder None."""
+    dest = os.path.join(folder, name)
     try:
         with open(src, "rb") as fin:
             st = os.fstat(fin.fileno())
@@ -379,16 +369,9 @@ def _copy_file(src: str, folder: str, name: str) -> str | None:
             data = fin.read(ART_MAX_BYTES + 1)
         if len(data) > ART_MAX_BYTES:
             return None
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
-        with os.fdopen(fd, "wb") as fout:
-            fout.write(data)
-        os.replace(tmp, os.path.join(folder, name))
-        return os.path.join(folder, name)
+        _system.write_atomic(dest, data, mode=0o644, tmp_prefix=".")   # Zwischendatei versteckt wie bisher
+        return dest
     except OSError:
-        try:
-            os.unlink(tmp)                  # nur die eigene Zwischendatei
-        except OSError:
-            pass
         return None
 
 

@@ -4,6 +4,7 @@ import os
 
 HOME_APPID = 0x7F000001          # App-ID des Home-Fensters (E3)
 APP_ID_BASE = 0x7F100000         # gestartete Apps: APP_ID_BASE + n
+APP_ID_MAX = 0x7FFFFFFF          # obere Grenze des eigenen Bereichs (App-IDs sind 32 Bit mit Vorzeichen)
 
 
 def _version() -> str:

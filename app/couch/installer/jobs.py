@@ -46,7 +46,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from .. import jsontext
+from .. import jsontext, system
 from . import InstallError, ThreadScheduler, games_root as cfg_games_root, human_size, reserve_bytes as cfg_reserve_bytes
 from . import extract, probe, setupexe, trash
 
@@ -754,10 +754,13 @@ class JobManager:
         if reason == "ok":
             if setupexe.succeeded(kind, rc):
                 return None
-            if kind == "inno" and self._setup_unpack(job, installer, log_path, rc):
+            unpacked = self._setup_unpack(job, installer, log_path, rc) if kind == "inno" else False
+            if unpacked is True:
                 return None
             if job.get("cancel_requested"):
                 return "cancelled", "", extract.MSG_CANCELLED
+            if isinstance(unpacked, tuple):
+                return unpacked                  # verweigert (Käfig fehlt, verdächtiger Inhalt): der Grund zählt
             return "failed", "setup-failed", MSG_SETUP_RC % rc
         return {"cancelled": ("cancelled", "", extract.MSG_CANCELLED),
                 "timeout": ("failed", "setup-timeout", MSG_SETUP_TIMEOUT),
@@ -766,9 +769,11 @@ class JobManager:
                 "disk-gone": ("failed", "no-target", "Die Spiele-Platte ist während der Installation nicht mehr erreichbar."),
                 }.get(reason, ("failed", "no-proton", MSG_SETUP_START))
 
-    def _setup_unpack(self, job: dict, installer: str, log_path: str, rc: Any) -> bool:
+    def _setup_unpack(self, job: dict, installer: str, log_path: str, rc: Any) -> bool | tuple:
         """Inno-Installer, der unter Proton scheitert (E131, z. B. GOG-Installer, die die Willkommensseite nicht
-        weiterlassen): mit innoextract vom System auspacken. True = der Spielordner ist jetzt gefüllt."""
+        weiterlassen): mit innoextract vom System auspacken, im Käfig (gog_extract; ohne bubblewrap nie).
+        True = der Spielordner ist jetzt gefüllt. False = nicht ausgepackt, es gilt der Rückgabewert des
+        Installers. (zustand, kürzel, satz) = verweigert: Käfig fehlt oder das Ergebnis ist verdächtig."""
         from ..store import gog_extract
         tool = gog_extract.find_tool()
         if tool is None:
@@ -782,7 +787,11 @@ class JobManager:
         from ..files import gio_trash
         try:
             with open(log_path, "a") as log_fh:
-                gog_extract.extract(tool, installer, job["install_dir"], log_fh, _Cancel(), trash=gio_trash)
+                gog_extract.extract(tool, installer, job["install_dir"], log_fh, _Cancel(), trash=gio_trash,
+                                    tools=self._tools)
+        except gog_extract.Refused as e:
+            self._log("job %s: Auspacken verweigert (%s)" % (job["id"], e.code))
+            return "failed", e.code, e.message
         except (RuntimeError, OSError, subprocess.SubprocessError) as e:
             self._log("job %s: Auspacken gescheitert: %s" % (job["id"], e))
             return False
@@ -1084,17 +1093,12 @@ class JobManager:
         volatile = ("cancel_requested", "killed", "worker_pid")
         jobs = [{k: v for k, v in job.items() if k not in volatile} for job in self._jobs.values()]
         path = os.path.join(self._state_dir, JOBS_FILE)
-        tmp = "%s.%d.tmp" % (path, os.getpid())
         try:
             os.makedirs(self._state_dir, exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(jsontext.dumps({"version": 1, "jobs": jobs}, indent=1))
-            os.replace(tmp, path)
+            # eigene Zwischendatei je Schreiber (nie durch einen Verweis), fsync, rename; räumt sie bei Fehlern
+            # selbst ab (etwa nach „Platte voll“). 0o666 durch die umask wie bisher bei open()
+            system.write_atomic(path, jsontext.dumps({"version": 1, "jobs": jobs}, indent=1), 0o666)
         except OSError as exc:
-            try:
-                os.unlink(tmp)                   # eigene Zwischendatei, etwa nach „Platte voll“
-            except OSError:
-                pass
             self._log("Auftragsliste nicht gespeichert: %s" % exc)
 
     def _rotate_log(self) -> None:

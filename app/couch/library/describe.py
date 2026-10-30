@@ -25,8 +25,7 @@ from typing import Any
 
 from ..installer.trash import STORE_LEVELS
 from .model import Entry, source_title
-
-SHORTCUT_PREFIX = "steam:shortcut:"
+from .steamids import is_shortcut  # wiring_saves fragt describe.is_shortcut
 
 # Kurze Hinweise zu den Marken der Quellen (tags)
 TAG_NOTES = {
@@ -91,10 +90,6 @@ def human_size(size: Any) -> str:
             return "%s %s" % (text, unit)
         value /= 1024
     return ""
-
-
-def is_shortcut(entry: Entry) -> bool:
-    return entry.id.startswith(SHORTCUT_PREFIX)
 
 
 def _text(value: Any) -> str:

@@ -67,11 +67,15 @@ def descendants(root):
             st = proc_stat(int(name))
             if st is not None:
                 kids.setdefault(st[0], []).append(int(name))
-    out, todo = [], [root]
+    # /proc wird Datei für Datei gelesen: Wird dabei eine PID neu vergeben, kann die Elternkette einen Kreis
+    # bilden. Jede PID zählt nur einmal (wie proc/tree.py), sonst liefe die Schleife ohne Ende
+    out, todo, seen = [], [root], {root}
     while todo:
         for kid in kids.get(todo.pop(), ()):
-            out.append(kid)
-            todo.append(kid)
+            if kid not in seen:
+                seen.add(kid)
+                out.append(kid)
+                todo.append(kid)
     return out
 
 

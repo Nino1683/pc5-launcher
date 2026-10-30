@@ -51,13 +51,12 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import time
 import uuid
 
 from . import fsr as fsr_mod
 from .model import Entry
-from .sources import clean_text, err_text, read_json, sort_title, to_float
+from .sources import args_list, clean_text, err_text, read_json, sort_title, to_float
 
 LIBRARY_FILE = "library.json"
 SECTION = "local"
@@ -146,17 +145,6 @@ def resolve_exe(install_dir: str, exe: str) -> str | None:
     if real != root and real.startswith(root.rstrip(os.sep) + os.sep):
         return path
     return None
-
-
-def _args_list(value) -> list[str]:
-    if isinstance(value, (list, tuple)):
-        return [str(v) for v in value]
-    if not value:
-        return []
-    try:
-        return shlex.split(str(value))
-    except ValueError:
-        return str(value).split()
 
 
 def _candidates(value) -> list[dict]:
@@ -259,7 +247,7 @@ def record_to_entry(ctx, rec) -> Entry | None:
         tags=fsr_mod.tags_for(scan) + tags,
         detail={
             "platform": platform, "install_dir": install_dir, "exe": exe, "exe_path": exe_path,
-            "exe_candidates": _candidates(rec.get("exe_candidates")), "args": _args_list(rec.get("args")),
+            "exe_candidates": _candidates(rec.get("exe_candidates")), "args": args_list(rec.get("args")),
             "created": to_float(rec.get("created")) or None, "archive": str(rec.get("archive") or ""),
             "marker": marker, "marker_ok": marker_valid(install_dir, marker),
             "fsr": fsr_mod.summary(scan), **detail_epic,

@@ -56,7 +56,6 @@ _log = log.get("wiring.apps")
 
 DEBOUNCE_S = 2.0
 UNINSTALL_TIMEOUT_S = 300.0
-REVEAL_WAIT_S = 30.0
 BAZAAR_ID = "app:bazaar"
 EMU_PREFIX = "app:emu-"
 # E141: App Store beim Schließen beenden
@@ -79,6 +78,7 @@ TEXT_RUNNING = "Schließe „%s“ zuerst, dann lässt es sich deinstallieren."
 TEXT_RUNNING_ELSEWHERE = "„%s“ läuft gerade an anderer Stelle, zum Beispiel im Desktop. Schließe es dort zuerst."
 TEXT_UNCHECKED = "Ob „%s“ gerade an anderer Stelle läuft, ließ sich nicht prüfen. Versuch es gleich noch einmal."
 TEXT_NOT_INSTALLED = "„%s“ ist nicht mehr installiert."
+TEXT_NO_SOURCES = "Wo „%s“ installiert ist, lässt sich gerade nicht prüfen. Versuch es gleich noch einmal."
 TEXT_DONE = "„%s“ wurde deinstalliert."
 TEXT_DONE_OTHER = "„%s“ wurde deinstalliert. In der anderen Flatpak-Installation ist es noch vorhanden."
 TEXT_NO_AUTH = ("Für „%s“ fehlt die Freigabe zum Deinstallieren aus der System-Installation, und nach einem Kennwort "
@@ -295,7 +295,9 @@ class AppsPart:
         if procs is not None and self.main_call(procs.by_entry, entry_id) is not None:
             return {"ok": False, "message": TEXT_RUNNING % title}
         ctx = self.ctx()
-        where = flatpaks.installed_in(ctx, app_id) if ctx is not None else []
+        if ctx is None:                         # Bibliothek ohne Quellen: ob es noch installiert ist, weiß hier niemand
+            return {"ok": False, "message": TEXT_NO_SOURCES % title}
+        where = flatpaks.installed_in(ctx, app_id)
         if not where:
             self.rescan()
             return {"ok": True, "message": TEXT_NOT_INSTALLED % title}
@@ -350,41 +352,11 @@ class AppsPart:
 
     # ------------------------------------------------------------ Bazaar
     def reveal(self, app: Any) -> None:
-        """Bazaar ohne Fenster: dasselbe Programm noch einmal starten (Hauptschleife, wie wiring_discord.reveal)."""
+        """Bazaar ohne Fenster: dasselbe Programm noch einmal starten (Hauptschleife, wiring.reveal_again)."""
         self._revealed_at = self._now()          # E141: bis das Fenster kommt, nicht beenden
-        argv = list(getattr(app.spec, "argv", None) or [])
-        if not argv:
-            return
-        try:
-            display = self.app.gs.game_display()
-        except Exception as e:  # noqa: BLE001
-            _log.warning("Bazaar zeigen: kein Display (%s)", e)
-            return
-        from .proc import manager
-        env = manager.build_env(getattr(self.app, "session_env", {}) or {}, app.spec, display, app.app_id)
-        exe = manager.find_executable(argv[0], env, app.spec.cwd)
-        if exe is None or (paths.test_mode() and not manager.test_mode_allows(exe)):
-            _log.info("Bazaar zeigen: %s wird nicht gestartet", argv[0])
-            return
-        spawn = getattr(self.wiring, "apps_spawn", None) or self._spawn
-        threading.Thread(target=spawn, args=([exe, *argv[1:]], env, app.spec.cwd), name="bazaar-show",
-                         daemon=True).start()
-
-    def _spawn(self, argv: list, env: dict, cwd: Any) -> None:
-        import subprocess
         from . import wiring as wiring_mod
-        try:
-            proc = wiring_mod._popen_bound(argv, env=env, cwd=cwd or None, stdin=subprocess.DEVNULL,
-                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                           start_new_session=True)
-        except OSError as e:
-            _log.warning("Bazaar zeigen: %s", e)
-            return
-        try:
-            proc.wait(timeout=REVEAL_WAIT_S)
-        except subprocess.TimeoutExpired:
-            # Nicht beenden: War der erste inzwischen weg, ist dieser Start das echte Bazaar
-            _log.warning("Bazaar zeigen: der zweite Start endet nicht von selbst, er läuft weiter")
+        wiring_mod.reveal_again(self.wiring, app, "Bazaar", "bazaar-show", _log,
+                                spawn=getattr(self.wiring, "apps_spawn", None))
 
     # ------------------------------------------------------------ App Store beim Schließen beenden (E141)
     @staticmethod
@@ -578,48 +550,36 @@ class AppsPart:
         config = self._config()
         if config is None or config.get("claude.autostart", False) is not True:
             return
-        library = getattr(self.app, "library", None)
-        entry = library.get(CLAUDE_ID) if library is not None else None
-        if entry is None or not getattr(entry, "installed", False):
-            _log.info("Claude Code mitstarten: keine Kachel (claude nicht installiert)")
-            return
-        procs = getattr(self.app, "procs", None)
-        if procs is not None and procs.by_entry(CLAUDE_ID) is not None:
-            self._claude_done = True            # läuft schon (über die Kachel oder übernommen)
-            return
-        shell = getattr(self.app, "shell", None)
-        if shell is None or not hasattr(shell, "launch_background"):
-            return
-        self._claude_done = True
-        _log.info("Claude Code startet mit dem PC5 Launcher (letzte Unterhaltung)")
-        work = shell.launch_background(CLAUDE_ID, (), env=dict(CLAUDE_ENV))
-        add = getattr(work, "add_done_callback", None)
-        if callable(add):
-            add(self._claude_started)
+        self._launch_claude("startet mit dem PC5 Launcher (letzte Unterhaltung)")
 
     def start_claude(self) -> str:
         """E143: Einschalten des Schalters startet Claude Code gleich (Arbeits-Thread der Einstellungen). „started“,
         „running“ (läuft schon) oder „missing“ (keine Kachel, keine Shell)."""
-        def run() -> str:
-            library = getattr(self.app, "library", None)
-            entry = library.get(CLAUDE_ID) if library is not None else None
-            if entry is None or not getattr(entry, "installed", False):
-                return "missing"
-            procs = getattr(self.app, "procs", None)
-            if procs is not None and procs.by_entry(CLAUDE_ID) is not None:
-                self._claude_done = True
-                return "running"
-            shell = getattr(self.app, "shell", None)
-            if shell is None or not hasattr(shell, "launch_background"):
-                return "missing"
-            self._claude_done = True            # kein zweiter Start nach dem ersten Einlesen
-            _log.info("Claude Code startet (Schalter eingeschaltet, letzte Unterhaltung)")
-            work = shell.launch_background(CLAUDE_ID, (), env=dict(CLAUDE_ENV))
-            add = getattr(work, "add_done_callback", None)
-            if callable(add):
-                add(self._claude_started)
-            return "started"
-        return self.main_call(run)
+        return self.main_call(self._launch_claude, "startet (Schalter eingeschaltet, letzte Unterhaltung)")
+
+    def _launch_claude(self, why: str) -> str:
+        """Der eine Start von Claude Code im Hintergrund mit „continue“ (Hauptschleife): „started“, „running“ (läuft
+        schon, über die Kachel oder übernommen) oder „missing“ (keine Kachel, keine Shell). Nach „started“ und
+        „running“ startet das erste Einlesen es nicht noch einmal."""
+        library = getattr(self.app, "library", None)
+        entry = library.get(CLAUDE_ID) if library is not None else None
+        if entry is None or not getattr(entry, "installed", False):
+            _log.info("Claude Code: keine Kachel (claude nicht installiert)")
+            return "missing"
+        procs = getattr(self.app, "procs", None)
+        if procs is not None and procs.by_entry(CLAUDE_ID) is not None:
+            self._claude_done = True
+            return "running"
+        shell = getattr(self.app, "shell", None)
+        if shell is None or not hasattr(shell, "launch_background"):
+            return "missing"
+        self._claude_done = True
+        _log.info("Claude Code %s", why)
+        work = shell.launch_background(CLAUDE_ID, (), env=dict(CLAUDE_ENV))
+        add = getattr(work, "add_done_callback", None)
+        if callable(add):
+            add(self._claude_started)
+        return "started"
 
     @staticmethod
     def _claude_started(work: Any) -> None:

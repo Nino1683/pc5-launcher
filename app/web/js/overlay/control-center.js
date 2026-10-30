@@ -367,7 +367,8 @@ export function createControlCenter(params, api) {
   // ---------------------------------------------------------------- Bedienung
   function activate(id) {
     switch (id) {
-      case "home": call("app.home", {}).catch(fail).finally(() => api.close()); break;
+      // Symbol Home: der Anfang des Home, nicht die Karte der App, die eben vorn war (Wunsch 2026-10-30)
+      case "home": call("app.home", { start: true }).catch(fail).finally(() => api.close()); break;
       case "power": openPower(); break;
       // Das Home kommt nach vorn (eine App wartet angehalten) und öffnet die Einstellungen
       case "settings": call("ui.open", { screen: "settings" }).catch(fail).finally(() => api.close()); break;

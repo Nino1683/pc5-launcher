@@ -23,6 +23,7 @@ import logging
 import os
 import time
 
+from .. import system
 from ..input import ds_pairing
 from . import rows as R
 from .backends import TtlCache, bluez, log_write, test_mode
@@ -396,15 +397,9 @@ class AccessoriesArea:
         path = self._trial_file()
         if not path:
             return
-        tmp = "%s.tmp-%d" % (path, os.getpid())
         try:
-            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write("%s %.3f\n" % (adapter_path, time.time()))
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, path)
+            # atomar mit fsync (Ordner 0700, Datei 0600); die Zwischendatei verschwindet auch bei einem Fehler
+            system.write_atomic(path, "%s %.3f\n" % (adapter_path, time.time()), 0o600)
         except OSError as e:
             log.warning("Marke der Bluetooth-Probezeit nicht schreibbar: %s", e)
 

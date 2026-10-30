@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import time
 
-from . import flatpak
+from . import appscale, flatpak
 from .spec import LaunchError, LaunchSpec, pad_mode
 
 YOUTUBE = "rocks.shy.VacuumTube"
@@ -30,12 +30,8 @@ TEXT_UNKNOWN_APP = "Diese App lässt sich hier nicht starten."
 
 
 def browser_scale(width: int, height: int) -> str:
-    """--force-device-scale-factor: 1 bis 1080p, 1.5 bis unter 2160p, 2 ab 2160p."""
-    if height <= 1080:
-        return "1"
-    if height < 2160:
-        return "1.5"
-    return "2"
+    """--force-device-scale-factor bei „Größe von Apps: Automatisch“: 1 bis 1080p, 1.5 bis unter 2160p, 2 ab 2160p."""
+    return appscale.factor(appscale.auto_percent(height))
 
 
 def _screen(ctx) -> tuple:
@@ -47,6 +43,22 @@ def _screen(ctx) -> tuple:
     if width < 320 or height < 240:
         width, height = 1920, 1080
     return width, height
+
+
+def app_percent(ctx) -> int:
+    """E145: Größe von Apps in Prozent (Einstellung display.app_scale, automatisch nach der Ausgabe)."""
+    return appscale.percent(getattr(ctx, "config", None), _screen(ctx)[1])
+
+
+def scaled(spec: LaunchSpec, ctx, chromium: bool = False) -> LaunchSpec:
+    """E145: Maßstab für eine App (nie ein Spiel): GTK/Qt über die Umgebung, Chromium und Electron zusätzlich über
+    --force-device-scale-factor hinter den Argumenten der App. Werte, die der Starter schon setzt, bleiben."""
+    pct = app_percent(ctx)
+    for key, value in appscale.toolkit_env(pct).items():
+        spec.env.setdefault(key, value)
+    if chromium and not any(str(a).startswith("--force-device-scale-factor") for a in spec.argv):
+        spec.argv = list(spec.argv) + appscale.chromium_args(pct)
+    return spec
 
 
 def _youtube(entry, ctx, check: bool) -> LaunchSpec:
@@ -80,12 +92,22 @@ def _kodi(entry, ctx, check: bool) -> LaunchSpec:
     return flatpak.build(entry, ctx, KODI, tuple(args), kind="media", label="Kodi", check=False)
 
 
-def browser_args(ctx) -> list:
+def logical_screen(ctx) -> tuple:
+    """E145: Bildschirm in der Einheit einer vergrößerten App (Pixel geteilt durch den Maßstab): Chromium und
+    Electron rechnen Fenstergrößen so. Mit 200 % bei 4K 1920×1080."""
     width, height = _screen(ctx)
+    pct = app_percent(ctx)
+    return round(width * 100 / pct), round(height * 100 / pct)
+
+
+def browser_args(ctx) -> list:
+    # --window-size gilt in der vergrößerten Einheit: Mit den Pixeln des Bildschirms wurde das Fenster bei 200 %
+    # doppelt so groß wie der Fernseher, Gamescope verkleinerte es wieder, und alles war winzig (Wunsch, 2026-10-30)
+    width, height = logical_screen(ctx)
     args = [
         "--window-position=0,0",
         "--window-size=%d,%d" % (width, height),
-        "--force-device-scale-factor=%s" % browser_scale(width, height),
+        "--force-device-scale-factor=%s" % appscale.factor(app_percent(ctx)),    # E145: Größe von Apps
         "--no-first-run",
         "--no-default-browser-check",
         # Reagiert Chrome nicht auf die Bitte (couch-flatpak-stop), kommt nach der Schonfrist
@@ -223,9 +245,12 @@ def _discord(entry, ctx, check: bool) -> LaunchSpec:
     (discord.BACKGROUND_ARGS); über die Kachel ohne Zusatz. Mit „Nachrichten als Mitteilung“ erlaubt
     couch-discord-prep vorher seiner Sandbox den Mitteilungsdienst (sonst verschickt es in dieser Sitzung keine)."""
     from .. import discord
-    spec = flatpak.build(entry, ctx, DISCORD, (), kind="tool", label="Discord", mouse=True, check=check)
+    spec = scaled(flatpak.build(entry, ctx, DISCORD, (), kind="tool", label="Discord", mouse=True, check=check),
+                  ctx, chromium=True)              # E145: sonst bei 4K winzig (Electron)
+    # E145: ein gemerktes Fenster, das in der vergrößerten Einheit über den Bildschirm ragt, auf ihn begrenzen
+    spec.prelaunch = [[ctx.bin("couch-discord-prep"), "--fit", "%dx%d" % logical_screen(ctx)]]
     if discord.flag(ctx.config, "discord.notify"):
-        spec.prelaunch = [[ctx.bin("couch-discord-prep")]]
+        spec.prelaunch.append([ctx.bin("couch-discord-prep")])
     return spec
 
 
@@ -241,8 +266,8 @@ def _bazaar(entry, ctx, check: bool) -> LaunchSpec:
             raise LaunchError("Der App Store (Bazaar) ist nicht installiert.", "weder bazaar-daemon noch bazaar im PATH",
                               reason="not-installed")
         exe = lib_apps.BAZAAR[0]
-    return LaunchSpec(entry_id=entry.id, argv=[exe], env={"GDK_BACKEND": "x11"}, cwd=ctx.home, kind="tool",
-                      freeze=False, mouse=True, title=entry.title)
+    return scaled(LaunchSpec(entry_id=entry.id, argv=[exe], env={"GDK_BACKEND": "x11"}, cwd=ctx.home, kind="tool",
+                             freeze=False, mouse=True, title=entry.title), ctx)
 
 
 def _detected(entry, ctx, check: bool) -> LaunchSpec:
@@ -263,8 +288,9 @@ def _detected(entry, ctx, check: bool) -> LaunchSpec:
         return flatpak.build(entry, ctx, app_id, args, kind="game", label=entry.title, freeze=True,
                              mouse=pad_mode(entry), check=check, flatpak_args=extra)
     kind = "media" if d.get("row") == "media" else "tool"
-    return flatpak.build(entry, ctx, app_id, args, kind=kind, label=entry.title, mouse=True, check=check,
+    spec = flatpak.build(entry, ctx, app_id, args, kind=kind, label=entry.title, mouse=True, check=check,
                          flatpak_args=extra)
+    return scaled(spec, ctx, chromium=appscale.is_chromium(app_id, ctx.flatpak_dirs()))
 
 
 def _emulator_app(entry, ctx, check: bool) -> LaunchSpec:
@@ -274,7 +300,8 @@ def _emulator_app(entry, ctx, check: bool) -> LaunchSpec:
     emu = catalog.emulator(str(entry.id)[len(EMU_PREFIX):])
     if emu is None:
         raise LaunchError(TEXT_UNKNOWN_APP, "kein Emulator für %s" % entry.id, reason="no-launcher")
-    return flatpak.build(entry, ctx, emu["flatpak"], (), kind="tool", label=emu["title"], mouse=True, check=check)
+    return scaled(flatpak.build(entry, ctx, emu["flatpak"], (), kind="tool", label=emu["title"], mouse=True,
+                                check=check), ctx)                   # E145: Einstellungen lesbar wie andere Apps
 
 
 _APPS = {

@@ -40,7 +40,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
-from . import VERSION, log, paths, system
+from . import VERSION, log, system
 
 _log = log.get("bootvideos")
 
@@ -97,12 +97,9 @@ class VideoError(Exception):
 
 
 def fake_base() -> str | None:
-    """Adresse einer Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner."""
-    from .library.artsources.base import host_of, is_loopback
-    base = os.environ.get(FAKE_ENV) or ""
-    if not paths.test_mode() or not base.startswith("http://") or not is_loopback(host_of(base)):
-        return None
-    return base.rstrip("/")
+    """Adresse einer Attrappe für Prüfläufe: nur im Prüfmodus und nur auf diesem Rechner (fakenet.base_url)."""
+    from . import fakenet
+    return fakenet.base_url(FAKE_ENV)
 
 
 def clean_text(value: Any, limit: int) -> str:

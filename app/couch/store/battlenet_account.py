@@ -23,10 +23,10 @@ import http.cookiejar
 import json
 import re
 import time
-import urllib.error
 import urllib.request
 
-from .battlenet import code_for
+from . import net
+from .battlenet import clean_name, code_for
 from .steam_account import cookie_rows
 
 ACCOUNT = "https://account.battle.net"
@@ -97,16 +97,11 @@ def make_jar(cookies: dict) -> http.cookiejar.CookieJar:
 def _get(url: str, jar: http.cookiejar.CookieJar, timeout: float = TIMEOUT_S) -> tuple[int, str]:
     """(HTTP-Status, Text); folgt Umleitungen mit der Keksdose (neue Cookies landen darin)."""
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, text/html;q=0.8",
-                                               "Accept-Language": "de-DE,de;q=0.9"})
-    try:
-        with opener.open(req, timeout=timeout) as resp:          # noqa: S310 (feste https-Adressen)
-            return resp.status, resp.read(8 * 1024 * 1024).decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:                          # 401 ohne Anmeldung: JSON im Rumpf
-        try:
-            return e.code, e.read(1024 * 1024).decode("utf-8", "replace")
-        finally:
-            e.close()
+    # keep_errors: 401 ohne Anmeldung trägt JSON im Rumpf
+    reply = net.call(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, text/html;q=0.8",
+                                   "Accept-Language": "de-DE,de;q=0.9"},
+                     timeout=timeout, limit=8 * 1024 * 1024, opener=opener, keep_errors=True)
+    return reply.status, reply.text()
 
 
 def _json(answer) -> dict:
@@ -116,10 +111,6 @@ def _json(answer) -> dict:
     except (TypeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def _name(text) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[®™©]", "", str(text or "")).replace("\xa0", " ")).strip()
 
 
 def owned(cookies: dict, get=_get) -> dict:
@@ -153,14 +144,14 @@ def owned(cookies: dict, get=_get) -> dict:
             if tid <= 0 or tid in seen:
                 continue
             seen.add(tid)
-            games.append({"title_id": tid, "name": _name(acc.get("localizedGameName")), "code": code_for(tid)})
+            games.append({"title_id": tid, "name": clean_name(acc.get("localizedGameName")), "code": code_for(tid)})
         try:
             classic = _json(get(CLASSIC, jar)).get("classicGames") or []
         except Exception:       # noqa: BLE001 (Klassiker sind Beiwerk; die Liste oben gilt trotzdem)
             classic = []
         names = {g["name"] for g in games}
         for c in classic if isinstance(classic, list) else []:
-            name = _name((c or {}).get("localizedGameName")) if isinstance(c, dict) else ""
+            name = clean_name((c or {}).get("localizedGameName")) if isinstance(c, dict) else ""
             if name and name not in names:
                 names.add(name)
                 games.append({"title_id": 0, "name": name, "code": ""})

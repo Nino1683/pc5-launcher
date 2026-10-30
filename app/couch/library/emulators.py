@@ -38,6 +38,7 @@ import re
 import unicodedata
 
 from .. import log
+from .flatpaks import installed as flatpak_set_up
 from .model import Entry
 from .sources import clean_text, err_text, read_json, sort_title, write_json_atomic
 
@@ -471,9 +472,8 @@ def _load_srm(ctx):
 # ---------------------------------------------------------------- Quelle
 
 def _flatpak_installed(ctx, app_id: str) -> bool:
-    """Wie library/apps.py: current/active in einer der Flatpak-Installationen des Kontexts."""
-    return any(os.path.isdir(os.path.join(root, "app", app_id, "current", "active"))
-               for root in getattr(ctx, "flatpak_dirs", None) or [])
+    """current/active in einer der Flatpak-Installationen des Kontexts (flatpaks.installed)."""
+    return flatpak_set_up(getattr(ctx, "flatpak_dirs", None), app_id)
 
 
 def title_id(system: str, rom: str, game_dir: str = "") -> str:

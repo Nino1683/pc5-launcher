@@ -31,18 +31,16 @@ import threading
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 from typing import Any, Callable
 
-from . import cache
+from . import cache, net
 from .cache import StoreError
-from .steam import NotListed, clip, strip_html
+from .steam import LANGS, NotListed, clip, strip_html
 
 SHOP = "https://store.steampowered.com"
 API = "https://api.steampowered.com"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) PC5-Launcher"
 TIMEOUT_S = 15.0
-LANGS = {"de": "german", "en": "english"}
 FILTERS = "basic,genres,developers,publishers,release_date,metacritic,screenshots,movies"
 INFO_TTL = 24 * 3600
 NEWS_TTL = 3 * 3600
@@ -70,9 +68,7 @@ _GLUED = re.compile(r"(?<=[a-z\xe4\xf6\xfc\xdf0-9)][.!?])(?=[A-Z\xc4\xd6\xdc])")
 
 
 def _get(url: str, timeout: float = TIMEOUT_S) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json, */*"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:      # noqa: S310 (Adressen aus festen Teilen)
-        return resp.read(4 * 1024 * 1024)
+    return net.get_bytes(url, {"User-Agent": USER_AGENT, "Accept": "application/json, */*"}, timeout, limit=4 * 1024 * 1024)
 
 
 def lang_param(lang: str) -> str:
@@ -229,11 +225,6 @@ def parse_media(text: str) -> tuple[str, list[tuple[str, float]]]:
             parts.append((line, seconds))
             seconds = 0.0
     return init, parts
-
-
-def video_codec(codecs: str) -> str:
-    """„avc1.640029,mp4a.40.2“ -> „avc1.640029“ (die Liste nennt Bild und Ton; Bild und Ton kommen getrennt)."""
-    return next((c.strip() for c in codecs.split(",") if c.strip().startswith(("avc1", "avc3"))), "avc1.640029")
 
 
 class SteamInfo:

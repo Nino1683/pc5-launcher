@@ -1151,8 +1151,12 @@ class Shell:
                     notify.push("Controller getrennt", name, icon="gamepad")
 
     # ================================================================ Vordergrund
-    def go_home(self) -> None:
-        """Zurück zum Home; die App bleibt (angehalten) im Hintergrund."""
+    def go_home(self, start: bool = False) -> None:
+        """Zurück zum Home; die App bleibt (angehalten) im Hintergrund. start (Symbol Home im Control Center, Wunsch
+        2026-10-30: „wenn home dann home start“): Das Home zeigt seinen Anfang (Reiter Spiele, erstes Spiel) statt
+        der Karte der App, die eben vorn war; die Seite bekommt dafür home.start vor dem Wechsel des Vordergrunds."""
+        if start:
+            self.rpc.emit("home.start", {})
         self._front_id = None
         self._set_detached(False)
         self._drop_views()
@@ -1728,8 +1732,10 @@ class Shell:
         try:
             # E109: Tastenbelegung des Spiel-Modus aus der Option festhalten (nur spec.mouse == "game")
             apply_pad_keys(spec, entry)
-            # entry bleibt in _preparing, bis die App als "lädt" eingetragen ist: Der Manager
-            # meldet "started" schon während launch(), und sie darf dabei nicht angehalten werden
+            # entry bleibt in _preparing, bis die App als "lädt" eingetragen ist (_launching unten): Bis dahin darf
+            # _apply() sie nicht anhalten. Der echte AppManager meldet "started" erst nach der Rückkehr von launch()
+            # (GLib.idle_add, proc/manager.py), dann steht sie schon in _launching; Attrappen (ui/fakes.py, Tests)
+            # melden es schon während launch(), dann schützt _preparing
             app = self.procs.launch(spec)
         except BaseException as e:
             self._launch_failed(entry, result, e)
@@ -2176,7 +2182,7 @@ class Shell:
 
         rpc.register("app.launch", app_launch)
         rpc.register("app.focus", app_focus)
-        rpc.register("app.home", lambda p: self.go_home() or {})
+        rpc.register("app.home", lambda p: self.go_home(start=bool((p or {}).get("start"))) or {})
         rpc.register("app.close", app_close)
         rpc.register("app.closeNote", app_close_note)
         rpc.register("app.kill", app_kill)

@@ -28,13 +28,11 @@ Schalter von NSIS und MSI und ob „Kostenlos holen“ einen Schlüssel im Konto
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import threading
 import time
 import urllib.parse
-from concurrent.futures import Future
 from typing import Any
 
 from . import log, paths, wiring_store
@@ -145,11 +143,7 @@ class ItchDownloads(wiring_store._FolderQueue):
     @classmethod
     def installed(cls) -> dict:
         """{Karten-ID: {entry, upload_id, build_id, updated_at, installed_at, platform, game_id}}."""
-        try:
-            with open(cls.registry_file(), encoding="utf-8") as fh:
-                data = json.load(fh)
-        except (OSError, ValueError):
-            return {}
+        data = wiring_store.registry_load(cls.registry_file())
         if not isinstance(data, dict):
             return {}
         return {k: v for k, v in data.items() if itch.valid_id(k) and isinstance(v, dict) and isinstance(v.get("entry"), str)}
@@ -158,9 +152,10 @@ class ItchDownloads(wiring_store._FolderQueue):
         return {v["entry"] for v in self.installed().values()}
 
     def _remember(self, card_id: str, info: dict) -> None:
+        """Nach dem Eintragen in die Bibliothek; ein Schreibfehler ändert daran nichts (wiring_store.registry_save)."""
         data = self.installed()
         data[card_id] = info
-        wiring_store._write_private(self.registry_file(), data)
+        wiring_store.registry_save(self.registry_file(), data)
 
     # ------------------------------------------------------------ Installieren
     def _pick(self, job: dict) -> tuple:
@@ -623,9 +618,7 @@ class ItchShop:
         if not gid:
             return {"ok": False, "message": MSG_GONE}
         if self.account.logged_in():
-            threading.Thread(target=self.wiring.store_watch_purchase,
-                             args=(STORE_ID, gid, str(params.get("title") or "Das Spiel")),
-                             name="couch-store-kauf", daemon=True).start()
+            wiring_store.start_purchase_watch(self.wiring, STORE_ID, gid, params.get("title"))
         return self.wiring.store_open_url(itch.url_of(gid), bool(params.get("closeOther")))
 
     def owned_check(self, pid: Any) -> bool:
@@ -639,23 +632,8 @@ class ItchShop:
         Plattenlast hielte sie sonst die Hauptschleife an. Das Öffnen selbst danach in der Hauptschleife;
         die Antwort kommt als Future (E100)."""
         close_other = bool((params or {}).get("closeOther"))
-        prep = self.wiring._bg(self._login_target)
-        if not isinstance(prep, Future):            # Verdrahtung ohne Arbeits-Threads
-            return self._login_open(prep, close_other)
-        out: Future = Future()
-
-        def step(done: Future) -> None:             # Hauptschleife
-            try:
-                result = self._login_open(done.result(), close_other)
-            except BaseException as e:  # noqa: BLE001 (geht als Fehler an die Seite)
-                out.set_exception(e)
-                return
-            if isinstance(result, Future):          # Rückfrage „anderes schließen?“ (shell.launch)
-                result.add_done_callback(lambda f: _chain(f, out))
-            else:
-                out.set_result(result)
-        prep.add_done_callback(lambda f: self.wiring.main.post(step, f))
-        return out
+        return wiring_store.bg_then_main(self.wiring, self._login_target,
+                                         lambda target: self._login_open(target, close_other))
 
     def _login_target(self) -> dict:
         """Arbeits-Thread: {url, close} der Einrichtung bzw. Anmeldung oder {ok: False, message}."""
@@ -783,18 +761,6 @@ class ItchShop:
     def stop(self) -> None:
         self.stopped.set()
         self.downloads.stop()
-
-
-def _chain(src: Future, dst: Future) -> None:
-    """Ergebnis bzw. Fehler eines Futures an ein anderes weitergeben."""
-    if src.cancelled():
-        dst.cancel()
-        return
-    error = src.exception()
-    if error is not None:
-        dst.set_exception(error)
-    else:
-        dst.set_result(src.result())
 
 
 def _web_route(fns: dict, params: Any) -> Any:

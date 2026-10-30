@@ -33,7 +33,7 @@ import threading
 import time
 from collections import OrderedDict
 
-from .. import log
+from .. import log, system
 from . import prefix as prefixes
 from .native import clean_env, expand, local_exe, require_exe, split_args
 from .prefix import TEXT_WINESERVER, AdoptionRequired, wineserver_pids
@@ -522,11 +522,9 @@ def scan_cached(paths: list[str], cache_file: str, tag: str = "dualsense", needl
             break
     if changed and cache_file:
         try:
+            # eigene Zwischendatei je Schreiber (vorher der feste Name „.neu“); Rechte wie open()
             os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-            tmp = cache_file + ".neu"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(cache, fh)
-            os.replace(tmp, cache_file)
+            system.write_atomic(cache_file, json.dumps(cache), mode=0o666)
         except OSError:
             pass
     return found

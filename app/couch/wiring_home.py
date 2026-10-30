@@ -21,7 +21,7 @@ import os
 import threading
 from typing import Any
 
-from . import log, paths
+from . import log, paths, system
 
 _log = log.get("wiring.home")
 MAX_IDS = 5000
@@ -62,13 +62,8 @@ def read_orders() -> dict[str, list[str]]:
     return out
 
 
-def read_order() -> list[str]:
-    """Nur die Spiele (wie vor E140)."""
-    return read_orders()["games"]
-
-
 # Lesen, Ändern, Schreiben in einem Zug: Es schreiben die Hauptschleife (home.setOrder, setHidden) und Arbeits-Threads
-# (Übernehmen einer Sicherung, Apps wieder einblenden), alle über dieselbe .neu-Datei
+# (Übernehmen einer Sicherung, Apps wieder einblenden); sonst ginge die Änderung des einen verloren
 _orders_lock = threading.RLock()
 
 
@@ -83,16 +78,9 @@ def write_orders(changes: dict) -> dict[str, list[str]]:
         if HIDDEN in changes:
             orders[HIDDEN] = _hidden(changes[HIDDEN])
         os.makedirs(paths.config_dir(), exist_ok=True)
-        tmp = order_file() + ".neu"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(orders, fh, indent=1)
-        os.replace(tmp, order_file())
+        # eigene Zwischendatei, fsync, rename (system.write_atomic); Rechte wie bisher mit open() (umask)
+        system.write_atomic(order_file(), json.dumps(orders, indent=1), mode=0o666)
         return orders
-
-
-def write_order(ids: list) -> list[str]:
-    """Nur die Spiele (wie vor E140)."""
-    return write_orders({"games": ids})["games"]
 
 
 def set_tile_hidden(tile: str, hidden: bool) -> list[str]:
@@ -104,6 +92,15 @@ def set_tile_hidden(tile: str, hidden: bool) -> list[str]:
         if hidden:
             now.append(tile)
         return write_orders({HIDDEN: now})[HIDDEN]
+
+
+def _not_saved(what: str, e: OSError) -> str:
+    """Deutscher Satz für die Seite statt des englischen Fehlertexts mit Pfad (saves.reason); Einzelheiten ins
+    Protokoll."""
+    from .saves import TEXT_FAILED, reason
+    _log.warning("%s: %s", what, e)
+    why = reason(e)
+    return "%s ließ sich nicht speichern. %s" % (what, "Einzelheiten stehen im Protokoll." if why == TEXT_FAILED else why)
 
 
 def extend(wiring: Any) -> None:
@@ -125,7 +122,7 @@ def extend(wiring: Any) -> None:
         try:
             set_tile_hidden(tile, (params or {}).get("hidden", True) is not False)
         except OSError as e:
-            return {"ok": False, "message": "Das ließ sich nicht speichern: %s" % e}
+            return {"ok": False, "message": _not_saved("Das Ausblenden", e)}
         _log.info("Kachel %s %s", tile, "ausgeblendet" if (params or {}).get("hidden", True) is not False else "eingeblendet")
         changed()
         return {"ok": True}
@@ -137,7 +134,7 @@ def extend(wiring: Any) -> None:
         try:
             orders = write_orders(changes)
         except OSError as e:
-            return {"ok": False, "message": "Die Reihenfolge ließ sich nicht speichern: %s" % e}
+            return {"ok": False, "message": _not_saved("Die Reihenfolge", e)}
         _log.info("Reihenfolge der Kacheln: %s", ", ".join("%s %d" % (row, len(orders[row])) for row in changes))
         return {"ok": True}
 

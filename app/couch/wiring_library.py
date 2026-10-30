@@ -33,6 +33,7 @@ from concurrent.futures import Future
 from typing import Any, Callable
 
 from . import log, paths
+from .config import DEFAULTS as _config_defaults
 from .rpc import RpcError
 from .wiring import read3 as _read3     # run_read der Quellen: (rc, stdout, stderr)
 
@@ -40,7 +41,8 @@ _log = log.get("wiring.library")
 
 CFG_FETCH = "library.fetch_art"
 CFG_SGDB = "library.sgdb_key"
-DEFAULTS = {CFG_FETCH: True, CFG_SGDB: ""}
+# Die Werte stehen einmal in config.DEFAULTS; der Teil meldet seine Schlüssel nur an (E22)
+DEFAULTS = {key: _config_defaults[key] for key in (CFG_FETCH, CFG_SGDB)}
 
 ART_BUDGET_S = 0.25         # so lange darf ein Lauf der Quellen kalte Bilder selbst erzeugen
 ART_WARM_S = 0.02           # schneller = lag schon fertig vor und zählt nicht aufs Budget
@@ -497,7 +499,8 @@ class LibraryPart:
         self._warned: dict[str, tuple] = {}
         self._budget = ART_BUDGET_S
         self._launch_ctx: Any = None
-        self._launch_ctx_failed = False
+        self._launch_ctx_failed = False             # der eigene LaunchContext ließ sich nicht bauen (gilt für alle)
+        self._saves_failed: set[str] = set()        # Einträge, deren Ort der Spielstände nicht bestimmbar war
         self._candidates: dict[str, list] = {}      # id -> Treffer der letzten Suche
         self._outside_warned = False
         self._art_roots: list[str] | None = None
@@ -754,7 +757,7 @@ class LibraryPart:
 
     def _saves(self, entry: Any) -> None:
         """Wo liegen die Spielstände (der Prefix)? Ein paar stat-Aufrufe über die Starter."""
-        if entry.source not in ("proton", "local") or self._launch_ctx_failed:
+        if entry.source not in ("proton", "local") or entry.id in self._saves_failed:
             return
         try:
             from .launch import builders
@@ -762,17 +765,25 @@ class LibraryPart:
             # wie beim Start; gibt es ihn (noch) nicht, ein eigener mit denselben Orten
             launch_ctx = getattr(self.wiring, "launch", None)
             if launch_ctx is None:
+                if self._launch_ctx_failed:
+                    return
                 if self._launch_ctx is None:
                     ctx = self.wiring.sources
-                    self._launch_ctx = builders.LaunchContext(
-                        config=getattr(self.wiring, "config", None) or self.app.config,
-                        data_dir=paths.data_dir(), state_dir=paths.state_dir(), app_dir=paths.app_dir(),
-                        home=ctx.home if ctx is not None else paths.home(), run_read=_read3)
+                    try:
+                        self._launch_ctx = builders.LaunchContext(
+                            config=getattr(self.wiring, "config", None) or self.app.config,
+                            data_dir=paths.data_dir(), state_dir=paths.state_dir(), app_dir=paths.app_dir(),
+                            home=ctx.home if ctx is not None else paths.home(), run_read=_read3)
+                    except Exception:
+                        self._launch_ctx_failed = True      # träfe jeden Eintrag gleich: einmal ins Protokoll
+                        raise
                 launch_ctx = self._launch_ctx
             info = builders.prefix_info(entry, launch_ctx)
         except Exception:
-            self._launch_ctx_failed = True          # kein zweiter Versuch je Eintrag
-            _log.exception("Ort der Spielstände nicht bestimmbar")
+            # kein zweiter Versuch je Eintrag; die anderen bekommen ihren Ort weiter (vorher war nach dem ersten
+            # Fehler für die ganze Sitzung Schluss)
+            self._saves_failed.add(entry.id)
+            _log.exception("Ort der Spielstände nicht bestimmbar (%s)", entry.id)
             return
         if isinstance(info, dict) and info.get("path"):
             entry.detail["saves"] = {"path": str(info["path"]), "mode": str(info.get("mode") or ""),
@@ -840,7 +851,8 @@ class LibraryPart:
         self.bg(self._read_default_proton)
 
     def stop(self) -> None:
-        """Haken für wiring.stop(): kehrt sofort zurück."""
+        """Haken für wiring.stop(): kehrt sofort zurück. Die einzige Stelle, die ArtResolver.cancel beim Ende ruft
+        (vorher auch wiring_art: zweimal)."""
         self.worker.stop()
         cancel = getattr(self.wiring.art, "cancel", None)
         if cancel is not None:
@@ -1085,15 +1097,6 @@ def register_art_rpc(wiring: Any) -> None:
     part = getattr(wiring, "library_part", None)
     if part is not None:
         part.register_art_rpc()
-
-
-def with_art(wiring: Any, fn: Callable[[], list]) -> Callable[[], list]:
-    """Eine Quellen-Funktion, die ihren Einträgen die Bilder mitgibt (LibraryPart.wrap); ohne den
-    Bibliotheks-Teil fn selbst."""
-    part = getattr(wiring, "library_part", None)
-    if part is None:
-        return fn
-    return part.wrap(fn)
 
 
 def extend(wiring: Any) -> None:

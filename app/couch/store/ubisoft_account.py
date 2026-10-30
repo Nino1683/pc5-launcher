@@ -17,12 +17,13 @@ import calendar
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
-import urllib.request
 
 from .. import system
+from . import net
 
 # Kennungen der Shop-Webseite (store.ubisoft.com, wa_data; dieselben wie Lutris seit 2026-02).
 # Ubisoft tauscht sie alle paar Monate; UbisoftStore.web_ids() liest die aktuellen von der Shop-Seite.
@@ -60,10 +61,7 @@ def is_login_done(uri: str) -> bool:
 
 
 def _send(method: str, url: str, headers: dict, body: dict | None):
-    req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None,
-                                 method=method, headers=headers)
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:     # noqa: S310 (feste https-Adressen)
-        return json.loads(resp.read(16 * 1024 * 1024).decode("utf-8"))
+    return net.send_json(url, body, headers, TIMEOUT_S, method=method)
 
 
 def _post(url: str, headers: dict, body: dict | None = None):
@@ -122,6 +120,10 @@ class UbisoftAccount:
         self.app_id = app_id
         self.genome_id = genome_id
         self._resolve = resolve
+        # Erneuern nur einer zur Zeit (wie GOG): Kaufwächter, Store und Downloads fragen aus verschiedenen
+        # Threads; zwei Verlängerungen desselben Tickets liefen sonst um die Wette, und die spätere schriebe
+        # womöglich eine ältere Sitzung über die neuere
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ Datei
     def _load(self) -> dict:
@@ -189,7 +191,8 @@ class UbisoftAccount:
             session["rememberMeTicket"] = remember["rememberMeTicket"]
             if str(remember.get("expirationDate") or "").isdigit():
                 until = int(remember["expirationDate"]) / 1000.0
-        return self._store(session, remember_until=until) is not None
+        with self._lock:                        # nie mitten in eine Erneuerung mit der alten Sitzung
+            return self._store(session, remember_until=until) is not None
 
     def logged_in(self) -> bool:
         data = self._load()
@@ -201,6 +204,10 @@ class UbisoftAccount:
 
     def ticket(self) -> str | None:
         """Gültiges Ticket oder None. Verlängert bei Bedarf (PUT), sonst neu über rememberMeTicket."""
+        with self._lock:
+            return self._ticket()
+
+    def _ticket(self) -> str | None:
         data = self._load()
         if not data.get("ticket"):
             return None
@@ -254,7 +261,7 @@ class UbisoftAccount:
                 if attempt == 2:
                     return []
                 # Ticket vor der Zeit abgelehnt: einmal neu holen (PUT bzw. rememberMe)
-                _write_private(self.token_file, {**data, "expires_at": 0.0, "hard_expiry": 0.0})
+                self._expire(ticket)
         viewer = ((answer or {}).get("data") or {}).get("viewer") if isinstance(answer, dict) else None
         nodes = (((viewer or {}).get("ownedGames") or {}).get("nodes") or []) if isinstance(viewer, dict) else []
         games = []
@@ -278,6 +285,15 @@ class UbisoftAccount:
             uplay = ids.get(g["space_id"]) or (int(g["_id"]) if g["_id"].isdigit() else 0)
             out.append({"uplay_id": int(uplay), "space_id": g["space_id"], "name": g["name"]})
         return sorted(out, key=lambda g: g["name"].casefold())
+
+    def _expire(self, ticket: str) -> None:
+        """Ubisoft hat ticket vor der Zeit abgelehnt: als abgelaufen merken, damit ticket() ein neues holt. Nur wenn
+        die Datei noch genau dieses Ticket hält: Ein anderer Thread kann es eben erneuert haben, und die alte
+        Sitzung überschriebe sonst die neue (samt neuem rememberMeTicket)."""
+        with self._lock:
+            data = self._load()
+            if data.get("ticket") == ticket:
+                _write_private(self.token_file, {**data, "expires_at": 0.0, "hard_expiry": 0.0})
 
     def logout(self) -> None:
         try:

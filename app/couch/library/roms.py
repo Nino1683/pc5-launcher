@@ -23,6 +23,7 @@ import os
 import re
 import stat
 
+from .flatpaks import installed as flatpak_set_up
 from .model import Entry
 from .sources import clean_text, sort_title
 
@@ -68,7 +69,7 @@ def flatpak_installed(ctx, app_id: str) -> bool:
     fn = getattr(ctx, "flatpak_installed", None)
     if callable(fn):
         return bool(fn(app_id))
-    return any(os.path.isdir(os.path.join(root, "app", app_id, "current", "active")) for root in ctx.flatpak_dirs)
+    return flatpak_set_up(ctx.flatpak_dirs, app_id)
 
 
 def clean_title(name: str) -> str:

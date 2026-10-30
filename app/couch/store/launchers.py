@@ -26,6 +26,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 
+from .. import system
 from . import winreg
 
 UNINSTALL = "software\\wow6432node\\microsoft\\windows\\currentversion\\uninstall"
@@ -173,11 +174,10 @@ def route_urls(prefix: str, handler: str) -> bool:
         new = text + ("" if text.endswith("\n") else "\n") + "\n[Software\\\\Wine\\\\WineBrowser] %d\n%s\n" % (int(time.time()), line)
     if wineserver_pids(prefix):
         return False
-    tmp = path + ".couch"
     try:
-        with open(tmp, "w", encoding="utf-8", errors="surrogateescape") as fh:
-            fh.write(new)
-        os.replace(tmp, path)
+        # atomar; scheitert es, räumt write_atomic die eigene Zwischendatei ab und user.reg bleibt, wie es war.
+        # Rechte wie bei open() (0666 durch die umask), so wie Wine die Datei selbst anlegt
+        system.write_atomic(path, new.encode("utf-8", "surrogateescape"), 0o666)
     except OSError:
         return False
     return True
@@ -204,19 +204,14 @@ def german(prefix: str, launcher_id: str) -> None:
     else:
         new = text + ("" if not text or text.endswith("\n") else "\n") + "language:\n  code: de-DE\n"
     if new != text:
-        # Datei des Launchers: erst ganz geschrieben, dann ersetzt. Scheitert das, bleibt er eben auf Englisch;
-        # das Einrichten selbst ist dann trotzdem fertig (Weiterleitung, neues Einlesen)
-        tmp = path + ".couch"
+        # Datei des Launchers: erst ganz geschrieben, dann ersetzt (system.write_atomic, Rechte wie bei open()).
+        # Scheitert das, bleibt er eben auf Englisch; das Einrichten selbst ist dann trotzdem fertig
+        # (Weiterleitung, neues Einlesen). Den Ordner vorher selbst anlegen: write_atomic legte ihn sonst mit 0700 an
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(new)
-            os.replace(tmp, path)
+            system.write_atomic(path, new, 0o666)
         except OSError:
-            try:
-                os.unlink(tmp)          # nur die eigene Zwischendatei
-            except OSError:
-                pass
+            pass
 
 
 def installer_path(cache_dir: str, launcher_id: str) -> str:

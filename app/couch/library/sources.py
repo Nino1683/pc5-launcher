@@ -33,12 +33,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
 import unicodedata
 from typing import Callable
 
+from .. import system
 from .model import Entry
 
 # E105: "roms" (ROM-Ordner ohne SRM) direkt nach "emulators": Bei doppelter ID gewinnt die frühere Quelle
@@ -104,10 +106,28 @@ def same_path(a: str, b: str) -> bool:
     return bool(a) and bool(b) and os.path.realpath(a) == os.path.realpath(b)
 
 
-def expand_home(path: str, home: str) -> str:
+def expand_home(path, home: str) -> str:
+    """"~" und "~/x" gegen das eingesteckte Home auflösen (nie gegen $HOME des Prozesses); "~nutzer/…" bleibt, wie es
+    ist. None wird "". Auch der Starter nimmt das (launch/native.expand)."""
+    path = str(path or "")
     if path == "~":
         return home
     return os.path.join(home, path[2:]) if path.startswith("~/") else path
+
+
+def args_list(value) -> list[str]:
+    """Startargumente aus Lutris-YAML oder einem Eintrag: fertige Liste oder Shell-Schreibweise. Leeres, 0 und false
+    sind keine Argumente (wie Lutris: util/strings.split_arguments, „if not args: return []“); offene
+    Anführungszeichen werden wörtlich an Leerzeichen getrennt. Wirft nie (der Starter prüft streng:
+    launch/native.split_args)."""
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value]
+    if not value:
+        return []
+    try:
+        return shlex.split(str(value))
+    except ValueError:                               # offene Anführungszeichen: wörtlich trennen
+        return str(value).split()
 
 
 def to_float(value, default: float = 0.0) -> float:
@@ -131,19 +151,14 @@ def read_json(path: str):
 
 
 def write_json_atomic(path: str, data) -> bool:
-    """Nur für die eigenen Zwischenspeicher unter cache_dir. Scheitert still (False)."""
-    tmp = "%s.%d.tmp" % (path, os.getpid())
+    """Nur für die eigenen Zwischenspeicher unter cache_dir. Scheitert still (False). Über system.write_atomic; Ordner
+    und Datei mit denselben Rechten wie bisher (makedirs bzw. open(): 0o777/0o666 ohne umask)."""
     try:
+        text = json.dumps(data, separators=(",", ":"))
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, separators=(",", ":"))
-        os.replace(tmp, path)
+        system.write_atomic(path, text, mode=0o666)
         return True
     except (OSError, TypeError, ValueError):
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
         return False
 
 

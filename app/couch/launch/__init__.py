@@ -19,6 +19,7 @@ import os
 from typing import Any, Callable
 
 from ..library.model import Entry
+from ..library.steamids import SHORTCUT_FLAG, SHORTCUT_PREFIX, is_shortcut, shortcut_gameid  # noqa: F401 (ohne vdf)
 from .spec import APP_KINDS, LaunchError, LaunchSpec
 
 Launcher = Callable[[Entry, Any], LaunchSpec]
@@ -69,13 +70,8 @@ def build_spec(entry: Entry, app: Any = None) -> LaunchSpec:
 
 
 # ---------------------------------------------------------------- Steam
-SHORTCUT_PREFIX = "steam:shortcut:"
-SHORTCUT_FLAG = 0x02000000          # untere Hälfte der Spielkennung einer Verknüpfung (E25)
+# Kennung und Spielkennung einer Verknüpfung (E25): library/steamids.py, gemeinsam mit library/steam.py
 STEAM_CLIENT_ID = "app:steam"
-
-
-def is_shortcut(entry: Entry) -> bool:
-    return str(entry.id).startswith(SHORTCUT_PREFIX)
 
 
 def _digits(value: Any) -> str:
@@ -111,7 +107,7 @@ def steam_game_id(entry: Entry) -> str:
     gameid = _digits(entry.detail.get("gameid"))
     if gameid:
         return gameid
-    return str(((int(steam_app_id(entry)) & 0xFFFFFFFF) << 32) | SHORTCUT_FLAG)
+    return str(shortcut_gameid(int(steam_app_id(entry))))
 
 
 STEAM_START_TIMEOUT = 330.0         # Steam-Kaltstart samt Selbst-Aktualisierung; couch-steam-game gibt nach 300 s auf

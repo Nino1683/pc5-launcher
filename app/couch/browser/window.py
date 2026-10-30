@@ -21,11 +21,13 @@ Umgebung (vom Starter, launch/apps.py):
 """
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import re
 import signal
 import sys
+import threading
 import time
 
 import gi
@@ -149,7 +151,8 @@ def download_dir() -> str:
 
 
 def _is_local(host: str) -> bool:
-    """Zeigt der Name nur auf diesen Rechner (127.0.0.0/8, ::1)?"""
+    """Zeigt der Name nur auf diesen Rechner (127.0.0.0/8, ::1)? Blockiert (Namensauflösung): nie im
+    GTK-Hauptthread, sondern über Browser._in_thread."""
     import ipaddress
     import socket
     try:
@@ -159,16 +162,21 @@ def _is_local(host: str) -> bool:
     return bool(addrs) and all(ipaddress.ip_address(a.split("%")[0]).is_loopback for a in addrs)
 
 
-def _local_server_cert(host: str, port: int) -> str:
-    """Zertifikat (PEM) des Servers auf diesem Rechner, ohne Prüfung geholt (geprüft wird danach der Name)."""
+def _local_server_cert(host: str, port: int) -> tuple[bool, str]:
+    """(zeigt host nur auf diesen Rechner, Zertifikat des Servers dort als PEM oder ""): ohne Prüfung geholt,
+    geprüft wird danach der Name. Blockiert (Namensauflösung, TLS bis zu 3 s): nur im eigenen Faden."""
     import ssl
     if not _is_local(host):
-        return ""
+        return False, ""
     try:
-        return ssl.get_server_certificate(("127.0.0.1", port), timeout=3)
+        return True, ssl.get_server_certificate(("127.0.0.1", port), timeout=3)
     except (OSError, ValueError) as e:
         _log.info("Zertifikat von %s:%d nicht zu holen: %s", host, port, e)
-        return ""
+        return True, ""
+
+
+def _cert_from_pem(pem: str):
+    return Gio.TlsCertificate.new_from_pem(pem, -1)
 
 def is_itch_app_page(uri: str) -> bool:
     """Seite einer einzelnen itch.io-App (unter /user/settings/oauth-apps/…), E100. Die Liste selbst
@@ -192,6 +200,7 @@ class Browser:
             os.makedirs(d, exist_ok=True)
         # Vorgaben aus den Einstellungen der Konsole gelten nur, bis im Menü etwas gewählt ist
         self.close_after = os.environ.get("COUCH_BROWSER_CLOSE_AFTER", "")   # Store-Anmeldung (E69)
+        self._login_page = ""            # zuletzt protokollierte Seite einer Store-Anmeldung (store_login_check)
         self.prefs = Prefs(os.path.join(data, "prefs.json"), os.environ.get("COUCH_BROWSER_HOME", ""),
                            os.environ.get("COUCH_BROWSER_SEARCH", ""))
         self.start_file = os.path.join(data, "start.html")
@@ -376,10 +385,7 @@ class Browser:
     def write_start(self) -> None:
         marks = (GLib.filename_to_uri(self.bookmarks_file, None), self.bookmark_count)
         try:
-            tmp = self.start_file + ".neu"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(render_start(self.prefs, marks, _t))
-            os.replace(tmp, self.start_file)
+            system.write_atomic(self.start_file, render_start(self.prefs, marks, _t), 0o600)   # nennt die Favoriten
         except OSError as e:
             _log.warning("Startseite nicht schreibbar: %s", e)
 
@@ -387,10 +393,7 @@ class Browser:
         """Lesezeichen aus Chrome (Google-Konto) als Seite (E89); gibt ihre Anzahl zurück."""
         book = bookmarks.load(paths.home())
         try:
-            tmp = self.bookmarks_file + ".neu"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(bookmarks.render(book))
-            os.replace(tmp, self.bookmarks_file)
+            system.write_atomic(self.bookmarks_file, bookmarks.render(book), 0o600)   # Lesezeichen des Kontos
         except OSError as e:
             _log.warning("Lesezeichen nicht schreibbar: %s", e)
         return book["count"]
@@ -652,6 +655,10 @@ class Browser:
         if not self.entry.has_focus():
             self.entry.set_text(address.shown(self.view.get_uri() or ""))
         self.update_buttons()
+        # Shops, die nach der Anmeldung die Adresse nur per Skript umschreiben (history.pushState, Rockstar), laden
+        # nicht neu: on_load sähe die Schlussadresse nie (2026-10-30: Browser blieb nach der Anmeldung offen)
+        if self.close_after and not self.view.is_loading():
+            self.store_login_check(self.view.get_uri() or "")
 
     def on_progress(self, *_a) -> None:
         self.progress.set_fraction(self.view.get_estimated_progress())
@@ -673,9 +680,8 @@ class Browser:
             self.take_epic_code()
         if event == WebKit.LoadEvent.FINISHED and self.close_after == "itch-app" and is_itch_app_page(uri):
             self.take_itch_client()
-        if not loading and self.close_after in ("battlenet-login", "rockstar-login", "ubisoft-login"):
-            if self.launcher_login_done(self.close_after.split("-")[0], self.view.get_uri() or ""):
-                return
+        if not loading and self.store_login_check(self.view.get_uri() or ""):
+            return
         if not loading and self.close_after == "app-login" and _APP_LOGIN_END.match(uri):
             self.login_done(APP_LOGIN_END_MS)
             return
@@ -684,13 +690,6 @@ class Browser:
             # Seite gibt das Ergebnis an den Launcher auf diesem Rechner zurück, dann zurück zu ihm
             self.login_done()
             return
-        if not loading and self.close_after == "steam-login":
-            # Angemeldet, auch falls Steam die Marke im redir nicht durchreicht: jede Shop-Seite
-            # außer der Anmeldung heißt fertig
-            uri = self.view.get_uri() or ""
-            if uri.startswith("https://store.steampowered.com/") and "/login" not in uri:
-                self.login_done()
-                return
         self.progress.set_visible(loading)
         self.reload.set_icon_name("process-stop-symbolic" if loading else "view-refresh-symbolic")
         self.reload.set_tooltip_text(_t("Laden abbrechen" if loading else "Neu laden"))
@@ -712,25 +711,85 @@ class Browser:
             except ValueError:
                 continue
             if target.scheme == "https" and host in LOCAL_CERTS:
-                pem = _local_server_cert(host, port)
-                if pem:
-                    self.allow_local_cert(host, Gio.TlsCertificate.new_from_pem(pem, -1))
+                # Namensauflösung und TLS im eigenen Faden (vorher im GTK-Hauptthread, auch aus dem 2-s-Zeitgeber
+                # _poll_downloads): Die Seite lädt derweil schon. Der Rückweg kommt erst nach der Anmeldung
+                self._in_thread(lambda h=host, p=port: _local_server_cert(h, p),
+                                lambda found, h=host: self._trust_found(h, *found))
 
-    def allow_local_cert(self, host: str, cert) -> bool:
-        subject = cert.get_subject_name() or ""
-        if host not in LOCAL_CERTS or LOCAL_CERTS[host] not in subject or not _is_local(host):
+    def _trust_found(self, host: str, local: bool, pem: str) -> None:
+        """GTK-Hauptthread: Ergebnis von _local_server_cert für trust_local_server."""
+        if not pem:
+            return
+        try:
+            cert = _cert_from_pem(pem)
+        except GLib.Error as e:
+            _log.info("Zertifikat von %s nicht lesbar: %s", host, e.message)
+            return
+        self.allow_local_cert(host, cert, local)
+
+    @staticmethod
+    def _launcher_cert(host: str, cert) -> bool:
+        """Trägt cert den Namen des Launcher-Zertifikats für host (LOCAL_CERTS)?"""
+        return host in LOCAL_CERTS and LOCAL_CERTS[host] in (cert.get_subject_name() or "")
+
+    def allow_local_cert(self, host: str, cert, local: bool) -> bool:
+        """GTK-Hauptthread. local: Der Name zeigt nur auf diesen Rechner (_is_local, im eigenen Faden geklärt)."""
+        if not local or not self._launcher_cert(host, cert):
             return False
         self.session.allow_tls_certificate_for_host(cert, host)
         _log.info("Zertifikat des Launchers für %s anerkannt (%s)", host, LOCAL_CERTS[host])
         return True
 
     def on_tls_error(self, _view, uri, cert, _errors) -> bool:
-        """Rückfall, falls das Zertifikat vorab nicht zu holen war: nur für die Launcher-Namen."""
+        """Rückfall, falls das Zertifikat vorab nicht zu holen war: nur für die Launcher-Namen. Ob der Name auf
+        diesen Rechner zeigt, klärt ein eigener Faden; bis dahin bleibt die Seite stehen. Danach lädt die Adresse
+        noch einmal: mit dem anerkannten Zertifikat, sonst scheitert sie wie vorher (WebKits Fehlerseite)."""
         from urllib.parse import urlsplit
         host = (urlsplit(uri or "").hostname or "").lower()
-        if self.close_after == "app-login" and self.allow_local_cert(host, cert):
+        if self.close_after != "app-login" or not self._launcher_cert(host, cert):
+            return False
+        answers = self._thread_state()["answers"]
+        if host in answers:                     # eben im Faden geklärt: kein Launcher auf diesem Rechner
+            del answers[host]
+            return False
+
+        def resolved(local: bool) -> None:
+            if not self.allow_local_cert(host, cert, local):
+                answers[host] = False           # der nächste Fehler geht an WebKit
             self.view.load_uri(uri)
-            return True
+        self._in_thread(lambda: _is_local(host), resolved)
+        return True
+
+    def _thread_state(self) -> dict:
+        state = self.__dict__.get("_threads")
+        if state is None:
+            state = self.__dict__["_threads"] = {"tokens": itertools.count(1), "waiting": {}, "answers": {}}
+        return state
+
+    def _in_thread(self, work, done) -> None:
+        """work() in eigenem Faden (Namensauflösung, TLS: blockieren), danach done(ergebnis) im GTK-Hauptthread
+        über GLib.idle_add. done (und was es festhält, etwa ein Gio.TlsCertificate) bleibt in einer Tabelle des
+        Hauptthreads; der Faden kennt nur die Nummer und lässt so nie den letzten Verweis darauf los."""
+        state = self._thread_state()
+        token = next(state["tokens"])
+        state["waiting"][token] = done
+
+        def run() -> None:
+            try:
+                result, ok = work(), True
+            except Exception:  # noqa: BLE001
+                _log.exception("Prüfung im Hintergrund")
+                result, ok = None, False
+            GLib.idle_add(self._thread_done, token, result, ok)
+        threading.Thread(target=run, name="couch-browser-lokal", daemon=True).start()
+
+    def _thread_done(self, token: int, result, ok: bool) -> bool:
+        done = self._thread_state()["waiting"].pop(token, None)
+        if done is not None and ok:
+            try:
+                done(result)
+            except Exception:  # noqa: BLE001
+                _log.exception("Ergebnis einer Prüfung im Hintergrund")
         return False
 
     def on_load_failed(self, _view, _event, uri, error) -> bool:
@@ -856,6 +915,25 @@ class Browser:
             self.login_done(ITCH_APP_DONE_MS)
         self.view.call_async_javascript_function(ITCH_APP_JS, -1, None, None, None, None, done)
 
+    def store_login_check(self, uri: str) -> bool:
+        """Fertig geladene Seite bzw. neue Adresse während einer Store-Anmeldung: Ist sie fertig, schließt der Browser.
+        Für Steam und die Launcher-Shops (Battle.net, Rockstar, Ubisoft); aus on_load und on_uri."""
+        if self.close_after == "steam-login":
+            # Angemeldet, auch falls Steam die Marke im redir nicht durchreicht: jede Shop-Seite außer der Anmeldung
+            if uri.startswith("https://store.steampowered.com/") and "/login" not in uri:
+                self.login_done()
+                return True
+            return False
+        if self.close_after not in ("battlenet-login", "rockstar-login", "ubisoft-login"):
+            return False
+        # Weg ohne Anfrageteil ins Protokoll (darin stehen Einmal-Codes): so lässt sich am Gerät sehen, wo ein Shop
+        # nach der Anmeldung landet, falls der Browser einmal nicht schließt
+        page = uri.split("?")[0].split("#")[0][:200]
+        if page and page != self._login_page:
+            self._login_page = page
+            _log.info("Anmeldung (%s): %s", self.close_after, page)
+        return self.launcher_login_done(self.close_after.split("-")[0], uri)
+
     def launcher_login_done(self, store: str, uri: str) -> bool:
         """Anmeldung bei Battle.net, Rockstar oder Ubisoft für den Store (E94). Battle.net und Rockstar:
         Die Cookies liegen danach im Browser, das Home liest sie selbst. Ubisoft: Die Seite hält die
@@ -874,6 +952,8 @@ class Browser:
             return True
 
         def got(view, res) -> None:
+            if not self.close_after:
+                return                          # schon erkannt (on_load und on_uri fragen beide)
             try:
                 value = view.call_async_javascript_function_finish(res)
                 text = value.to_string() if value is not None and value.is_string() else ""

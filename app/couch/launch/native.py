@@ -14,6 +14,7 @@ import os
 import re
 import shlex
 
+from ..library.sources import expand_home
 from .spec import STEAM_LEFTOVERS, LaunchError, LaunchSpec, pad_mode
 
 TEXT_NEEDS_STEAM = "Dieses Spiel braucht den laufenden Steam-Client. Starte es über Steam."
@@ -29,14 +30,8 @@ _STEAM_DETOUR_WRAPPERS = ("eden-launch", "cemu-launch")
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def expand(path: str, home: str) -> str:
-    """"~/x" gegen das eingesteckte Home auflösen (nicht gegen $HOME des Prozesses)."""
-    path = str(path or "")
-    if path == "~":
-        return home
-    if path.startswith("~/"):
-        return os.path.join(home, path[2:])
-    return path
+# "~/x" gegen das eingesteckte Home auflösen (nicht gegen $HOME des Prozesses); dieselbe Regel wie die Quellen
+expand = expand_home
 
 
 def split_args(value) -> list:

@@ -229,15 +229,14 @@ class Part:
                 _log.exception("Zeitgeber %s", name)
         # Eine laufende HDR-/VRR-Probezeit kann niemand mehr bestätigen: gleich zurücknehmen,
         # bevor die Zeitgeber verstummen (sonst bliebe es bis zum nächsten Start eingeschaltet)
-        tree = getattr(self.wiring, "tree", None)
-        display = tree.area("display") if tree is not None else None
+        display = _area(self.wiring, "display")
         if display is not None and hasattr(display, "cancel_trials"):
             try:
                 display.cancel_trials()
             except Exception:
                 _log.exception("Probezeiten beenden")
         # Ebenso „Bluetooth aus“: Sonst bliebe ein Bluetooth-Pad tot (Marke bleibt bei Misserfolg)
-        accessories = tree.area("accessories") if tree is not None else None
+        accessories = _area(self.wiring, "accessories")
         if accessories is not None and hasattr(accessories, "end_trial"):
             try:
                 accessories.end_trial()
@@ -256,6 +255,12 @@ def part(wiring: Any) -> Part:
         p = Part(wiring)
         wiring.settings_part = p
     return p
+
+
+def _area(wiring: Any, name: str) -> Any:
+    """Bereich der Einstellungen (settings/<name>.py) oder None, solange es keinen Baum gibt bzw. der Bereich fehlt."""
+    tree = getattr(wiring, "tree", None)
+    return tree.area(name) if tree is not None else None
 
 
 def _late(module: str, name: str) -> Callable | None:
@@ -601,6 +606,9 @@ def _follow(wiring: Any, area: str, inline: bool) -> None:
     if area == "audio":
         request_volume(wiring)
         return
+    if area == "system" and not inline:
+        request_update_badge(wiring)            # gebündelt: eine Veröffentlichung meldet mehrere Seiten
+        return
     fn = {"network": lambda: push_network(wiring, fresh=True), "display": lambda: push_hdr(wiring),
           "system": lambda: push_update_badge(wiring)}.get(area)
     if fn is None:
@@ -617,8 +625,7 @@ def _follow(wiring: Any, area: str, inline: bool) -> None:
 def pads_for_settings(wiring: Any) -> list[dict]:
     """Pads für die Seite „Zubehör“; "type" nennt dort die Verbindung (bluetooth | usb)."""
     pads = [dict(p) for p in (wiring.main.call(wiring.app.input.pads) or []) if isinstance(p, dict)]
-    tree = wiring.tree
-    accessories = tree.area("accessories") if tree is not None else None
+    accessories = _area(wiring, "accessories")
     if accessories is None or not pads:
         return pads
     try:
@@ -694,8 +701,7 @@ def reset_settings(app: Any) -> None:
     else:
         for key in list(app.config.all()):
             wiring.config.reset(key)
-    tree = wiring.tree
-    display = tree.area("display") if tree is not None else None
+    display = _area(wiring, "display")
     if display is not None and hasattr(display, "apply_on_start"):
         display.apply_on_start()                # schreibt auch „HDR aus“ ausdrücklich
         push_hdr(wiring)
@@ -1107,8 +1113,7 @@ def _http_json(url: str) -> Any:
 
 def bt_hci(wiring: Any) -> str:
     """hciN des Bluetooth-Adapters, den Zubehör gerade nutzt (der mit dem Controller)."""
-    tree = wiring.tree
-    accessories = tree.area("accessories") if tree is not None else None
+    accessories = _area(wiring, "accessories")
     try:
         adapter = accessories.bt_state()["adapter"] if accessories is not None else None
     except Exception:  # noqa: BLE001
@@ -1196,8 +1201,8 @@ def setup_updates(wiring: Any) -> Any:
 
         def apply() -> None:
             app.state.update(updates=value)
-            wiring._bg(push_update_badge, wiring)
-            show()
+            request_update_badge(wiring)
+            show()                              # meldet auch Seiten unter system: die Marke bleibt ein Auftrag
         wiring.main.post(apply)
 
     def show() -> None:
@@ -1338,8 +1343,7 @@ def start_idle(wiring: Any) -> None:
 def bt_trial_restore(wiring: Any) -> None:
     """Arbeits-Thread nach dem Bereit-Signal: Hat ein früheres Home Bluetooth auf Probe
     ausgeschaltet und ist dann abgestürzt, wieder einschalten (settings/accessories.py)."""
-    tree = wiring.tree
-    accessories = tree.area("accessories") if tree is not None else None
+    accessories = _area(wiring, "accessories")
     fn = getattr(accessories, "restore_after_restart", None)
     if fn is not None:
         try:
@@ -1361,8 +1365,7 @@ def idle_off(wiring: Any, pad: dict) -> None:
 
     def work() -> None:
         from .settings.backends import bluez
-        tree = wiring.tree
-        accessories = tree.area("accessories") if tree is not None else None
+        accessories = _area(wiring, "accessories")
         if accessories is None:
             return
         try:
@@ -1385,8 +1388,7 @@ def cable_pad(wiring: Any, pad: dict) -> None:
     """Der Eingabedienst meldet einen DualSense am USB-Kabel (Hauptschleife). Die Kabel-Kopplung
     (settings/accessories.py, E78) liest und schreibt das Pad und fragt BlueZ: Arbeits-Thread."""
     def work() -> None:
-        tree = wiring.tree
-        accessories = tree.area("accessories") if tree is not None else None
+        accessories = _area(wiring, "accessories")
         fn = getattr(accessories, "cable_pair", None)
         if fn is None:
             return
@@ -1400,8 +1402,7 @@ def cable_pad(wiring: Any, pad: dict) -> None:
 # ================================================================ sys.state
 def push_network(wiring: Any, fresh: bool = False) -> None:
     """Arbeits-Thread: Netz für Statusleiste und Control Center."""
-    tree = wiring.tree
-    network = tree.area("network") if tree is not None else None
+    network = _area(wiring, "network")
     if network is None or not hasattr(network, "summary"):
         return
     app = wiring.app
@@ -1418,8 +1419,7 @@ def push_network(wiring: Any, fresh: bool = False) -> None:
 
 def push_hdr(wiring: Any) -> None:
     """Arbeits-Thread: HDR-Zustand {supported, enabled, active}."""
-    tree = wiring.tree
-    display = tree.area("display") if tree is not None else None
+    display = _area(wiring, "display")
     if display is None or not hasattr(display, "hdr_state"):
         return
     app = wiring.app
@@ -1432,8 +1432,7 @@ def push_hdr(wiring: Any) -> None:
 
 
 def _updater(wiring: Any) -> tuple[Any, Any]:
-    tree = wiring.tree
-    system = tree.area("system") if tree is not None else None
+    system = _area(wiring, "system")
     updater = getattr(system, "updater", None)
     # Im Prüfmodus ist der Updater abgeschaltet (außer mit eingestecktem Attrappen-Skript):
     # Dann wird hier weder gesucht noch der Zustand des echten Systems gelesen.
@@ -1452,8 +1451,33 @@ def _launcher_new(wiring: Any) -> bool:
         return False
 
 
+_badge_lock = threading.Lock()
+
+
+def request_update_badge(wiring: Any) -> None:
+    """Aus jedem Thread: die Marke am Zahnrad neu rechnen lassen, gebündelt. Eine Veröffentlichung der Update-Suche
+    meldet ihre Seiten (UPDATE_PAGES, drei davon unter „system“) und rechnete die Marke so viermal, jedes Mal mit
+    system.update_badge und dem Stand des Selbst-Updates. Jetzt übernimmt ein Auftrag, der noch nicht begonnen hat,
+    alle Anstöße davor; wer nach seinem Beginn anstößt, bekommt einen neuen (die Marke ist danach nie älter)."""
+    with _badge_lock:
+        if getattr(wiring, "_badge_queued", False):
+            return
+        wiring._badge_queued = True
+
+    def run() -> None:
+        with _badge_lock:
+            wiring._badge_queued = False
+        push_update_badge(wiring)
+    try:
+        wiring._bg(run)
+    except Exception:
+        with _badge_lock:
+            wiring._badge_queued = False
+        raise
+
+
 def push_update_badge(wiring: Any) -> None:
-    """Arbeits-Thread: Marke am Zahnrad (sys.state.update_available)."""
+    """Arbeits-Thread: Marke am Zahnrad (sys.state.update_available). Von außen besser request_update_badge."""
     system, _updater_obj = _updater(wiring)
     if system is None:
         return
@@ -1526,8 +1550,7 @@ def display_apply(wiring: Any) -> None:
     """Arbeits-Thread: gespeicherten Bild-Zustand an Gamescope schreiben (Start, nach einem
     Wechsel der Ausgabe) und den HDR-Zustand melden. Beendet auch eine Probezeit, die ein
     Absturz des Home überlebt hat (HDR nur, wenn je bestätigt)."""
-    tree = wiring.tree
-    display = tree.area("display") if tree is not None else None
+    display = _area(wiring, "display")
     if display is None:
         return
     try:
@@ -1545,8 +1568,7 @@ def _size_changed(wiring: Any) -> None:
         return
 
     def settled() -> None:                  # Arbeits-Thread: den Griff nicht anfassen, die Hauptschleife setzt ihn neu
-        tree = wiring.tree
-        display = tree.area("display") if tree is not None else None
+        display = _area(wiring, "display")
         if display is not None and hasattr(display, "refresh"):
             try:
                 display.refresh()               # Fernseher-Daten neu lesen, Seite neu zeichnen lassen
@@ -1722,15 +1744,14 @@ def extend(wiring: Any) -> None:
     def update_arm() -> None:
         if _updater(wiring)[1] is None:
             return
-        wiring._bg(push_update_badge, wiring)   # was die letzte Suche ergab, gleich zeigen
+        request_update_badge(wiring)            # was die letzte Suche ergab, gleich zeigen
         p.update_timer = p.scheduler.later(UPDATE_FIRST_S, update_run)
         p.update_armed = True
     wiring.after_ready.append(update_arm)
 
     # --- Ausschalten/Abmelden: nicht mitten in einem System-Update
     def update_busy() -> str | None:
-        tree = wiring.tree
-        system = tree.area("system") if tree is not None else None
+        system = _area(wiring, "system")
         text = getattr(system, "busy_text", None)
         return text() if callable(text) else None
     wiring.busy_checks.append(update_busy)

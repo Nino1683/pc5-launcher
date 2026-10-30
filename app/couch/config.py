@@ -129,6 +129,7 @@ DEFAULTS: dict[str, Any] = {
     "display.sdr_brightness": 200,     # Nits
     "display.vrr": False,
     "display.area_scale": 100,         # Anzeigebereich: Prozent der Bildfläche für Home und Overlay (90..100)
+    "display.app_scale": 0,            # E145: Größe von Apps in Prozent, 0 = automatisch (launch/appscale.py)
     # --- Leistung (perf.py)
     "perf.overlay": "off",
     "perf.font_scale": "auto",

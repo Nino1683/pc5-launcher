@@ -29,7 +29,8 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("WebKit", "6.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, WebKit  # noqa: E402
 
-from .. import log, oskdirect, paths  # noqa: E402
+from .. import log, oskdirect, paths, system  # noqa: E402
+from ..glibfd import fd_add  # noqa: E402
 from . import session  # noqa: E402
 
 _log = log.get("terminal")
@@ -54,10 +55,8 @@ def load_prefs(path: str) -> dict:
 
 def save_prefs(path: str, prefs: dict) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(prefs, f)
-    os.replace(tmp, path)
+    # eigene Zwischendatei, fsync, rename (system.write_atomic); Rechte wie bisher mit open() (umask)
+    system.write_atomic(path, json.dumps(prefs), mode=0o666)
 
 
 class Terminal:
@@ -214,9 +213,8 @@ class Terminal:
             return
         self.action = action
         _log.info("Gestartet: %s (PID %d)", " ".join(argv), self.pty.pid)
-        self._watch_id = GLib.unix_fd_add_full(GLib.PRIORITY_DEFAULT, self.pty.fd,
-                                               GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR,
-                                               self.on_readable)
+        self._watch_id = fd_add(GLib.PRIORITY_DEFAULT, self.pty.fd,
+                                GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR, self.on_readable)
         self._child_id = GLib.child_watch_add(GLib.PRIORITY_DEFAULT, self.pty.pid, self.on_exit)
         self.send({"t": "started", "what": action})
 

@@ -472,7 +472,8 @@
  {
   "text": "%s ist kein echter Ordner (Verweis?) und wird nicht angefasst.",
   "files": [
-   "app/couch/proton_repair.py"
+   "app/couch/proton_repair.py",
+   "app/couch/store/gog_extract.py"
   ]
  },
  {
@@ -604,6 +605,12 @@
   "text": "%s ließ sich nicht schließen.",
   "files": [
    "app/couch/shell.py"
+  ]
+ },
+ {
+  "text": "%s ließ sich nicht speichern. %s",
+  "files": [
+   "app/couch/wiring_home.py"
   ]
  },
  {
@@ -1361,6 +1368,12 @@
   ]
  },
  {
+  "text": "Antwort größer als %d Bytes",
+  "files": [
+   "app/couch/store/net.py"
+  ]
+ },
+ {
   "text": "Antwort tröpfelt",
   "files": [
    "app/couch/library/artsources/base.py"
@@ -1936,6 +1949,7 @@
   "files": [
    "app/couch/perf.py",
    "app/couch/settings/accessories.py",
+   "app/couch/settings/display.py",
    "app/couch/settings/games.py",
    "app/couch/settings/system.py"
   ]
@@ -2026,6 +2040,12 @@
   ]
  },
  {
+  "text": "Bazaar",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "Bazzite normally has everything. Anything missing can only be layered into the system image (“rpm-ostree install …”, then reboot). The installer never does that itself.",
   "files": [
    "app/couch/depcheck.py"
@@ -2065,6 +2085,12 @@
   "text": "Beim Aufwachen Fernseher einschalten und auf den PC umschalten",
   "files": [
    "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Beim Auspacken des Installers sind Verweise oder Sonderdateien entstanden. Aus Sicherheitsgründen wird nichts davon übernommen.",
+  "files": [
+   "app/couch/store/gog_extract.py"
   ]
  },
  {
@@ -3122,6 +3148,12 @@
   ]
  },
  {
+  "text": "Das Ausblenden",
+  "files": [
+   "app/couch/wiring_home.py"
+  ]
+ },
+ {
   "text": "Das Ausgabegerät ließ sich nicht wählen.",
   "files": [
    "app/couch/settings/audio.py"
@@ -3447,8 +3479,7 @@
  {
   "text": "Das Ruhemodus-Video wurde entfernt.",
   "files": [
-   "app/couch/settings/home.py",
-   "app/couch/wiring_videos.py"
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -3463,7 +3494,6 @@
    "app/couch/installer/service.py",
    "app/couch/wiring_install.py",
    "app/couch/wiring_itch.py",
-   "app/couch/wiring_launchers.py",
    "app/couch/wiring_settings.py",
    "app/couch/wiring_store.py"
   ]
@@ -3558,12 +3588,6 @@
   "text": "Das Startvideo wurde entfernt.",
   "files": [
    "app/couch/settings/home.py"
-  ]
- },
- {
-  "text": "Das Startvideo wurde entfernt. Es gilt wieder die eigene Startanimation.",
-  "files": [
-   "app/couch/wiring_videos.py"
   ]
  },
  {
@@ -3724,12 +3748,6 @@
   ]
  },
  {
-  "text": "Das hat nicht geklappt (%s).",
-  "files": [
-   "app/couch/wiring_backup.py"
-  ]
- },
- {
   "text": "Das hat nicht geklappt.",
   "files": [
    "app/couch/power.py",
@@ -3761,7 +3779,6 @@
   "files": [
    "app/couch/files.py",
    "app/couch/proton_repair.py",
-   "app/couch/wiring_files.py",
    "app/couch/wiring_launchers.py"
   ]
  },
@@ -3816,12 +3833,6 @@
   "text": "Das ist keine gültige Adresse. Gib die IP-Adresse aus den Netzwerk-Einstellungen des Fernsehers ein (vier Zahlen mit Punkten) oder seinen Namen im Netz.",
   "files": [
    "app/couch/tv/service.py"
-  ]
- },
- {
-  "text": "Das ließ sich nicht speichern: %s",
-  "files": [
-   "app/couch/wiring_home.py"
   ]
  },
  {
@@ -4141,7 +4152,13 @@
   ]
  },
  {
-  "text": "Der Browser lässt sich gerade nicht ansteuern: %s",
+  "text": "Der Browser ließ sich nicht öffnen.",
+  "files": [
+   "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Der Browser lässt sich gerade nicht ansteuern. Versuche es gleich noch einmal.",
   "files": [
    "app/couch/wiring_store.py"
   ]
@@ -4270,6 +4287,18 @@
  },
  {
   "text": "Der Epic-Shop ist gerade nicht erreichbar.",
+  "files": [
+   "app/couch/store/epic.py"
+  ]
+ },
+ {
+  "text": "Der Epic-Shop meldet einen Fehler.",
+  "files": [
+   "app/couch/store/epic.py"
+  ]
+ },
+ {
+  "text": "Der Epic-Shop meldet einen Fehler: %s.",
   "files": [
    "app/couch/store/epic.py"
   ]
@@ -4969,6 +4998,18 @@
   ]
  },
  {
+  "text": "Der Ubisoft-Shop meldet einen Fehler.",
+  "files": [
+   "app/couch/store/ubisoft.py"
+  ]
+ },
+ {
+  "text": "Der Ubisoft-Shop meldet einen Fehler: %s.",
+  "files": [
+   "app/couch/store/ubisoft.py"
+  ]
+ },
+ {
   "text": "Der Wechsel zum Desktop hat nicht geklappt.",
   "files": [
    "app/couch/power.py"
@@ -5049,13 +5090,15 @@
  {
   "text": "Der geschützte Entpacker (bubblewrap) fehlt auf diesem System.",
   "files": [
-   "app/couch/installer/extract.py"
+   "app/couch/installer/extract.py",
+   "app/couch/store/gog_extract.py"
   ]
  },
  {
   "text": "Der geschützte Entpacker (bubblewrap) konnte nicht starten.",
   "files": [
-   "app/couch/installer/extract.py"
+   "app/couch/installer/extract.py",
+   "app/couch/store/gog_extract.py"
   ]
  },
  {
@@ -5776,7 +5819,7 @@
   ]
  },
  {
-  "text": "Die Reihenfolge ließ sich nicht speichern: %s",
+  "text": "Die Reihenfolge",
   "files": [
    "app/couch/wiring_home.py"
   ]
@@ -6368,6 +6411,12 @@
   "text": "Diese Fassung ist nicht neuer als die laufende.",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "Diese Größe lässt sich nicht wählen.",
+  "files": [
+   "app/couch/settings/display.py"
   ]
  },
  {
@@ -7084,7 +7133,8 @@
    "app/couch/launch/apps.py",
    "app/couch/library/apps.py",
    "app/couch/settings/apps.py",
-   "app/couch/setup/catalog.py"
+   "app/couch/setup/catalog.py",
+   "app/couch/wiring_discord.py"
   ]
  },
  {
@@ -7791,6 +7841,12 @@
   ]
  },
  {
+  "text": "Einzelheiten stehen im Protokoll.",
+  "files": [
+   "app/couch/wiring_home.py"
+  ]
+ },
+ {
   "text": "Elternordner ist nicht als couch-Prefix-Ordner markiert",
   "files": [
    "app/couch/launch/prefix.py"
@@ -8131,8 +8187,7 @@
  {
   "text": "Es ist kein Video gespeichert.",
   "files": [
-   "app/couch/settings/home.py",
-   "app/couch/wiring_videos.py"
+   "app/couch/settings/home.py"
   ]
  },
  {
@@ -8333,8 +8388,6 @@
   "files": [
    "app/couch/launch/builders.py",
    "app/couch/library/flatpaks.py",
-   "app/couch/store/epic.py",
-   "app/couch/store/ubisoft.py",
    "app/couch/textedit.py"
   ]
  },
@@ -9140,6 +9193,12 @@
   ]
  },
  {
+  "text": "Gilt beim nächsten Start einer App.",
+  "files": [
+   "app/couch/settings/display.py"
+  ]
+ },
+ {
   "text": "Gilt für Spiele; das Home läuft immer mit voller Bildrate. Möglich sind nur Werte, durch die sich die Bildwiederholrate des Bildschirms teilen lässt.",
   "files": [
    "app/couch/settings/performance.py"
@@ -9374,6 +9433,12 @@
   "files": [
    "app/couch/library/describe.py",
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Größe von Apps",
+  "files": [
+   "app/couch/settings/display.py"
   ]
  },
  {
@@ -10631,6 +10696,12 @@
   "text": "Kodi ist nicht installiert.",
   "files": [
    "app/couch/launch/apps.py"
+  ]
+ },
+ {
+  "text": "Kodi ließ sich nicht starten.",
+  "files": [
+   "app/couch/wiring_files.py"
   ]
  },
  {
@@ -15789,6 +15860,12 @@
   ]
  },
  {
+  "text": "Wie groß Apps wie Discord, Chrome, der App Store und alle Apps aus dem Reiter „Apps“ auf dem Fernseher erscheinen. Automatisch: 200 % bei 4K, 150 % bei 1440p, sonst 100 %. Gilt beim nächsten Start einer App, nie für Spiele.",
+  "files": [
+   "app/couch/settings/display.py"
+  ]
+ },
+ {
   "text": "Wie hell Menüs und Spiele ohne HDR auf der HDR-Ausgabe erscheinen.",
   "files": [
    "app/couch/settings/display.py"
@@ -15918,6 +15995,12 @@
   "text": "Wirkt, wenn ein Spiel mit weniger Bildpunkten rechnet, als der Bildschirm hat.",
   "files": [
    "app/couch/settings/display.py"
+  ]
+ },
+ {
+  "text": "Wo „%s“ installiert ist, lässt sich gerade nicht prüfen. Versuch es gleich noch einmal.",
+  "files": [
+   "app/couch/wiring_apps.py"
   ]
  },
  {
@@ -16373,6 +16456,12 @@
   ]
  },
  {
+  "text": "Zum Auspacken des Linux-Installers fehlt unzip.",
+  "files": [
+   "app/couch/wiring_store.py"
+  ]
+ },
+ {
   "text": "Zum Desktop wechseln",
   "files": [
    "app/couch/power.py",
@@ -16463,6 +16552,12 @@
   "text": "^(the|a|an)\\s+",
   "files": [
    "app/couch/library/sources.py"
+  ]
+ },
+ {
+  "text": "abgebrochen, bevor das Hilfsprogramm lief",
+  "files": [
+   "app/couch/setup/jobs.py"
   ]
  },
  {
@@ -16682,6 +16777,18 @@
   "text": "den Fernseher",
   "files": [
    "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "der Suche",
+  "files": [
+   "app/couch/wiring_selfupdate.py"
+  ]
+ },
+ {
+  "text": "der Wunschliste",
+  "files": [
+   "app/couch/wiring_wishlist.py"
   ]
  },
  {
@@ -17630,6 +17737,12 @@
   ]
  },
  {
+  "text": "startet mit dem PC5 Launcher (letzte Unterhaltung)",
+  "files": [
+   "app/couch/wiring_apps.py"
+  ]
+ },
+ {
   "text": "steam: %s nicht lesbar (%s)",
   "files": [
    "app/couch/library/steam.py"
@@ -18199,6 +18312,12 @@
   "text": "„%s“ ließ sich nicht deinstallieren: %s",
   "files": [
    "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "„%s“ ließ sich nicht in die Bibliothek eintragen.",
+  "files": [
+   "app/couch/wiring_files.py"
   ]
  },
  {

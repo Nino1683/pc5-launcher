@@ -39,7 +39,7 @@ gi.require_version("Soup", "3.0")
 from gi.repository import Gdk, GdkX11, Gio, GLib, Gtk, Soup, WebKit  # noqa: E402
 from gi.repository import JavaScriptCore as JSC  # noqa: E402
 
-from .. import log, paths  # noqa: E402
+from .. import log, paths, system  # noqa: E402
 from ..rpc import page_json  # noqa: E402
 from . import DisplayError, require_gamescope_display  # noqa: E402,F401
 from .crashwatch import CrashWatch  # noqa: E402
@@ -50,6 +50,7 @@ ROLES = ("home", "overlay")
 PAGE = "couch://app/index.html?role=%s"
 BEAT_TIMEOUT = 15.0          # so lange darf der Herzschlag einer Seite ausbleiben
 RANGE_MAX = 4 * 1024 * 1024  # größtes Stück einer Range-Antwort
+URI_THREADS = 2              # Arbeits-Threads für couch://art und couch://files (wachsen, wenn welche hängen)
 FONT = "Noto Sans"
 
 # Was couch://art ausliefert: Bilder, Töne, Schriften. Die Wurzeln enthalten auch Steams
@@ -113,6 +114,11 @@ class UiHost:
         # liest, füllt und leert die Tabelle; rpc bekommt allein die Nummer (siehe Kopf der Datei)
         self._pending: dict[int, tuple[str, Any, Any]] = {}
         self._tokens = itertools.count(1)
+        # couch://art und couch://files (_on_uri): offene Anfragen, nur der Hauptthread fasst sie an; was der
+        # Arbeits-Thread vorbereitet hat, liegt bis zur Antwort in _uri_ready
+        self._uri_requests: dict[int, Any] = {}
+        self._uri_ready: dict[int, dict] = {}
+        self._uri_pool: Any = None
         self._main = threading.get_ident()
         self._warned_thread = False
         self.reloads = {role: 0 for role in ROLES}
@@ -581,21 +587,48 @@ class UiHost:
         return full, ctype
 
     def _on_uri(self, request: Any) -> None:
+        """WebKit ruft im Hauptthread. couch://app (die Oberfläche aus dem eigenen Ordner) wird gleich
+        beantwortet. couch://art und couch://files liegen oft auf anderen Platten (USB, die schlafen kann; FUSE):
+        Prüfen, Größe, Öffnen und das Stück einer Range-Antwort (bis RANGE_MAX = 4 MB) übernimmt ein eigener
+        Arbeits-Thread, abgeschlossen wird danach wieder im Hauptthread (WebKit kann eine Anfrage später
+        beantworten). Die Anfrage selbst bleibt in einer Tabelle des Hauptthreads; der Arbeits-Thread bekommt
+        nur Adresse und Range-Kopfzeile und gibt nie den letzten Verweis auf ein GObject frei."""
         uri = request.get_uri()
+        incoming = request.get_http_headers()
+        rng = incoming.get_one("Range") if incoming else None
+        if urllib.parse.urlsplit(uri).netloc == "app":
+            # Die Seite selbst nie hinter einem hängenden Arbeits-Thread: Sonst bliebe das Bild schwarz
+            self._answer_uri(request, uri, self._prepare_uri(uri, rng))
+            return
+        token = next(self._tokens)
+        self._uri_requests[token] = request
+        if self._uri_pool is None:
+            # eigener Pool: Hängt eine Platte, warten weder die RPCs (system.background) noch die übrigen Bilder lange
+            self._uri_pool = system.Pool(name="couch-uri", base=URI_THREADS)
+        self._uri_pool.submit(self._prepare_uri_later, token, uri, rng)
+
+    def _prepare_uri_later(self, token: int, uri: str, rng: str | None) -> None:
+        """Arbeits-Thread: vorbereiten und die Antwort in der Hauptschleife anstoßen. Das Ergebnis (darin der
+        geöffnete Strom) geht über _uri_ready, damit dieser Thread keinen Verweis darauf behält."""
+        ready = self._prepare_uri(uri, rng)
+        self._uri_ready[token] = ready
+        ready = None
+        GLib.idle_add(self._finish_uri, token, uri, priority=GLib.PRIORITY_DEFAULT)
+
+    def _finish_uri(self, token: int, uri: str) -> bool:
+        request = self._uri_requests.pop(token, None)
+        ready = self._uri_ready.pop(token, None)
+        if request is not None and ready is not None:
+            self._answer_uri(request, uri, ready)
+        return False
+
+    def _prepare_uri(self, uri: str, rng: str | None) -> dict:
+        """Ohne WebKit und Soup, aus jedem Thread: prüfen (resolve_uri), Größe, bei Range das Stück lesen, sonst
+        die Datei öffnen. {full, ctype, size, status, data | stream, start, end} oder {error}. Blockierend."""
         try:
             full, ctype = self.resolve_uri(uri)
-            f = Gio.File.new_for_path(full)
-            size = f.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, None).get_size()
-            headers = Soup.MessageHeaders.new(Soup.MessageHeadersType.RESPONSE)
-            # couch://art ist für die Seite (couch://app) ein fremder Ursprung: ohne diese
-            # Kopfzeile scheitern fetch(), Canvas und Schriften.
-            headers.append("Access-Control-Allow-Origin", "*")
-            headers.append("Accept-Ranges", "bytes")
-            # fetch() sieht nur diese Kopfzeilen, nicht den Typ der Antwort selbst
-            text = ctype.startswith("text/") or ctype == "application/json"
-            headers.append("Content-Type", ctype + "; charset=utf-8" if text else ctype)
-            incoming = request.get_http_headers()
-            rng = incoming.get_one("Range") if incoming else None
+            size = os.stat(full).st_size
+            ready: dict = {"full": full, "ctype": ctype, "size": size}
             if rng and rng.startswith("bytes="):
                 # Medien-Elemente fragen "bytes=0-1445" und verlangen 206 mit genau diesem Stück.
                 # WebKit liest einen Strom immer bis zum Ende, deshalb kommt das Stück aus dem
@@ -614,22 +647,45 @@ class UiHost:
                 with open(full, "rb") as fh:
                     fh.seek(start)
                     data = fh.read(end - start + 1)
-                end = start + len(data) - 1
-                stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes.new(data))
-                length, status = len(data), 206
-                headers.append("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+                ready.update(status=206, data=data, start=start, end=start + len(data) - 1)
             else:
-                stream = f.read(None)       # öffnet nur; WebKit liest den Strom asynchron
-                length, status = size, 200
-                art = urllib.parse.urlsplit(uri).netloc == "art"
-                headers.append("Cache-Control", "max-age=600" if art else "no-cache")
-            response = WebKit.URISchemeResponse.new(stream, length)
-            response.set_content_type(ctype)
-            response.set_status(status, None)
-            response.set_http_headers(headers)
-            request.finish_with_response(response)
+                # öffnet nur; WebKit liest den Strom asynchron
+                ready.update(status=200, stream=Gio.File.new_for_path(full).read(None))
+            return ready
         except Exception as e:
-            _log.warning("couch:// verweigert: %s (%s: %s)", uri, type(e).__name__, e)
-            code = Gio.IOErrorEnum.PERMISSION_DENIED if isinstance(e, PermissionError) \
-                else Gio.IOErrorEnum.NOT_FOUND
-            request.finish_error(GLib.Error.new_literal(Gio.io_error_quark(), str(e), int(code)))
+            return {"error": e}
+
+    def _answer_uri(self, request: Any, uri: str, ready: dict) -> None:
+        """Hauptthread: Antwort aus dem Ergebnis von _prepare_uri bauen und die Anfrage abschließen."""
+        try:
+            e = ready.get("error")
+            if e is None:
+                ctype = ready["ctype"]
+                headers = Soup.MessageHeaders.new(Soup.MessageHeadersType.RESPONSE)
+                # couch://art ist für die Seite (couch://app) ein fremder Ursprung: ohne diese
+                # Kopfzeile scheitern fetch(), Canvas und Schriften.
+                headers.append("Access-Control-Allow-Origin", "*")
+                headers.append("Accept-Ranges", "bytes")
+                # fetch() sieht nur diese Kopfzeilen, nicht den Typ der Antwort selbst
+                text = ctype.startswith("text/") or ctype == "application/json"
+                headers.append("Content-Type", ctype + "; charset=utf-8" if text else ctype)
+                if ready["status"] == 206:
+                    stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes.new(ready["data"]))
+                    length = len(ready["data"])
+                    headers.append("Content-Range", "bytes %d-%d/%d" % (ready["start"], ready["end"], ready["size"]))
+                else:
+                    stream, length = ready["stream"], ready["size"]
+                    art = urllib.parse.urlsplit(uri).netloc == "art"
+                    headers.append("Cache-Control", "max-age=600" if art else "no-cache")
+                response = WebKit.URISchemeResponse.new(stream, length)
+                response.set_content_type(ctype)
+                response.set_status(ready["status"], None)
+                response.set_http_headers(headers)
+                request.finish_with_response(response)
+                return
+        except Exception as failure:
+            e = failure
+        _log.warning("couch:// verweigert: %s (%s: %s)", uri, type(e).__name__, e)
+        code = Gio.IOErrorEnum.PERMISSION_DENIED if isinstance(e, PermissionError) \
+            else Gio.IOErrorEnum.NOT_FOUND
+        request.finish_error(GLib.Error.new_literal(Gio.io_error_quark(), str(e), int(code)))

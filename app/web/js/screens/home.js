@@ -31,6 +31,7 @@ import { ensureTrophyScreens, forgetTrophies } from "../components/trophies.js";
 
 const JUMP = 5;                   // L2/R2 springen um fünf Einträge
 const AREAS = ["games", "apps", "media"];   // L1/R1 der Reihe nach (E140)
+const START_HOLD_MS = 2000;   // so lange nach home.start kein Rücksprung zur App, die eben vorn war
 const RETRY_MS = 2500;            // antwortet der Kern nicht, fragt das Home noch ein paarmal nach
 const RETRIES = 6;
 // Danach seltener, mit wachsendem Abstand (E99): Vorher endete die Suche nach 15 s stumm
@@ -496,11 +497,13 @@ function create() {
   // startete dann jenes und beendete das laufende erst nach einer Rückfrage.
   let lastFront = store.state.foreground || null;
   let returnTimer = null;
+  let startAt = 0;                      // home.start (Symbol Home im Control Center): kein Rücksprung zur App
   function onForeground(front) {
     const was = lastFront;
     lastFront = front || null;
     if (front || !was) return;
     clearTimeout(returnTimer);
+    if (Date.now() - startAt < START_HOLD_MS) return;
     // Ein Tick Geduld: Ist die App gerade abgestürzt oder beendet, steht das gleich in running
     returnTimer = setTimeout(() => {
       // Ausschalten usw. läuft (ui.open aus dem Control Center): die Tafel bleibt, kein Rücksprung
@@ -508,6 +511,20 @@ function create() {
       returnTo(was);
     }, 150);
   }
+  // Symbol Home im Control Center (Wunsch 2026-10-30: „wenn home dann home start“): Reiter Spiele, erstes Spiel,
+  // Fokus in der Reihe; die App läuft angehalten weiter und steht wie immer mit ihrer Marke in ihrer Reihe
+  function goStart() {
+    startAt = Date.now();
+    clearTimeout(returnTimer);
+    router.backTo("home");
+    state.area = "games";
+    const first = rows.games.entries.find((e) => e.kind === "game");
+    if (first) rows.games.select(first.id);
+    markCurrent();
+    showEntry(row().current, { instant: true });
+    row().focusCurrent();
+  }
+
   function returnTo(id) {
     const area = AREAS.find((a) => rows[a].entries.some((e) => e.id === id));
     if (!area) return;
@@ -525,6 +542,7 @@ function create() {
       else load();
     } else if (event === "app.changed") refreshRunning();
     else if (event === "home.changed") load();               // E141: Kachel aus- bzw. wieder eingeblendet
+    else if (event === "home.start") goStart();
     else if (event === "state" && payload && ("running" in payload || "foreground" in payload)) {
       refreshRunning();
       if ("foreground" in payload) onForeground(payload.foreground);

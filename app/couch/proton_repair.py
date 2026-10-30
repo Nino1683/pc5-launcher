@@ -74,7 +74,7 @@ import urllib.request
 import zlib
 from typing import Callable
 
-from . import jsontext, log, paths
+from . import jsontext, log, paths, system
 from .installer import trash
 
 _log = log.get("proton.repair")
@@ -282,22 +282,9 @@ def scan_manifest(tool_dir: str) -> dict:
 
 
 def _write_json_atomic(path: str, obj) -> None:
-    folder = os.path.dirname(path)
-    os.makedirs(folder, mode=0o700, exist_ok=True)
-    tmp = os.path.join(folder, ".%s.%s.tmp" % (os.path.basename(path), secrets.token_hex(4)))
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(jsontext.dumps(obj, separators=(",", ":")).encode("utf-8"))
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)                          # eigene Zwischendatei
-        except OSError:
-            pass
-        raise
+    """Manifest bzw. Zwischenspeicher (nur eigene Ordner, nie compatibilitytools.d): über system.write_atomic, die eine
+    Schreibstelle für atomare Dateien (eigene Zwischendatei mit O_EXCL|O_NOFOLLOW, fsync von Datei und Ordner)."""
+    system.write_atomic(path, jsontext.dumps(obj, separators=(",", ":")), mode=0o600)
 
 
 def make_manifest(tool_dir: str, manifest_dir_: str, manifest: dict | None = None) -> dict:

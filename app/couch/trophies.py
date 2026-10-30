@@ -43,6 +43,7 @@ from typing import Any, Callable
 from . import jsontext, log
 from .store import cache as store_cache
 from .store.cache import StoreError
+from .store.steam import LANGS   # Steams Sprachnamen stehen einmal dort
 
 _log = log.get("trophies")
 
@@ -58,7 +59,6 @@ OFFLINE_PAUSE_S = 300.0         # nach einem Abruf ohne Netz so lange nicht weit
 FETCH_GAP_S = 0.25              # zwischen zwei Abrufen der Seltenheit (Übersicht mit vielen Spielen)
 GOLD_BELOW, SILVER_BELOW = 10.0, 35.0
 TIERS = ("bronze", "silver", "gold")
-LANGS = {"de": "german", "en": "english"}
 MAX_FILE = 16 * 1024 * 1024     # größte Datei bisher 0,55 MB (Company of Heroes 2, 452 Errungenschaften)
 MAX_ICON = 256 * 1024
 MAX_DEPTH = 32

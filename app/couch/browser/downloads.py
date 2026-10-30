@@ -2,7 +2,7 @@
 
 Seit E60 lädt das Home selbst (couch/fetcher.py): Der Browser schreibt je Download einen Auftrag
 (write_request) und liest die Liste <state>/downloads.json nur noch für seine Anzeige (read).
-state: queued | running | paused | done | failed | cancelled. Nur Standardbibliothek.
+state: queued | running | paused | done | failed | cancelled. Ohne GTK (testbar).
 
 Was WebKit selbst lädt (blob:, data:, POST), führt LocalLog in <state>/browser-downloads.json
 (E99); das Home liest sie mit read_local und zeigt die Einträge im Control Center.
@@ -14,6 +14,8 @@ import os
 import re
 import time
 import uuid
+
+from .. import system
 
 KEEP = 30
 STATES = ("queued", "running", "paused", "done", "failed", "cancelled")
@@ -86,15 +88,11 @@ def read(path: str) -> list[dict]:
 
 def write_request(spool_dir: str, url: str, name: str, headers: dict | None = None) -> str:
     """Download-Auftrag für das Home (E60): eine Datei je Download in <state>/download-requests/.
-    Erst unter anderem Namen geschrieben, dann umbenannt: Das Home liest nie eine halbe Datei.
-    Rechte 0600, die Kopfzeilen können Cookies enthalten."""
-    os.makedirs(spool_dir, exist_ok=True)
+    Erst unter anderem Namen geschrieben (endet nicht auf .json), dann umbenannt: Das Home liest nie eine
+    halbe Datei. Rechte 0600, die Kopfzeilen können Cookies enthalten."""
     path = os.path.join(spool_dir, "%d-%s.json" % (time.time_ns(), uuid.uuid4().hex[:8]))
-    tmp = path + ".neu"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump({"url": url, "name": name, "headers": dict(headers or {})}, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    system.write_atomic(path, json.dumps({"url": url, "name": name, "headers": dict(headers or {})},
+                                         ensure_ascii=False), 0o600)
     return path
 
 
@@ -220,12 +218,8 @@ class LocalLog:
     def save(self) -> bool:
         self._written = self.monotonic()
         try:
-            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-            tmp = "%s.%d.neu" % (self.path, os.getpid())
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump({"version": 1, "items": self.items}, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, self.path)
+            system.write_atomic(self.path, json.dumps({"version": 1, "items": self.items}, ensure_ascii=False,
+                                                      indent=1), 0o600)
             return True
         except OSError:
             return False

@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 from typing import Any
 
 from . import log, paths, tv
@@ -54,7 +53,6 @@ class TvPart:
         self._service: TvService | None = None
         self._make_lock = threading.Lock()
         self._wake_lock = threading.Lock()
-        self._toasts = 0
 
     # ------------------------------------------------------------ Dienst
     def _overrides(self) -> dict:
@@ -218,21 +216,9 @@ class TvPart:
         return {"ok": True, "result": self._need().power(on)}
 
     def _toast(self, title: str, body: str) -> None:
-        """Kurze Einblendung ohne Eintrag in der Liste (wie wiring_discord._feedback). Aus jedem Thread."""
-        notify = getattr(self.app, "notify", None)
-        if notify is None or self.config.get("notify.popups", True) is False:
-            return
-
-        def show() -> None:
-            self._toasts += 1
-            item = {"id": "tv-%d" % self._toasts, "title": title, "body": body, "icon": "tv", "time": time.time()}
-            try:
-                self.app.rpc.emit("toast", {**item, "seconds": notify.seconds()})
-                if callable(getattr(notify, "on_toast", None)):
-                    notify.on_toast(item)
-            except Exception:  # noqa: BLE001
-                _log.exception("Einblendung zum Fernseher")
-        self.wiring.main.post(show)
+        """Kurze Einblendung ohne Eintrag in der Liste (wiring.toast). Aus jedem Thread."""
+        from . import wiring as wiring_mod
+        wiring_mod.toast(self.wiring, title, body, "tv", "tv")
 
     # ------------------------------------------------------------ Ruhemodus und Ausschalten
     def before_power(self, action: str) -> None:
@@ -262,12 +248,19 @@ class TvPart:
     # ------------------------------------------------------------ Aufwachen und Start
     def on_resume(self) -> None:
         """ResumeWatch (Hauptschleife): eigener Thread, die Hauptschleife wartet nicht. Eine Verbindung von vor dem
-        Ruhemodus gilt nicht mehr (sie sähe lebendig aus, Tasten gingen ins Leere)."""
-        if tv.wake_wanted(self.config) and keys.available():
-            # wake() verwirft die alte Verbindung selbst (ein eigener Thread dafür könnte die frische treffen)
-            threading.Thread(target=self._wake, args=("Aufwachen",), name="tv-wake", daemon=True).start()
+        Ruhemodus gilt nicht mehr (sie sähe lebendig aus, Tasten gingen ins Leere). keys.available() lädt beim ersten
+        Mal cryptography: erst im Thread fragen, nie in der Hauptschleife."""
+        if tv.wake_wanted(self.config):
+            threading.Thread(target=self._resume_work, name="tv-wake", daemon=True).start()
         elif self._service is not None:
             threading.Thread(target=self._service.reset, name="tv-reset", daemon=True).start()
+
+    def _resume_work(self) -> None:
+        if keys.available():
+            # wake() verwirft die alte Verbindung selbst (ein eigener Thread dafür könnte die frische treffen)
+            self._wake("Aufwachen")
+        elif self._service is not None:
+            self._service.reset()
 
     def _boot(self) -> tuple[str, float] | None:
         """(boot_id, Sekunden seit dem Start) oder None."""
@@ -291,11 +284,13 @@ class TvPart:
         return ident, up
 
     def after_ready(self) -> None:
-        if tv.wake_wanted(self.config) and keys.available():
+        if tv.wake_wanted(self.config):         # keys.available() erst im Thread (lädt cryptography)
             threading.Thread(target=self._boot_wake, name="tv-boot", daemon=True).start()
 
     def _boot_wake(self) -> None:
         """Einmal je echtem Start des PCs (nicht bei jedem Neustart des PC5 Launchers)."""
+        if not keys.available():
+            return
         boot = self._boot()
         if not boot or not self.paired():
             return

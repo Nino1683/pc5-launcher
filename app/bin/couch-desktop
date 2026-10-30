@@ -36,6 +36,12 @@ set -u
 # ---------------------------------------------------------------------------------------------
 # Funktionen. Tests binden die Datei mit "source" ein und rufen sie einzeln auf.
 
+# Prüfmodus wie couch.paths.test_mode: COUCH_TEST_ROOT gesetzt oder COUCH_TEST=1. COUCH_TEST=1 allein
+# ist ein Fehler des Aufrufers (alle Orte zeigten auf die echten Ordner): dann nichts tun.
+test_mode() {
+  [[ -n "${COUCH_TEST_ROOT:-}" || "${COUCH_TEST:-}" == 1 ]]
+}
+
 # Läuft DISPLAY in einer Gamescope-Sitzung? Erkannt an GAMESCOPE_XWAYLAND_SERVER_ID, das nur
 # Gamescope selbst an die Wurzel schreibt (andere GAMESCOPE_*-Eigenschaften setzt Steam auch
 # auf dem KDE-Desktop).
@@ -189,7 +195,7 @@ nested_bus() {
 
 # Meldet Plasma in der Sitzung im Fenster ab und wartet kurz, bis sie geendet hat.
 # Rückgabe: 0 = Abmeldung angenommen, 3 = keine eigene Sitzung gefunden (nichts zu beenden),
-# 1 = der Aufruf ist gescheitert. Im Prüfmodus (COUCH_TEST_ROOT) wird nur notiert.
+# 1 = der Aufruf ist gescheitert, 2 = Prüfmodus ohne COUCH_TEST_ROOT. Im Prüfmodus wird nur notiert.
 logout_desktop() {
   local addr rc=0 waited=0 limit
   addr="$(desktop_bus_address)" || { echo "couch-desktop: keine laufende Desktop-Sitzung gefunden"; return 3; }
@@ -199,7 +205,11 @@ logout_desktop() {
   fi
   # org.kde.Shutdown.logout: abmelden ohne Rückfrage (wie der Knopf im Startmenü)
   local -a call=(busctl "--address=$addr" --timeout=5 call org.kde.Shutdown /Shutdown org.kde.Shutdown logout)
-  if [[ -n "${COUCH_TEST_ROOT:-}" ]]; then
+  if test_mode; then
+    if [[ -z "${COUCH_TEST_ROOT:-}" ]]; then
+      echo "couch-desktop: Prüfmodus ohne COUCH_TEST_ROOT, nichts getan" >&2
+      return 2
+    fi
     mkdir -p "$COUCH_TEST_ROOT/state" &&
       printf '%s couch-desktop: %s\n' "$(date '+%F %T')" "${call[*]}" >> "$COUCH_TEST_ROOT/state/writes.log"
     echo "couch-desktop: Prüfmodus, Abmeldung nur notiert"
@@ -251,6 +261,11 @@ if (( $# > 0 )); then
   echo "couch-desktop: unbekanntes Argument: $1 (möglich: --logout)" >&2
   exit 2
 fi
+if test_mode && [[ -z "${COUCH_TEST_ROOT:-}" ]]; then
+  # sonst entstünden die gesperrten Einstellungen unter ~/.config und eine echte Sitzung
+  echo "couch-desktop: Prüfmodus ohne COUCH_TEST_ROOT, kein Start" >&2
+  exit 2
+fi
 
 if [[ -z "${DISPLAY:-}" ]]; then
   echo "couch-desktop: DISPLAY fehlt (nicht unter Gamescope gestartet?)" >&2
@@ -284,7 +299,7 @@ fi
 
 # --- gesperrte Einstellungen nur für diese Sitzung ----------------------------------------
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
-if [[ -n "${COUCH_TEST_ROOT:-}" ]]; then
+if test_mode; then
   OVR="$COUCH_TEST_ROOT/config/desktop-xdg"      # Prüfmodus: nichts unter ~/.config anlegen
 else
   OVR="$CFG/couch/desktop-xdg"

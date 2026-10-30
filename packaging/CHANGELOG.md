@@ -1,5 +1,21 @@
 # Änderungen
 
+## Nächste Fassung
+
+- **Größe von Apps:** Apps wie Discord, Chrome, der App Store und alle Apps aus dem Reiter „Apps“ erschienen bei 4K
+  winzig. Jetzt werden sie passend zur Auflösung vergrößert (200 % bei 4K, 150 % bei 1440p), einstellbar unter
+  Einstellungen › Bildschirm und Video › Größe von Apps (Automatisch oder 100 bis 300 %). Spiele bleiben, wie sie sind.
+- **Home-Symbol im Control Center:** Es führt jetzt immer zum Anfang des Home (Reiter „Spiele“, erstes Spiel) statt
+  zur Karte der App, die eben vorn war. Langes Drücken der PS-Taste und die Karte der App führen wie bisher zur App.
+- **Steam-Anmeldung:** Der Store zeigt dich nach der Anmeldung gleich als angemeldet; vorher las er die Anmeldedaten
+  manchmal genau, während der Browser sie beim Schließen schrieb, und es brauchte einen zweiten Versuch.
+- **Rockstar-Anmeldung:** Der Browser erkennt das Ende der Anmeldung auch, wenn der Shop die Adresse nur per Skript
+  umschreibt, und schließt sich.
+- **Umbauten ohne sichtbare Änderung:** Einkaufen, Anmelden, Abspielen aus dem Datei-Explorer und Bilder laden laufen
+  nicht mehr in der Hauptschleife und frieren die Oberfläche nicht ein; GOG-Installer werden in einem abgeschotteten
+  Käfig ausgepackt; ein halb deinstalliertes Flatpak gilt überall als nicht installiert; gemeinsame Bausteine statt
+  vieler Kopien.
+
 ## 0.5.1 (2026-10-30)
 
 Nur Fehlerbehebungen.

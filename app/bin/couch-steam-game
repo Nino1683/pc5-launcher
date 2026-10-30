@@ -53,11 +53,10 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
-from couch import APP_ID_BASE  # noqa: E402
+from couch import APP_ID_BASE, APP_ID_MAX  # noqa: E402
 from couch.log import capped  # noqa: E402
 from couch.proc import tree  # noqa: E402
 
-APP_ID_MAX = 0x7FFFFFFF
 STEAM_COMM = "steam"                     # der Client (ubuntu12_32/steam), nicht steam.sh oder steamwebhelper
 PASS = ("DXVK_HDR", "PROTON_FSR4_UPGRADE", "FSR4_UPGRADE")
 # Schalter, mit denen die Game-Mode-Sitzung Steams Oberfläche (Big Picture) einrichtet. Ohne sie

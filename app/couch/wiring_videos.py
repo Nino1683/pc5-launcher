@@ -7,8 +7,6 @@ RPC (Netz und Platte im Arbeits-Thread, nie in der Hauptschleife):
     video.choose {kind, id} -> lädt dieses Video (Adresse aus der eigenen Liste, bootvideos.Repo.download) und stellt
                            die Einstellung auf „Video“: {ok, title, message} bzw. {ok: false, message}. Während des Ladens
                            Ereignis video.progress {kind, id, done, total} an das Home (höchstens alle PROGRESS_S).
-    video.remove {kind}  -> entfernt das Video dieser Art (nur die eigenen zwei Dateien), Einstellung zurück auf
-                           „Eigene“ bzw. „Aus“: {ok, message}
     video.played {}      -> die Seite meldet: Ruhemodus-Video zu Ende (oder übersprungen, oder ging nicht)
 sys.state.videos     {style: "own"|"video"|"off", boot: {url, id, title, author, duration} | null, suspend: … | null,
                       suspendOn: bool}. url ist couch://art/… auf <data>/videos/<art>.webm (der Ordner ist als Wurzel
@@ -17,7 +15,9 @@ Ereignis video.suspend {url, maxMs} an die Seite, die den Ruhemodus gewählt hat
                       Sie spielt das Video und meldet video.played; der Kern wartet höchstens maxMs + SUSPEND_GRACE_MS.
 
 Einstellungen (Home-Bildschirm, settings/home.py): ui.intro (an/aus wie bisher), ui.intro_style ("own" | "video"),
-ui.suspend_video ("off" | "video"). Prüfmodus: kein echtes Netz (bootvideos.FAKE_ENV für eine Attrappe).
+ui.suspend_video ("off" | "video"). Entfernt wird ein Video nur dort („Startvideo entfernen“, settings/home._remove_video;
+das frühere RPC video.remove nutzte nur die Attrappe). Prüfmodus: kein echtes Netz (bootvideos.FAKE_ENV für eine
+Attrappe).
 """
 from __future__ import annotations
 
@@ -40,9 +40,6 @@ SUSPEND_MAX_MS = int(bootvideos.MAX_SECONDS["suspend"] * 1000)
 SUSPEND_GRACE_MS = 1500             # Laden und erstes Bild; danach geht es ohne Rückmeldung der Seite weiter
 MSG_BUSY = "Es wird schon ein Video geladen."
 MSG_SAVED = {"boot": "„%s“ ist jetzt deine Startanimation.", "suspend": "„%s“ läuft jetzt vor dem Ruhemodus."}
-MSG_REMOVED = {"boot": "Das Startvideo wurde entfernt. Es gilt wieder die eigene Startanimation.",
-               "suspend": "Das Ruhemodus-Video wurde entfernt."}
-MSG_NONE = "Es ist kein Video gespeichert."
 
 
 def folder() -> str:
@@ -157,18 +154,6 @@ class VideoPart:
         title = meta.get("title") or post_id
         return {"ok": True, "title": title, "message": MSG_SAVED[kind] % title}
 
-    def video_remove(self, params: dict) -> dict:
-        kind = str(params.get("kind") or "")
-        if kind not in bootvideos.KINDS:
-            return {"ok": False, "message": "Diese Auswahl gibt es nicht."}
-        gone = self.store.remove(kind)
-        if kind == "boot" and self.style() == "video":
-            self.wiring.config.set("ui.intro_style", "own")
-        elif kind == "suspend" and self.suspend_on():
-            self.wiring.config.set("ui.suspend_video", "off")
-        self.wiring.main.post(self.push)
-        return {"ok": True, "message": MSG_REMOVED[kind] if gone else MSG_NONE}
-
     # ------------------------------------------------------------ Ruhemodus-Video (Hauptschleife)
     def suspend_video(self, role: str) -> Future | None:
         """Für power.Power.suspend_video: spielt das Ruhemodus-Video in der Seite role und liefert ein Future, das nach
@@ -222,14 +207,9 @@ def extend(wiring: Any) -> None:
     except bootvideos.VideoError as e:
         _log.warning("%s (%s)", e.message, folder())
 
-    def bg(fn):
-        def call(params: dict) -> Future:
-            return wiring._bg(fn, dict(params or {}))
-        return call
-
-    app.rpc.register("video.list", bg(part.video_list))
-    app.rpc.register("video.choose", bg(part.video_choose))
-    app.rpc.register("video.remove", bg(part.video_remove))
+    from .wiring import pooled
+    app.rpc.register("video.list", pooled(wiring, part.video_list))
+    app.rpc.register("video.choose", pooled(wiring, part.video_choose))
     app.rpc.register("video.played", lambda params: part.video_played(dict(params or {})))
     power = getattr(app, "power", None)
     if power is not None and hasattr(power, "suspend_video"):

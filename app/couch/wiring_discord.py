@@ -32,8 +32,6 @@ Prüfmodus: Nie der echte Sitzungsbus und nie die echten Sockets von Discord. Mi
 from __future__ import annotations
 
 import os
-import threading
-import time
 from typing import Any
 
 from . import discord, log, paths
@@ -42,7 +40,6 @@ from .rpc import RpcError
 
 _log = log.get("wiring.discord")
 
-REVEAL_WAIT_S = 30.0            # so lange wartet der Faden auf den zweiten Start zum Zeigen (beendet wird er nie)
 TEXT_OFF = "Discord ist ausgeschaltet. Einschalten unter Einstellungen › Apps › Discord."
 TEXT_MISSING = "Discord ist nicht installiert. Installieren unter Einstellungen › Apps › Discord."
 TEXT_NOT_RUNNING = "Discord läuft gerade nicht. Öffne es zuerst."
@@ -62,7 +59,6 @@ class DiscordPart:
         self._ready = False
         self._auto_done = False                 # der Hintergrund-Start nach dem Bereit-Signal lief (einmal je Sitzung)
         self._on = discord.enabled(self.config)
-        self._toasts = 0
 
     # ------------------------------------------------------------ Zustand
     def _flatpak_dirs(self) -> list:
@@ -72,9 +68,9 @@ class DiscordPart:
         return ["/var/lib/flatpak", os.path.join(paths.home(), ".local/share/flatpak")]
 
     def installed(self) -> bool:
-        """Liegt das Flatpak in einer Installation? Nur stat (wie library/apps.flatpak_installed ohne Rückfall)."""
-        return any(os.path.isdir(os.path.join(root, "app", discord.FLATPAK, "current", "active"))
-                   for root in self._flatpak_dirs())
+        """Liegt das Flatpak in einer Installation? Nur stat (dieselbe Prüfung wie überall: library.flatpaks.installed)."""
+        from .library import flatpaks
+        return flatpaks.installed(self._flatpak_dirs(), discord.FLATPAK)
 
     def running(self) -> Any:
         procs = getattr(self.app, "procs", None)
@@ -241,41 +237,9 @@ class DiscordPart:
 
     def reveal(self, app: Any) -> None:
         """Discord ohne Fenster: das Flatpak noch einmal starten (ohne --start-minimized). Hauptschleife."""
-        argv = [a for a in (getattr(app.spec, "argv", None) or []) if a not in discord.BACKGROUND_ARGS]
-        if not argv:
-            return
-        try:
-            display = self.app.gs.game_display()
-        except Exception as e:  # noqa: BLE001
-            _log.warning("Discord zeigen: kein Display (%s)", e)
-            return
-        from .proc import manager
-        env = manager.build_env(getattr(self.app, "session_env", {}) or {}, app.spec, display, app.app_id)
-        exe = manager.find_executable(argv[0], env, app.spec.cwd)
-        if exe is None or (paths.test_mode() and not manager.test_mode_allows(exe)):
-            _log.info("Discord zeigen: %s wird nicht gestartet", argv[0])
-            return
-        spawn = getattr(self.wiring, "discord_spawn", None) or self._spawn
-        threading.Thread(target=spawn, args=([exe, *argv[1:]], env, app.spec.cwd), name="discord-show",
-                         daemon=True).start()
-
-    def _spawn(self, argv: list, env: dict, cwd: Any) -> None:
-        import subprocess
-        try:
-            proc = self.wiring_popen(argv, env=env, cwd=cwd or None, stdin=subprocess.DEVNULL,
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError as e:
-            _log.warning("Discord zeigen: %s", e)
-            return
-        try:
-            proc.wait(timeout=REVEAL_WAIT_S)
-        except subprocess.TimeoutExpired:
-            # Nicht beenden: Ist der erste Discord inzwischen weg, ist dieser Start das echte Discord (samt Sprachchat)
-            _log.warning("Discord zeigen: der zweite Start endet nicht von selbst, er läuft weiter")
-
-    def wiring_popen(self, argv: list, **kwargs: Any) -> Any:
         from . import wiring as wiring_mod
-        return wiring_mod._popen_bound(argv, **kwargs)
+        wiring_mod.reveal_again(self.wiring, app, "Discord", "discord-show", _log, drop=discord.BACKGROUND_ARGS,
+                                spawn=getattr(self.wiring, "discord_spawn", None))
 
     # ------------------------------------------------------------ Tasten
     def key(self, what: str) -> dict:
@@ -293,26 +257,15 @@ class DiscordPart:
         def press(_front: Any) -> None:
             inp.press_combo(combo)
             _log.info("Discord: %s gesendet (%s)", what, discord.KEY_LABELS[what])
-            self._feedback(discord.TITLE, TEXT_SENT[what])
+            self._feedback(TEXT_SENT[what])
         if not shell.when_running(press):
             raise RpcError(TEXT_NO_APP, "NoApp")
         return {"ok": True}
 
-    def _feedback(self, title: str, body: str) -> None:
-        """Kurze Einblendung nach dem Senden, ohne Eintrag in der Liste der Mitteilungen (das wäre nur Rauschen); wie
-        notify.push über das Ereignis toast und shell.on_toast (das Overlay steht dafür passiv). Ohne Einblendungen
-        (notify.popups) nichts."""
-        notify = getattr(self.app, "notify", None)
-        if notify is None or self.config.get("notify.popups", True) is False:
-            return
-        self._toasts += 1
-        item = {"id": "discord-%d" % self._toasts, "title": title, "body": body, "icon": "chat", "time": time.time()}
-        try:
-            self.app.rpc.emit("toast", {**item, "seconds": notify.seconds()})
-            if callable(getattr(notify, "on_toast", None)):
-                notify.on_toast(item)
-        except Exception:  # noqa: BLE001
-            _log.exception("Einblendung nach der Discord-Taste")
+    def _feedback(self, body: str) -> None:
+        """Kurze Einblendung nach dem Senden, ohne Eintrag in der Liste der Mitteilungen (wiring.toast)."""
+        from . import wiring as wiring_mod
+        wiring_mod.toast(self.wiring, discord.TITLE, body, "chat", "discord")
 
     # ------------------------------------------------------------ Spielt gerade
     def on_proc(self, app: Any, event: str) -> None:
@@ -392,7 +345,6 @@ def extend(wiring: Any) -> None:
     rpc = app.rpc
     rpc.register("discord.key", key)
     rpc.register("discord.open", open_)
-    rpc.register("discord.state", lambda params: wiring._bg(part.status))
 
     def changed(key_name: str, _value: Any) -> None:
         if key_name == "discord.app_id":

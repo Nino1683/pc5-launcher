@@ -11,9 +11,11 @@ import os
 import time
 import urllib.parse
 import uuid
+from concurrent.futures import CancelledError, Future
 from typing import Any
 
 from . import files, log, textedit, xdgtrash
+from .rpc import chain
 
 _log = log.get("wiring.files")
 
@@ -61,8 +63,32 @@ def extend(wiring: Any) -> None:
     def run(params: dict) -> dict:
         return entry_for_file(app, str(params.get("path") or ""))
 
-    def play(params: dict) -> dict:
-        return play_with_kodi(app, str(params.get("path") or ""))
+    def play(params: dict) -> Any:
+        """Prüfen im Arbeits-Thread (files.allowed: realpath, Einhängungen; eine schlafende FUSE-Platte hielte
+        sonst die Oberfläche an), Kodi starten danach in der Hauptschleife (shell.launch). Wie
+        wiring_store.bg_then_main, aber ohne den Store: Der Explorer geht auch, wenn dessen Teil fehlt."""
+        path = str(params.get("path") or "")
+        check = wiring._bg(playable, path)
+        if not isinstance(check, Future):                   # Verdrahtung ohne Arbeits-Threads
+            return check or play_with_kodi(app, path, checked=True)
+        out: Future = Future()
+
+        def start(done: Future) -> None:                    # Hauptschleife
+            error = CancelledError() if done.cancelled() else done.exception()
+            if error is not None:
+                out.set_exception(error)
+                return
+            try:
+                result = done.result() or play_with_kodi(app, path, checked=True)
+            except BaseException as e:  # noqa: BLE001 (geht als Fehler an die Seite)
+                out.set_exception(e)
+                return
+            if isinstance(result, Future):                  # shell.launch bereitet vor
+                result.add_done_callback(lambda f: chain(f, out))
+            else:
+                out.set_result(result)
+        check.add_done_callback(lambda f: wiring.main.post(start, f))
+        return out
 
     # Text-Editor (E99, textedit.py): öffnen und speichern nur an den Orten des Explorers. Alte
     # Sicherungen räumt textedit.default_trash weg (Papierkorb; im Prüfmodus der im Käfig, deshalb
@@ -74,7 +100,8 @@ def extend(wiring: Any) -> None:
         return textedit.save_text(params.get("path"), params.get("text"), params.get("expect"))
 
     # files.image fragt files.allowed (realpath, Einhängungen unter /run/media): im Arbeits-Thread, eine
-    # schlafende FUSE-Platte hielte sonst die Oberfläche an. files.play braucht die Shell (Hauptschleife).
+    # schlafende FUSE-Platte hielte sonst die Oberfläche an. files.play prüft genauso im Arbeits-Thread und
+    # startet danach in der Hauptschleife (die Shell gibt es nur dort).
     for name, fn in (("files.list", bg(list_)), ("files.text", bg(text)), ("files.image", bg(image)),
                      ("files.op", bg(op)), ("files.cancel", cancel), ("files.add", bg(add)), ("files.run", bg(run)),
                      ("files.play", play), ("files.trashList", bg(trash_list)),
@@ -97,9 +124,10 @@ def add_to_library(app: Any, path: str) -> dict:
               "exe": os.path.basename(path), "args": "", "archive": "aus dem Datei-Explorer", "marker": ""}
     try:
         entry_id = wiring_library.add_local_record(app, record)
-    except Exception as e:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
+        # Einzelheiten nur ins Protokoll: Der Text einer Ausnahme (Pfade, Fehlernummern) ist kein Satz für die Seite
         _log.exception("Zur Bibliothek hinzufügen")
-        return {"ok": False, "message": "Das hat nicht geklappt: %s" % e}
+        return {"ok": False, "message": "„%s“ ließ sich nicht in die Bibliothek eintragen." % title}
     if not entry_id:
         return {"ok": False, "message": "Das hat nicht geklappt."}
     return {"ok": True, "id": entry_id, "message": "„%s“ steht jetzt in der Bibliothek." % title}
@@ -127,11 +155,21 @@ def entry_for_file(app: Any, path: str) -> dict:
     return {"ok": True, "id": added["id"], "title": entry.title if entry else os.path.basename(path), "new": True}
 
 
-def play_with_kodi(app: Any, path: str) -> dict:
-    """Video oder Musik mit Kodi (Flatpak, darf /run/media und die Medienordner lesen)."""
-    from .launch import apps
+def playable(path: str) -> dict | None:
+    """Arbeits-Thread: None, wenn Kodi die Datei abspielen darf (Video oder Musik an einem Ort des Explorers),
+    sonst die Antwort für die Seite. Blockierend (files.allowed fasst die Platte an)."""
     if files.kind_of(path) not in ("video", "audio") or not files.allowed(path):
         return {"ok": False, "message": "Das lässt sich nicht abspielen."}
+    return None
+
+
+def play_with_kodi(app: Any, path: str, checked: bool = False) -> Any:
+    """Hauptschleife: Video oder Musik mit Kodi (Flatpak, darf /run/media und die Medienordner lesen).
+    checked: playable hat die Datei schon im Arbeits-Thread geprüft."""
+    from .launch import apps
+    refusal = None if checked else playable(path)
+    if refusal is not None:
+        return refusal
     if app.procs.by_entry("app:kodi") is not None:
         return {"ok": False, "message": "Kodi läuft schon. Schließe es zuerst, dann startet es mit dieser Datei."}
     apps.PENDING_OPEN["app:kodi"] = (path, time.monotonic())
@@ -139,4 +177,6 @@ def play_with_kodi(app: Any, path: str) -> dict:
         return app.shell.launch("app:kodi")
     except Exception as e:  # noqa: BLE001
         apps.PENDING_OPEN.pop("app:kodi", None)
-        return {"ok": False, "message": getattr(e, "message", str(e))}
+        if not getattr(e, "message", ""):
+            _log.exception("Kodi starten")
+        return {"ok": False, "message": getattr(e, "message", "") or "Kodi ließ sich nicht starten."}

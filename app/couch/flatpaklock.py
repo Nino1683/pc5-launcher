@@ -27,14 +27,13 @@ import os
 import re
 from typing import Iterable
 
-from . import paths
+from . import mounts as _mounts, paths
 
 LOCKS = "/proc/locks"
 PROC = "/proc"
-MOUNTINFO = "/proc/self/mountinfo"
+MOUNTINFO = _mounts.MOUNTINFO
 HELPER = "revokefs-fuse"
 _DEV_INODE = re.compile(r"^([0-9a-fA-F]+):([0-9a-fA-F]+):(\d+)$")
-_OCTAL = re.compile(r"\\([0-7]{3})")
 
 
 def probe() -> dict:
@@ -42,7 +41,7 @@ def probe() -> dict:
     if paths.test_mode():
         return {"locks": os.environ.get("COUCH_TEST_PROC_LOCKS") or None,
                 "proc": os.environ.get("COUCH_TEST_PROC") or None,
-                "mountinfo": os.environ.get("COUCH_TEST_MOUNTINFO") or None}
+                "mountinfo": os.environ.get(_mounts.TEST_ENV) or None}
     return {"locks": LOCKS, "proc": PROC, "mountinfo": MOUNTINFO}
 
 
@@ -74,30 +73,14 @@ def parse_locks(text: str) -> set[tuple[int, int, int]]:
 
 
 def parse_mounts(text: str) -> list[tuple[str, int, int]]:
-    """(Einhängepunkt, major, minor) aus /proc/self/mountinfo, in der Reihenfolge der Datei."""
-    out = []
-    for line in (text or "").splitlines():
-        parts = line.split(" ")
-        if len(parts) < 5 or ":" not in parts[2]:
-            continue
-        major, _, minor = parts[2].partition(":")
-        try:
-            out.append((_OCTAL.sub(lambda m: chr(int(m.group(1), 8)), parts[4]), int(major), int(minor)))
-        except ValueError:
-            continue
-    return out
+    """(Einhängepunkt, major, minor) aus /proc/self/mountinfo, in der Reihenfolge der Datei (couch.mounts).
+    Zeilen ohne lesbares Gerät fehlen."""
+    return [(m.point, m.device[0], m.device[1]) for m in _mounts.parse(text or "") if m.device is not None]
 
 
 def mount_device(path: str, mounts: list[tuple[str, int, int]]) -> tuple[int, int] | None:
     """Gerät der Einhängung, in der path liegt (längster passender Einhängepunkt, bei Gleichstand der spätere)."""
-    real = os.path.realpath(path)
-    best: tuple[int, tuple[int, int]] | None = None
-    for point, major, minor in mounts:
-        base = point.rstrip("/") or "/"
-        inside = real == base or base == "/" or real.startswith(base + "/")
-        if inside and (best is None or len(base) >= best[0]):
-            best = (len(base), (major, minor))
-    return best[1] if best else None
+    return _mounts.longest(os.path.realpath(path), ((point, (major, minor)) for point, major, minor in mounts))
 
 
 def held(files: Iterable[str], locks: set, mounts: list) -> list[str]:

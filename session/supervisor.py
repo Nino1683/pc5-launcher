@@ -314,14 +314,18 @@ def proc_table():
 
 
 def descendants(table, root):
+    """Alle Nachkommen von root (ohne root). Die Tabelle entsteht Datei für Datei: Wird dabei eine PID neu
+    vergeben, kann die Elternkette einen Kreis bilden; jede PID zählt deshalb nur einmal (wie proc/tree.py)."""
     kids = {}
     for pid, row in table.items():
         kids.setdefault(row[0], []).append(pid)
-    out, todo = [], [root]
+    out, todo, seen = [], [root], {root}
     while todo:
         for kid in kids.get(todo.pop(), ()):
-            out.append(kid)
-            todo.append(kid)
+            if kid not in seen:
+                seen.add(kid)
+                out.append(kid)
+                todo.append(kid)
     return out
 
 

@@ -2,16 +2,15 @@
 
 Stehen in <data>/browser/prefs.json; nur der Browser liest und schreibt sie. Die Startseite ist
 eine erzeugte Datei (<data>/browser/start.html) mit den Favoriten als Kacheln; sie wird bei jeder
-Änderung neu geschrieben und als file:// geladen. Nur Standardbibliothek (testbar ohne GTK).
+Änderung neu geschrieben und als file:// geladen. Ohne GTK (testbar).
 """
 from __future__ import annotations
 
 import html
 import json
-import os
 import urllib.parse
 
-from .. import jsontext
+from .. import jsontext, system
 
 ZOOM_MIN, ZOOM_MAX, ZOOM_DEFAULT = 0.5, 3.0, 1.25
 MAX_FAVORITES = 48
@@ -96,14 +95,11 @@ class Prefs:
             self.favorites = out[:MAX_FAVORITES]
 
     def save(self) -> bool:
+        """Atomar mit fsync und eigenem Temp-Namen je Prozess und Faden (system.write_atomic), 0600."""
         data = {"zoom": self.zoom, "home": self.home, "search": self.search, "adblock": self.adblock,
                 "favorites": self.favorites}
         try:
-            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-            tmp = self.path + ".neu"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(jsontext.dumps(data, indent=1))
-            os.replace(tmp, self.path)
+            system.write_atomic(self.path, jsontext.dumps(data, indent=1), 0o600)
             return True
         except OSError:
             return False

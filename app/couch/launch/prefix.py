@@ -29,7 +29,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 
-from .. import jsontext
+from .. import jsontext, mounts, system
 from .spec import LaunchError
 
 MARKER = "couch-prefix.json"              # liegt in jeder fertigen Kopie
@@ -328,19 +328,13 @@ def wine_processes(prefix: str, proc_root: str = "/proc", own_pid: int | None = 
 # Geprüftes Löschen des eigenen Zwischenordners
 
 def _mount_points() -> list | None:
-    """Alle Einhängepunkte; None, wenn die Liste nicht lesbar ist (dann wird nichts gelöscht)."""
-    points = []
+    """Alle Einhängepunkte; None, wenn die Liste nicht lesbar ist (dann wird nichts gelöscht). Über den einen Leser
+    (couch/mounts.py: Namen wie os.path.realpath sie liefert), immer die echte Tabelle dieses Prozesses, auch im
+    Prüfmodus: Eine Attrappe (COUCH_TEST_MOUNTINFO) dürfte eine echte Einhängung im Käfig nicht verdecken."""
     try:
-        with open("/proc/self/mountinfo", encoding="utf-8", errors="surrogateescape") as fh:
-            for line in fh:
-                fields = line.split(" ")
-                if len(fields) > 4:
-                    # Leerzeichen usw. stehen dort als \040
-                    points.append(re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)),
-                                         fields[4]))
+        return [m.point for m in mounts.read(mounts.MOUNTINFO)]
     except OSError:
         return None
-    return points
 
 
 def removal_refusal(path: str) -> str | None:
@@ -539,24 +533,10 @@ def _rename_noreplace(src: str, dst: str) -> bool:
 
 
 def _write_json(path: str, data: dict) -> None:
-    """Schreibt die Marke, ohne je einem Verweis zu folgen: neue Datei (O_EXCL, O_NOFOLLOW)
-    daneben, dann rename. Bringt cp -a aus der Quelle einen Verweis gleichen Namens mit, ersetzt
-    das rename nur den Eintrag; sein Ziel (irgendeine Datei außerhalb) bleibt unberührt."""
-    tmp = "%s.new-%s" % (path, secrets.token_hex(4))
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(jsontext.dumps(data, indent=1))
-            fh.write("\n")
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    """Schreibt die Marke, ohne je einem Verweis zu folgen (system.write_atomic: neue Datei mit O_EXCL|O_NOFOLLOW
+    daneben, dann rename). Bringt cp -a aus der Quelle einen Verweis gleichen Namens mit, ersetzt das rename nur den
+    Eintrag; sein Ziel (irgendeine Datei außerhalb) bleibt unberührt."""
+    system.write_atomic(path, jsontext.dumps(data, indent=1) + "\n", mode=0o600)
 
 
 def _stop_child(proc) -> None:

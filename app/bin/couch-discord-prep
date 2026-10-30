@@ -19,7 +19,17 @@ von Hand), bleibt er unverändert. Wirkt ab dem Start, vor dem es läuft (die Sa
 Läuft als prelaunch vor jedem Discord-Start, wenn „Nachrichten als Mitteilung“ an ist. Datei zum Prüfen:
 COUCH_DISCORD_OVERRIDES; im Prüfmodus (COUCH_TEST_ROOT oder COUCH_TEST=1) ohne diese Angabe tut es nichts.
 Rückgabe immer 0: Ein Vorab-Befehl darf den Start nicht verhindern.
+
+  couch-discord-prep --fit BREITExHÖHE   (E145, Größe von Apps; vor jedem Start)
+
+Discord startet mit dem Maßstab der Konsole (--force-device-scale-factor, launch/appscale.py) und stellt sein Fenster
+in dieser Einheit wieder her. Hatte es sich ein Fenster über den ganzen Bildschirm gemerkt (Wunsch 2026-10-30: 3839×2159),
+wäre es mit 200 % doppelt so groß wie der Bildschirm, und Gamescope verkleinerte es wieder: alles winzig. Ragt die
+gemerkte Größe WINDOW_BOUNDS in settings.json über BREITE×HÖHE (der Bildschirm in dieser Einheit) hinaus, wird nur
+dieser eine Eintrag auf 0,0,BREITE,HÖHE gesetzt; alles andere bleibt. Keine Datei: nichts (Discord nimmt dann seine
+Vorgabe). Datei zum Prüfen: COUCH_DISCORD_SETTINGS; im Prüfmodus ohne diese Angabe tut es nichts.
 """
+import json
 import os
 import sys
 
@@ -37,6 +47,72 @@ def overrides_path() -> str | None:
     base = os.environ.get("FLATPAK_USER_DIR") or os.path.join(
         os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "flatpak")
     return os.path.join(base, "overrides", FLATPAK)
+
+
+def settings_path() -> str | None:
+    given = os.environ.get("COUCH_DISCORD_SETTINGS")
+    if given:
+        return given
+    if os.environ.get("COUCH_TEST_ROOT") or os.environ.get("COUCH_TEST") == "1":
+        return None                     # Prüfmodus: nie die echte Datei
+    return os.path.join(os.path.expanduser("~/.var/app"), FLATPAK, "config", "discord", "settings.json")
+
+
+def fitted(data, width: int, height: int):
+    """data mit WINDOW_BOUNDS innerhalb von width×height, oder None, wenn nichts zu ändern ist (passt schon, fehlt
+    oder ist unlesbar)."""
+    if not isinstance(data, dict) or not isinstance(data.get("WINDOW_BOUNDS"), dict):
+        return None
+    b = data["WINDOW_BOUNDS"]
+    vals = [b.get(k) for k in ("x", "y", "width", "height")]
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in vals):
+        return None
+    x, y, w, h = vals
+    if 0 <= x and 0 <= y and x + w <= width and y + h <= height:
+        return None
+    out = dict(data)
+    out["WINDOW_BOUNDS"] = {"x": 0, "y": 0, "width": width, "height": height}
+    return out
+
+
+def fit(size: str) -> int:
+    try:
+        width, height = (int(v) for v in size.lower().split("x", 1))
+    except ValueError:
+        print("couch-discord-prep: Größe %r nicht lesbar" % size)
+        return 0
+    if width < 320 or height < 240:
+        return 0
+    path = settings_path()
+    if not path:
+        print("couch-discord-prep: Prüfmodus, nichts geändert")
+        return 0
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError) as e:
+        print("couch-discord-prep: %s nicht lesbar (%s), bleibt unverändert" % (path, e))
+        return 0
+    new = fitted(data, width, height)
+    if new is None:
+        return 0
+    tmp = "%s.couch-%d" % (path, os.getpid())
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(new, f, indent=2)
+        os.replace(tmp, path)
+        print("couch-discord-prep: Fenster von Discord auf %dx%d begrenzt" % (width, height))
+    except OSError as e:
+        print("couch-discord-prep: %s nicht schreibbar (%s)" % (path, e))
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+    return 0
 
 
 def with_permission(text: str) -> str | None:
@@ -61,6 +137,8 @@ def with_permission(text: str) -> str | None:
 
 
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--fit":
+        return fit(sys.argv[2])
     path = overrides_path()
     if not path:
         print("couch-discord-prep: Prüfmodus, nichts geändert")

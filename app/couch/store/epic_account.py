@@ -18,11 +18,13 @@ import os
 import re
 import signal
 import subprocess
+import threading
 import time
 import urllib.parse
 import urllib.request
 
-from .. import log, system
+from .. import log
+from . import login_code
 
 VERSION = "0.21.1"
 URL = "https://github.com/legendary-gl/legendary/releases/download/%s/legendary_linux_x64" % VERSION
@@ -42,6 +44,9 @@ DONE = re.compile(r"Downloaded:\s*([0-9.]+)\s*MiB")
 SPEED = re.compile(r"\+ Download\s*-\s*([0-9.]+)\s*MiB/s")
 MIB = 1024 * 1024
 THIRD_PARTY = ("origin", "the ea app", "ubisoftconnect", "uplay")
+# Abbrechen: SIGINT, damit legendary den Stand zum Fortsetzen sichert; endet es danach nicht, SIGTERM, dann SIGKILL
+STOP_GRACE_S = 30.0
+KILL_GRACE_S = 10.0
 
 
 class EpicError(Exception):
@@ -63,15 +68,9 @@ def code_from_page(text: str) -> str:
     return code if isinstance(code, str) and re.fullmatch(r"[0-9a-f]{16,64}", code) else ""
 
 
-def _write_private(path: str, data: dict) -> None:
-    """JSON atomar und nur für dich lesbar (0600). Eigene Zwischendatei je Prozess und Thread (Browser und Home
-    schreiben dieselbe Datei); eine liegengebliebene ältere Zwischendatei bestimmt nie die Rechte (E99)."""
-    system.write_atomic(path, json.dumps(data), 0o600)
-
-
 def store_code(path: str, code: str, clock=time.time) -> None:
     """Vom Browser gerufen: den Code für das Home ablegen."""
-    _write_private(path, {"code": code, "at": clock()})
+    login_code.store(path, code, clock)
 
 
 def _download(url: str, dest: str) -> None:
@@ -141,6 +140,11 @@ def card_of(game: dict) -> dict | None:
 
 
 class Legendary:
+    # Bereitstellen nur eines zur Zeit, für alle Instanzen: Einrichtung, Store und Spielstart fragen aus
+    # verschiedenen Threads, und zwei Downloads schrieben sonst in dieselbe .part-Datei (der erste fertige
+    # räumte sie dem zweiten weg)
+    _ensure_lock = threading.Lock()
+
     def __init__(self, tool_dir: str, config_dir: str, run=subprocess.run, popen=subprocess.Popen,
                  fetch=_download, clock=time.time):
         self.tool_dir = tool_dir
@@ -152,6 +156,8 @@ class Legendary:
         self._clock = clock
         self.last_app = ""                  # zuletzt begonnene Installation und ihr Ordner (für Abbruch)
         self.last_target = ""
+        self.stop_grace = STOP_GRACE_S
+        self.kill_grace = KILL_GRACE_S
 
     # ------------------------------------------------------------------ Programm
     def ready(self) -> bool:
@@ -161,6 +167,12 @@ class Legendary:
         """legendary bereitstellen (einmal ~3 MB laden, Prüfsumme). Blockierend."""
         if self.ready():
             return self.exe
+        with self._ensure_lock:
+            if self.ready():                    # ein anderer Thread hat es eben geladen
+                return self.exe
+            return self._load()
+
+    def _load(self) -> str:
         os.makedirs(self.tool_dir, exist_ok=True)
         part = self.exe + ".part"
         try:
@@ -204,18 +216,8 @@ class Legendary:
 
     def take_code(self, code_file: str) -> bool:
         """Liegt ein frischer Code vom Browser bereit, anmelden. True: neu angemeldet."""
-        try:
-            with open(code_file, encoding="utf-8") as fh:
-                data = json.load(fh)
-            os.unlink(code_file)
-        except (OSError, ValueError):
-            return False
-        code = str((data or {}).get("code") or "") if isinstance(data, dict) else ""
-        try:
-            fresh = self._clock() - float(data.get("at") or 0) < CODE_TTL_S
-        except (TypeError, ValueError, AttributeError):
-            fresh = False
-        if not code or not fresh:
+        code = login_code.take(code_file, CODE_TTL_S, self._clock)
+        if not code:
             return False
         rc, _out, err = self.call(["auth", "--code", code], timeout=60)
         if rc != 0 or not self.logged_in():
@@ -278,6 +280,7 @@ class Legendary:
         log_fh = open(log.capped(log_path), "a", encoding="utf-8") if log_path else None
         failures = []
         numbers: dict = {}
+        stopper = None
         try:
             proc = self._popen(argv, env=self.env(), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
@@ -294,13 +297,38 @@ class Legendary:
                 p = percent(line)
                 if p is not None:
                     on_progress(p)
-                if cancel.is_set() and proc.poll() is None:
-                    os.killpg(proc.pid, signal.SIGINT)     # legendary merkt sich den Stand zum Fortsetzen
+                if cancel.is_set() and stopper is None and proc.poll() is None:
+                    stopper = self._halt(proc)
             rc = proc.wait()
         finally:
             if log_fh:
                 log_fh.close()
+        if stopper is not None:
+            stopper.join(1.0)                   # legendary ist fort: der Wächter endet gleich
         return rc, failures
+
+    def _halt(self, proc) -> threading.Thread:
+        """Abbruch: einmal SIGINT an die eigene Sitzung (start_new_session), damit legendary den Stand zum
+        Fortsetzen sichert; ein zweites SIGINT unterbräche genau das (vorher kam eines je Zeile). Endet es
+        nicht binnen stop_grace, SIGTERM, nach kill_grace SIGKILL; das macht ein eigener Thread, denn ein
+        hängendes legendary schreibt auch keine Zeilen mehr."""
+        def send(sig) -> None:
+            try:
+                os.killpg(proc.pid, sig)
+            except OSError:
+                pass                            # schon fort
+        send(signal.SIGINT)
+
+        def escalate() -> None:
+            for sig, grace in ((signal.SIGTERM, self.stop_grace), (signal.SIGKILL, self.kill_grace)):
+                try:
+                    proc.wait(timeout=grace)
+                    return
+                except subprocess.TimeoutExpired:
+                    send(sig)                   # läuft nachweislich noch (nicht abgeholt): dieselbe Gruppe
+        watch = threading.Thread(target=escalate, name="legendary-halt", daemon=True)
+        watch.start()
+        return watch
 
     # ------------------------------------------------------------------ Updates
     def check_updates(self) -> list[dict]:

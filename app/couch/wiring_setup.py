@@ -211,9 +211,12 @@ class SetupPart:
 
     def plan(self, params: dict) -> dict:
         try:
-            selection, where, det = self._prepare(params)
+            prepared = self._prepare(params)
         except plan_mod.PlanError as e:
             return _bad(str(e))
+        return self._plan(*prepared)
+
+    def _plan(self, selection: dict, where: dict, det: dict) -> dict:
         ids = [i for i in plan_mod.flatpaks(selection)
                if i not in det.get("installed", {})]
         helper = self.jobs.probe_plan(ids) if ids else {"ev": "plan", "ops": [], "skipped": [], "exact": True}
@@ -232,12 +235,18 @@ class SetupPart:
     def start(self, params: dict) -> dict:
         if self.jobs.running():
             return _bad("Die Einrichtung läuft schon.")
-        result = self.plan(params)
+        # Einmal erkennen: Geprüft (Platz, Ort) und gestartet wird mit derselben Erkennung. Vorher erkannte start()
+        # zweimal (Platten, Flatpaks, Ordner), und der Auftrag lief mit einem Ort, den der Plan nie geprüft hatte,
+        # wenn sich dazwischen etwas änderte
+        try:
+            selection, where, det = self._prepare(params)
+        except plan_mod.PlanError as e:
+            return _bad(str(e))
+        result = self._plan(selection, where, det)
         if not result.get("ok"):
             return result
         if not result.get("enough"):
             return _bad(result.get("message") or "Zu wenig Platz. Wähle weniger aus.")
-        selection, where, _det = self._prepare(params)
         where = dict(where, download=result["totals"]["download"],
                      params={"place": str((params or {}).get("place") or ""),
                              "emuRoot": str((params or {}).get("emuRoot") or ""),
@@ -333,9 +342,11 @@ def extend(wiring: Any) -> None:
     # Bibliotheksquellen und Archiv-Installer lesen library.roms, emu.root und library.games_disk hierüber
     setup_pkg.bind_config(lambda: wiring.config)
     rpc = wiring.app.rpc
+
     def in_bg(fn):
         # liest bzw. schreibt Dateien (setup.json mit fsync): nicht in der Hauptschleife
-        return lambda params: wiring._bg(fn, params or {})
+        from .wiring import pooled
+        return pooled(wiring, fn)
     for name, fn in (("setup.state", in_bg(part.rpc_state)), ("setup.detect", part.rpc_detect),
                      ("setup.catalog", part.rpc_catalog), ("setup.plan", part.rpc_plan),
                      ("setup.start", part.rpc_start), ("setup.cancel", part.rpc_cancel),

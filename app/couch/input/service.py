@@ -80,15 +80,11 @@ class GLibLoop:
     """Dünne Hülle um die GLib-Hauptschleife; in Unit-Tests durch eine Attrappe ersetzbar."""
 
     def __init__(self):
-        import gi
         from gi.repository import GLib
+
+        from ..glibfd import fd_add
         self._glib = GLib
-        try:
-            gi.require_version("GLibUnix", "2.0")
-            from gi.repository import GLibUnix
-            self._fd_add = GLibUnix.fd_add_full          # Nachfolger von GLib.unix_fd_add_full
-        except (ImportError, ValueError):
-            self._fd_add = GLib.unix_fd_add_full
+        self._fd_add = fd_add
         self._cond = GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR
 
     def watch_fd(self, fd: int, callback: Callable[[], None]) -> int:

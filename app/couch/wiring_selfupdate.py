@@ -8,7 +8,8 @@
                           update.check an. Im Prüfmodus ohne eingesteckte Netzfunktion (wiring.selfupdate_open)
                           gar nicht.
   Mitteilung              einmal je Fassung („PC5 Launcher X.Y.Z ist da“); gemerkt in <state>/selfupdate.json
-  Punkt am Zahnrad        wiring_settings.push_update_badge zählt eine neue Fassung mit
+  Punkt am Zahnrad        wiring_settings.push_update_badge zählt eine neue Fassung mit (gebündelt über
+                          request_update_badge)
   busy_checks             solange geladen oder installiert wird, fragen Ausschalten und Neustart nach
   Laden und Installieren  im eigenen Thread (bis zu 15 Minuten): Der gemeinsame Pool bleibt frei
   Was ist neu (E133)      nach dem Bereit-Signal: erster Start einer höheren Fassung -> Mitteilung „PC5 Launcher X ist
@@ -38,10 +39,11 @@ def _thread(fn: Callable, *args: Any) -> threading.Thread:
 
 
 def _badge(wiring: Any) -> None:
-    """Arbeits-Thread: Punkt am Zahnrad neu (zählt Apps, Proton, Spiele und jetzt auch den PC5 Launcher)."""
+    """Punkt am Zahnrad neu (zählt Apps, Proton, Spiele und jetzt auch den PC5 Launcher). Aus jedem Thread; gerechnet
+    wird gebündelt im Pool (wiring_settings.request_update_badge)."""
     try:
         from . import wiring_settings
-        wiring_settings.push_update_badge(wiring)
+        wiring_settings.request_update_badge(wiring)
     except Exception:
         _log.exception("Update-Marke")
 
@@ -54,6 +56,49 @@ def launching(app: Any) -> bool:
     except Exception:
         _log.exception("running_view")
         return True                 # im Zweifel später
+
+
+class DailyTimer:
+    """Zeitplan einer Suche im Netz, die höchstens einmal am Tag etwas tut (Selbst-Update E116, Wunschliste E122):
+    start(first_s) nach dem Bereit-Signal, danach alle TICK_S nachsehen (ob 24 h um sind, entscheidet die Suche selbst
+    nach der Wanduhr; der Zeitgeber läuft auf der monotonen Uhr der Shell und steht im Ruhemodus). Ist der Schalter
+    key aus, wird nur weiter nachgesehen, ob er wieder an ist; startet gerade ein Spiel, LAUNCH_WAIT_S später.
+    run läuft im Pool (wiring._bg). Ohne Shell (sched) nichts. Hauptschleife."""
+
+    def __init__(self, wiring: Any, key: str, run: Callable[[], Any], name: str):
+        self.wiring, self.key, self.run, self.name = wiring, key, run, name
+        self.sched = getattr(getattr(wiring.app, "shell", None), "sched", None)
+        self.handle: Any = None
+        self.closed = False
+
+    def arm(self, seconds: float) -> None:
+        if self.closed or self.sched is None:
+            return
+        self.handle = self.sched.later(seconds * 1000, self.tick)
+
+    start = arm
+
+    def tick(self) -> None:
+        self.handle = None
+        if self.closed:
+            return
+        if not self.wiring.config.get(self.key, True):
+            self.arm(TICK_S)                    # abgeschaltet: nachsehen, ob es wieder an ist
+            return
+        if launching(self.wiring.app):
+            self.arm(LAUNCH_WAIT_S)
+            return
+        self.wiring._bg(self.run)
+        self.arm(TICK_S)
+
+    def close(self) -> None:
+        self.closed = True
+        handle, self.handle = self.handle, None
+        if handle is not None and self.sched is not None:
+            try:
+                self.sched.cancel(handle)
+            except Exception:
+                _log.exception("Zeitgeber %s", self.name)
 
 
 def extend(wiring: Any) -> None:
@@ -113,48 +158,21 @@ def extend(wiring: Any) -> None:
 
     rpc = getattr(app, "rpc", None)
     if rpc is not None:
-        rpc.register("update.notes", lambda params: wiring._bg(notes, dict(params or {})))
-        rpc.register("update.seen", lambda params: wiring._bg(seen, dict(params or {})))
-
-    sched = getattr(getattr(app, "shell", None), "sched", None)
-    timer: dict = {"handle": None, "closed": False}
-
-    def arm(seconds: float) -> None:
-        if timer["closed"] or sched is None:
-            return
-        timer["handle"] = sched.later(seconds * 1000, tick)
+        from .wiring import pooled
+        rpc.register("update.notes", pooled(wiring, notes))
+        rpc.register("update.seen", pooled(wiring, seen))
 
     def run_check() -> None:
         svc.check()
         _badge(wiring)
 
-    def tick() -> None:                         # Hauptschleife
-        timer["handle"] = None
-        if timer["closed"]:
-            return
-        if not wiring.config.get("update.check", True):
-            arm(TICK_S)                         # abgeschaltet: nachsehen, ob es wieder an ist
-            return
-        if launching(app):
-            arm(LAUNCH_WAIT_S)
-            return
-        wiring._bg(run_check)
-        arm(TICK_S)
+    timer = DailyTimer(wiring, "update.check", run_check, "der Suche")
 
     def start() -> None:
         if paths.test_mode() and injected is None:
             return                              # Prüfmodus: kein Netz, keine Suche
-        wiring._bg(_badge, wiring)              # was die letzte Suche ergab, gleich zeigen
-        arm(FIRST_S)
-
-    def close() -> None:
-        timer["closed"] = True
-        handle, timer["handle"] = timer["handle"], None
-        if handle is not None and sched is not None:
-            try:
-                sched.cancel(handle)
-            except Exception:
-                _log.exception("Zeitgeber der Suche")
+        _badge(wiring)                          # was die letzte Suche ergab, gleich zeigen
+        timer.start(FIRST_S)
 
     wiring.after_ready.append(start)
-    wiring.shutdown_hooks.append(close)
+    wiring.shutdown_hooks.append(timer.close)

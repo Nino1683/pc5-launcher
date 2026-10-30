@@ -17,9 +17,8 @@ import json
 import re
 import time
 import urllib.parse
-import urllib.request
 
-from . import cache
+from . import cache, net
 from .cache import StoreError  # noqa: F401 (die anderen Shops nehmen sie von hier)
 
 
@@ -32,6 +31,7 @@ CDN = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/%d/%s"
 # nennt nur GetItems (asset_url_format). Die feste Adresse oben liefert dann 404 (2026-10-21)
 ASSET_BASE = "https://shared.akamai.steamstatic.com/store_item_assets/"
 ITEMS_URL = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1"
+LANGS = {"de": "german", "en": "english"}     # Steams Sprachnamen (steam_info, wishlist, trophies)
 CC, LANG = "de", "german"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) PC5-Launcher"
 TIMEOUT_S = 15.0
@@ -56,9 +56,7 @@ GENRES = (("action", "Action", 19), ("adventure", "Abenteuer", 21), ("rpg", "Rol
 
 
 def _get(url: str, timeout: float = TIMEOUT_S):
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:   # noqa: S310 (feste https-Adressen)
-        return json.loads(resp.read(8 * 1024 * 1024).decode("utf-8"))
+    return net.get_json(url, {"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout, limit=8 * 1024 * 1024)
 
 
 def price_text(cents, currency: str = "EUR") -> str:
@@ -68,6 +66,31 @@ def price_text(cents, currency: str = "EUR") -> str:
         return ""
     text = ("%.2f" % value).replace(".", ",")
     return text + (" €" if (currency or "EUR") == "EUR" else " " + str(currency))
+
+
+def price_label(text, zero: str = "") -> str:
+    """Preis, wie ihn ein Shop fertig schreibt („9,09\xa0€“), mit normalem Leerzeichen wie bei Steam („9,09 €“).
+    zero (etwa „Kostenlos“) statt „0“ bzw. „0,00 €“, wenn angegeben. Für GOG, Epic und Battle.net."""
+    text = str(text or "").replace("\xa0", " ").strip()
+    return zero if zero and text in ("0", "0,00 €") else text
+
+
+def failed_sentence(message, plain: str, with_detail: str) -> str:
+    """Satz für eine Fehlerantwort eines Shops: with_detail („… meldet einen Fehler: %s.“) mit der Meldung des Shops
+    (meist Englisch, gekürzt, ohne doppelten Punkt am Ende), ohne Meldung plain. Ganze Sätze je Shop, damit
+    tools/i18n-extract sie als Vorlage findet."""
+    detail = " ".join(str(message or "").split())[:200].rstrip(" .")
+    return with_detail % detail if detail else plain
+
+
+def euro(value, zero: str = "") -> str:
+    """Betrag in Euro als Zahl (69.99) -> „69,99 €“; "" ohne lesbaren Betrag; zero statt „0,00 €“, wenn
+    angegeben. Für Ubisoft und Rockstar."""
+    try:
+        cents = round(float(value) * 100)
+    except (TypeError, ValueError):
+        return ""
+    return zero if zero and cents == 0 else price_text(cents)
 
 
 def strip_html(text: str) -> str:

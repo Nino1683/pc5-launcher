@@ -11,12 +11,12 @@ nichts mehr speichern). Nie über den App-Namen: das träfe auch eine Instanz im
 verschachtelten Desktop des Nutzers (Kritik Befund 25).
 
 Blockierend: running() ruft "flatpak ps" über das eingesteckte run_read auf (um 50 bis 100 ms).
-is_installed() sieht nur in zwei Ordner und ist schnell.
+is_installed() sieht nur in zwei Ordner und ist schnell (dieselbe Prüfung wie die Bibliothek:
+library/flatpaks.installed, current/active).
 """
 from __future__ import annotations
 
-import os
-
+from ..library.flatpaks import installed
 from .spec import LaunchError, LaunchSpec
 
 X11_ONLY = ("--socket=x11", "--nosocket=wayland")
@@ -34,9 +34,10 @@ def run_argv(app_id: str, *app_args: str, flatpak_args=()) -> list:
 
 
 def is_installed(app_id: str, ctx) -> bool:
-    """Liegt die App in einer der Flatpak-Installationen? Kein Unterprozess."""
-    return any(os.path.isdir(os.path.join(root, "app", app_id, "current"))
-               for root in ctx.flatpak_dirs())
+    """Ist die App in einer der Flatpak-Installationen eingerichtet (current/active)? Ein halb entferntes Flatpak
+    (current ohne active) gilt wie in der Bibliothek als nicht installiert: Der Start scheitert dann mit „… ist nicht
+    installiert.“ statt erst in flatpak run. Kein Unterprozess."""
+    return installed(ctx.flatpak_dirs(), app_id)
 
 
 def parse_ps(text: str) -> list:
