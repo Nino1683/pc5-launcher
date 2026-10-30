@@ -3088,5 +3088,12 @@
  "Größe von Apps": "App size",
  "Wie groß Apps wie Discord, Chrome, der App Store und alle Apps aus dem Reiter „Apps“ auf dem Fernseher erscheinen. Automatisch: 200 % bei 4K, 150 % bei 1440p, sonst 100 %. Gilt beim nächsten Start einer App, nie für Spiele.": "How large apps like Discord, Chrome, the App Store and all apps from the “Apps” tab appear on the TV. Automatic: 200 % at 4K, 150 % at 1440p, otherwise 100 %. Applies the next time an app starts, never to games.",
  "Gilt beim nächsten Start einer App.": "Applies the next time an app starts.",
- "Diese Größe lässt sich nicht wählen.": "This size can't be chosen."
+ "Diese Größe lässt sich nicht wählen.": "This size can't be chosen.",
+ "Abgebrochen: Chrome lädt nicht mehr.": "Cancelled: Chrome is no longer downloading.",
+ "Chrome hat den Download unterbrochen.": "Chrome interrupted the download.",
+ "Default": "Default",
+ "History": "History",
+ "Preferences": "Preferences",
+ "Diesen Download lädt Chrome selbst. Anhalten, Fortsetzen und Abbrechen gehen dort.": "Chrome handles this download itself. Pause, resume and cancel it there.",
+ "Dieser Download läuft noch in Chrome.": "This download is still running in Chrome."
 }

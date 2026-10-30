@@ -213,7 +213,7 @@ export const PANELS = {
     const downloadMenu = async (row, node) => {
       const d = row.download;
       const options = downloadChoices(d);
-      if (!options.length) { if (d.local === true) ctx.note(S.dlLocalBusyNote, d.name || S.unknown); return; }
+      if (!options.length) { if (d.local === true) ctx.note(d.source === "chrome" ? S.dlChromeBusyNote : S.dlLocalBusyNote, d.name || S.unknown); return; }
       const what = await openPicker({ options, value: undefined, anchor: node, within: node.closest(".cc-panel-body") });
       if (what === undefined) return;
       if (what === "run") {
@@ -271,8 +271,10 @@ export const PANELS = {
           // Rechts nur der Anteil: Der Dateiname braucht den Platz, alles Übrige steht darunter (2026-10-24)
           const pct = d.total > 0 ? fmt(S.dlPercent, { n: d.percent || 0 }) : "";
           const below = (origin) => [downloadDetail(d), origin].join(" · ");
-          if (downloadActive(d)) rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, busy: !(d.total > 0) || d.state === "queued", note: below(d.local === true ? S.dlLocalNote : S.dlFromBrowser) });
-          else if (d.state === "paused") rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, note: below(d.local === true ? S.dlLocalNote : S.dlPausedNote) });
+          // Lädt Chrome (source chrome, E146), heißt es „Lädt in Chrome“
+          const localNote = d.source === "chrome" ? S.dlChromeNote : S.dlLocalNote;
+          if (downloadActive(d)) rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, busy: !(d.total > 0) || d.state === "queued", note: below(d.local === true ? localNote : S.dlFromBrowser) });
+          else if (d.state === "paused") rows.push({ ...base, type: "progress", value: d.percent || 0, valueText: pct, note: below(d.local === true ? localNote : S.dlPausedNote) });
           else if (d.state === "done" && (d.archive || d.installer)) rows.push({ ...base, type: "action", value: S.dlInstall, hint: d.path || "" });
           else if (d.state === "done" && isExe(d)) rows.push({ ...base, type: "action", value: S.dlRun, hint: d.path || "" });
           else rows.push({ ...base, type: "action", value: downloadText(d), hint: d.state === "done" ? d.path || "" : d.error || "" });

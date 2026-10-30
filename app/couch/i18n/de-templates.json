@@ -1023,6 +1023,12 @@
   ]
  },
  {
+  "text": "Abgebrochen: Chrome lädt nicht mehr.",
+  "files": [
+   "app/couch/chromedl.py"
+  ]
+ },
+ {
   "text": "Abgemeldet",
   "files": [
    "app/couch/settings/games.py"
@@ -2733,6 +2739,12 @@
   ]
  },
  {
+  "text": "Chrome hat den Download unterbrochen.",
+  "files": [
+   "app/couch/chromedl.py"
+  ]
+ },
+ {
   "text": "Chrome läuft schon an anderer Stelle, zum Beispiel im Desktop. Schließe es dort und öffne den Browser dann noch einmal.",
   "files": [
    "app/couch/launch/apps.py"
@@ -3977,6 +3989,12 @@
   "text": "Dec",
   "files": [
    "app/couch/gallery.py"
+  ]
+ },
+ {
+  "text": "Default",
+  "files": [
+   "app/couch/chromedl.py"
   ]
  },
  {
@@ -6607,6 +6625,12 @@
   ]
  },
  {
+  "text": "Diesen Download lädt Chrome selbst. Anhalten, Fortsetzen und Abbrechen gehen dort.",
+  "files": [
+   "app/couch/fetcher.py"
+  ]
+ },
+ {
   "text": "Diesen Download lädt der Browser selbst. Anhalten und Fortsetzen geht nur, wenn die Konsole lädt.",
   "files": [
    "app/couch/fetcher.py"
@@ -6729,6 +6753,12 @@
  },
  {
   "text": "Dieser Download läuft noch im Browser.",
+  "files": [
+   "app/couch/fetcher.py"
+  ]
+ },
+ {
+  "text": "Dieser Download läuft noch in Chrome.",
   "files": [
    "app/couch/fetcher.py"
   ]
@@ -9647,6 +9677,12 @@
   "text": "Hintergründe und Bildschirmfotos",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "History",
+  "files": [
+   "app/couch/chromedl.py"
   ]
  },
  {
@@ -12653,6 +12689,12 @@
   "text": "Prag",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Preferences",
+  "files": [
+   "app/couch/chromedl.py"
   ]
  },
  {

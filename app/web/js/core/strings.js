@@ -907,6 +907,8 @@ const DE = {
   // Control Center › Downloads: Downloads, die der Browser selbst lädt (local)
   dlLocalNote: "Lädt im Browser",
   dlLocalBusyNote: "Diesen Download lädt der Browser selbst. Anhalten oder Abbrechen geht hier nicht.",
+  dlChromeNote: "Lädt in Chrome",
+  dlChromeBusyNote: "Diesen Download lädt Chrome selbst. Anhalten oder Abbrechen geht dort.",
   // Ende Block E99-integration
   // ================================================================ Block E100-itch (itch.io im Store, 2026-10-23)
   // Store, Spielseite, Downloads, Bibliothek. Flache Schlüssel (stItch*): Listen wie stStores, stTabs und

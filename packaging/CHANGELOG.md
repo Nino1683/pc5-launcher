@@ -2,6 +2,9 @@
 
 ## Nächste Fassung
 
+- **Downloads aus Chrome:** Was du in Chrome lädst, steht jetzt auch im Control Center unter Downloads, mit
+  Fortschritt, Mitteilung beim Fertigwerden und „Installieren“ für Archive und Installer. Anhalten und Abbrechen
+  gehen weiter in Chrome; gezeigt wird, was ab dieser Fassung geladen wird.
 - **Größe von Apps:** Apps wie Discord, Chrome, der App Store und alle Apps aus dem Reiter „Apps“ erschienen bei 4K
   winzig. Jetzt werden sie passend zur Auflösung vergrößert (200 % bei 4K, 150 % bei 1440p), einstellbar unter
   Einstellungen › Bildschirm und Video › Größe von Apps (Automatisch oder 100 bis 300 %). Spiele bleiben, wie sie sind.

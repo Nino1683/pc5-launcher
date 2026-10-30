@@ -68,6 +68,9 @@ TEXT_REFUSED = "Der Server gibt die Datei nicht mehr heraus (%s). Der Link ist v
 TEXT_GAVE_UP = "Die Verbindung bricht immer wieder ab. Mit „Fortsetzen“ geht es an derselben Stelle weiter."
 TEXT_LOCAL = "Diesen Download lädt der Browser selbst. Anhalten und Fortsetzen geht nur, wenn die Konsole lädt."
 TEXT_LOCAL_RUNNING = "Dieser Download läuft noch im Browser."
+TEXT_CHROME = "Diesen Download lädt Chrome selbst. Anhalten, Fortsetzen und Abbrechen gehen dort."
+TEXT_CHROME_RUNNING = "Dieser Download läuft noch in Chrome."
+CHROME_POLL_S = 2.0             # Downloads aus Chrome (E146) höchstens so oft nachsehen
 
 
 def _origin(url: str) -> tuple[str, str, int]:
@@ -154,7 +157,8 @@ class Fetcher:
                  later: Callable[[float, Callable[[], None]], Any], post: Callable[..., None],
                  state: Any = None, notify: Any = None, opener: Callable | None = None,
                  clock: Callable[[], float] = time.time, retry_wait: tuple = RETRY_WAIT,
-                 stall_s: float = STALL_S, max_parallel: int = MAX_PARALLEL, local_path: str | None = None):
+                 stall_s: float = STALL_S, max_parallel: int = MAX_PARALLEL, local_path: str | None = None,
+                 chrome_profile: str | None = None):
         self.list_path = list_path
         self.spool_dir = spool_dir
         self.download_dir = download_dir
@@ -175,8 +179,13 @@ class Fetcher:
         self._speed: dict[str, tuple[float, int, float]] = {}   # id -> (zeit, bytes, bytes/s)
         self.local_path = local_path            # Downloads, die WebKit selbst lädt (nur lesen)
         self.local: list[dict] = []
-        self.hidden: set[str] = set()           # ausgeblendete Einträge des Browsers
+        self.hidden: set[str] = set()           # ausgeblendete Einträge des Browsers (und von Chrome)
         self._local_sig: tuple | None = None
+        # E146: Downloads aus Chrome (chromedl.py), nur gelesen; gezeigt wird, was seit chrome_since begann
+        self.chrome_profile = chrome_profile
+        self.chrome: list[dict] = []
+        self.chrome_since = 0.0
+        self._chrome_at = -1e9
 
     # ------------------------------------------------------------ Start und Ende
     def start(self) -> None:
@@ -188,8 +197,11 @@ class Fetcher:
                         item.update(state="failed", error=TEXT_LEGACY, finished=self.clock())
                     else:
                         item["state"] = "queued"     # nach dem Neustart weiter
+            if self.chrome_profile and not self.chrome_since:
+                self.chrome_since = self.clock()  # erster Start mit E146: nicht den ganzen alten Verlauf zeigen
             self._save(force=True)
         self.watch_local(tell=False)            # nach _load: dort steht, was ausgeblendet ist
+        self.watch_chrome(tell=False)
         self._pump()
         self._tick()
 
@@ -213,6 +225,7 @@ class Fetcher:
         try:
             self.take_requests()
             self.watch_local()
+            self.watch_chrome()
         except Exception:
             _log.exception("Download-Aufträge")
         finally:
@@ -280,8 +293,9 @@ class Fetcher:
     # ------------------------------------------------------------ Bedienung (RPC)
     def pause(self, item_id: str) -> dict:
         with self.lock:
-            if self._local_item(item_id) is not None:
-                return {"ok": False, "message": TEXT_LOCAL}
+            local = self._local_item(item_id)
+            if local is not None:
+                return {"ok": False, "message": TEXT_CHROME if local.get("source") == "chrome" else TEXT_LOCAL}
             item = self._get(item_id)
             if item is None or item["state"] not in ACTIVE:
                 return {"ok": False, "message": "Dieser Download läuft nicht."}
@@ -293,8 +307,9 @@ class Fetcher:
 
     def resume(self, item_id: str) -> dict:
         with self.lock:
-            if self._local_item(item_id) is not None:
-                return {"ok": False, "message": TEXT_LOCAL}
+            local = self._local_item(item_id)
+            if local is not None:
+                return {"ok": False, "message": TEXT_CHROME if local.get("source") == "chrome" else TEXT_LOCAL}
             item = self._get(item_id)
             if item is None or item["state"] in ACTIVE or item["state"] == "done":
                 return {"ok": False, "message": "Dieser Download lässt sich nicht fortsetzen."}
@@ -314,8 +329,9 @@ class Fetcher:
 
     def cancel(self, item_id: str) -> dict:
         with self.lock:
-            if self._local_item(item_id) is not None:
-                return {"ok": False, "message": TEXT_LOCAL}
+            local = self._local_item(item_id)
+            if local is not None:
+                return {"ok": False, "message": TEXT_CHROME if local.get("source") == "chrome" else TEXT_LOCAL}
             item = self._get(item_id)
             if item is None or item["state"] in ("done", "cancelled"):
                 return {"ok": False, "message": "Dieser Download ist schon zu Ende."}
@@ -333,7 +349,8 @@ class Fetcher:
             local = self._local_item(item_id)
             if local is not None:
                 if local["state"] == "running":
-                    return {"ok": False, "message": TEXT_LOCAL_RUNNING}
+                    return {"ok": False, "message": TEXT_CHROME_RUNNING if local.get("source") == "chrome"
+                            else TEXT_LOCAL_RUNNING}
                 self.hidden.add(item_id)        # die Datei des Browsers schreibt nur der Browser
                 self._save(force=True)
                 return {"ok": True}
@@ -579,6 +596,9 @@ class Fetcher:
         except (OSError, ValueError):
             return []
         hidden = data.get("hidden_local") if isinstance(data, dict) else None
+        since = data.get("chrome_since") if isinstance(data, dict) else None
+        if isinstance(since, (int, float)) and not isinstance(since, bool) and since > 0:
+            self.chrome_since = float(since)
         self.hidden = {h for h in hidden if isinstance(h, str)} if isinstance(hidden, list) else set()
         out = []
         for item in data.get("items") if isinstance(data, dict) and isinstance(data.get("items"), list) else []:
@@ -591,7 +611,8 @@ class Fetcher:
 
     # ------------------------------------------------------------ Downloads des Browsers (E99)
     def _local_item(self, item_id: str) -> dict | None:
-        return next((i for i in self.local if i["id"] == item_id and i["id"] not in self.hidden), None)
+        """Ein Download, den nicht die Konsole lädt (eigener Browser oder Chrome), sofern nicht ausgeblendet."""
+        return next((i for i in self.local + self.chrome if i["id"] == item_id and i["id"] not in self.hidden), None)
 
     def watch_local(self, tell: bool = True) -> bool:
         """Liest browser-downloads.json neu, wenn sie sich geändert hat, und meldet den Stand.
@@ -616,8 +637,42 @@ class Fetcher:
             self.local = fresh
             self._reap_local()
             if fresh:                           # Vergessenes nicht ewig mitführen (leer: Datei kaputt?)
-                self.hidden &= {i["id"] for i in fresh}
+                self.hidden &= {i["id"] for i in fresh} | {i["id"] for i in self.chrome} | {
+                    h for h in self.hidden if h.startswith(("chrome:", "chrome-file:"))}
             ended = [i for i in fresh if i["state"] in ("done", "failed") and before.get(i["id"]) != i["state"]
+                     and i["id"] not in self.hidden]
+            self._publish()
+        if tell and self.notify is not None:
+            for item in ended:
+                self.post(self._tell, item["name"], item["state"], item.get("error") or "")
+        return True
+
+    # ------------------------------------------------------------ Downloads aus Chrome (E146)
+    def watch_chrome(self, tell: bool = True) -> bool:
+        """Liest die Downloads aus Chrome neu (höchstens alle CHROME_POLL_S, chromedl.collect) und meldet den Stand,
+        wenn sich etwas geändert hat. tell: Mitteilung, wenn einer fertig wird oder scheitert (nicht beim Start)."""
+        if not self.chrome_profile or self.closed:
+            return False
+        now = time.monotonic()
+        if now - self._chrome_at < CHROME_POLL_S:
+            return False
+        self._chrome_at = now
+        from . import chromedl
+        try:
+            fresh = chromedl.collect(self.chrome_profile, self.download_dir, self.chrome_since, self.clock, self.chrome)
+        except Exception:
+            _log.exception("Downloads aus Chrome")
+            return False
+        key = [(i["id"], i["state"], i["received"], i["total"]) for i in fresh]
+        with self.lock:
+            if key == [(i["id"], i["state"], i["received"], i["total"]) for i in self.chrome]:
+                return False
+            # Ein Download erscheint zuerst als laufende Datei (chrome-file:…) und dann unter seiner Kennung im
+            # Verlauf (chrome:…): „fertig“ gilt deshalb auch, wenn vorher derselbe Pfad lief
+            running = {i["id"] for i in self.chrome if i["state"] == "running"} | {
+                i["path"] for i in self.chrome if i["state"] == "running"}
+            self.chrome = fresh
+            ended = [i for i in fresh if i["state"] in ("done", "failed") and (i["id"] in running or i["path"] in running)
                      and i["id"] not in self.hidden]
             self._publish()
         if tell and self.notify is not None:
@@ -652,7 +707,7 @@ class Fetcher:
     def view(self) -> list[dict]:
         with self.lock:
             out = []
-            for item in self.local:
+            for item in self.local + self.chrome:
                 if item["id"] in self.hidden:
                     continue
                 total, received = item["total"], item["received"]
@@ -661,7 +716,7 @@ class Fetcher:
                             "received": received, "total": total, "percent": int(percent), "speed": 0,
                             "error": item["error"], "finished": item["finished"], "resumable": False,
                             "archive": names.is_archive(item["name"]), "installer": _setup_name(item["name"]),
-                            "local": True, "started": item["started"]})
+                            "local": True, "started": item["started"], "source": item.get("source") or "browser"})
             for item in self.items:
                 total, received = int(item.get("total") or 0), int(item.get("received") or 0)
                 percent = 100 if item["state"] == "done" else (min(100, received * 100 // total) if total > 0 else 0)
@@ -687,7 +742,8 @@ class Fetcher:
             tmp = "%s.%d.neu" % (self.list_path, os.getpid())
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(jsontext.dumps({"version": 2, "items": self.items, "hidden_local": sorted(self.hidden)},
+                f.write(jsontext.dumps({"version": 2, "items": self.items, "hidden_local": sorted(self.hidden),
+                                        "chrome_since": self.chrome_since},
                                        indent=1))
                 f.write("\n")
             os.replace(tmp, self.list_path)

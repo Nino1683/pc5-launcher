@@ -643,11 +643,13 @@ def _downloads(wiring: Any) -> None:
         for name in DOWNLOAD_RPC:
             rpc.register(name, lambda params: {"ok": False, "message": "Downloads sind gerade nicht verfügbar."})
         return
+    from . import chromedl
     from .fetcher import Fetcher
     fetcher = Fetcher(paths.downloads_file(), paths.download_requests_dir(), paths.download_dir(),
                       later=sched.later, post=wiring.main.post, state=wiring.app.state,
                       notify=getattr(wiring.app, "notify", None),
-                      local_path=paths.browser_downloads_file())     # was WebKit selbst lädt (E99)
+                      local_path=paths.browser_downloads_file(),     # was WebKit selbst lädt (E99)
+                      chrome_profile=chromedl.profile_dir())          # E146: was Chrome lädt (nur gelesen)
     wiring.fetcher = fetcher
     for name in DOWNLOAD_RPC:
         fn = getattr(fetcher, name.split(".", 1)[1])
