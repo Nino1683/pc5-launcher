@@ -365,8 +365,8 @@ def fetchable(entry: Entry) -> bool:
 
 def actions(entry: Entry, running: bool = False, env: dict | None = None) -> list[dict]:
     """Kennungen für Hauptknopf und Optionsmenü, in der Reihenfolge der Anzeige:
-    launch | focus + close, settings, exe, art, art-fetch, rename, rename-reset, info, forget, hide | unhide,
-    delete | uninstall (nicht, wenn der Ordner fehlt: env["gone"], E91). settings bekommt jedes Spiel,
+    launch | focus + close, settings, exe, art, art-fetch, rename, rename-reset, info, forget, hide | unhide, remove
+    (Spiele, nicht laufend, nicht bei fehlendem Ordner), delete | uninstall (nicht, wenn der Ordner fehlt: env["gone"], E91). settings bekommt jedes Spiel,
     seit E99 auch Steam-Spiele und Steam-Verknüpfungen (die Seite zeigt dort nur, was die Konsole regelt).
     E141: Apps heißen „Ausblenden“ / „Wieder anzeigen“ (Spiele weiter „Aus der Bibliothek ausblenden“); die Kachel
     „Steam“ (NOT_HIDEABLE) hat keins."""
@@ -397,6 +397,9 @@ def actions(entry: Entry, running: bool = False, env: dict | None = None) -> lis
     if game:
         out.append({"id": "unhide" if entry.hidden else "hide",
                     "label": "Wieder einblenden" if entry.hidden else "Aus der Bibliothek ausblenden"})
+        if not env.get("gone") and not running:
+            # Wunsch 2026-10-30: Kachel ganz weg (auch nicht unter „Ausgeblendet“), Spiel und Dateien bleiben
+            out.append({"id": "remove", "label": "Aus der Bibliothek entfernen"})
     elif entry.id not in NOT_HIDEABLE:
         # E141: Apps verschwinden aus dem Home (Weg zurück: Einstellungen › Apps › Ausgeblendete Apps); Steam bleibt
         out.append({"id": "unhide" if entry.hidden else "hide", "label": "Wieder anzeigen" if entry.hidden else "Ausblenden"})

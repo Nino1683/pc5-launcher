@@ -201,9 +201,11 @@ class Fetcher:
                 self.chrome_since = self.clock()  # erster Start mit E146: nicht den ganzen alten Verlauf zeigen
             self._save(force=True)
         self.watch_local(tell=False)            # nach _load: dort steht, was ausgeblendet ist
-        self.watch_chrome(tell=False)
+        self.take_requests()                    # Aufträge des Browsers gleich beim Start (eigener Zustandsordner)
         self._pump()
-        self._tick()
+        # start läuft in der Hauptschleife: Chromes Verlauf und Download-Ordner (vielleicht auf einer schlafenden
+        # Platte) liest erst der erste Takt im Arbeits-Thread. Er meldet dabei nichts: Was vorher lief, kennt er nicht
+        self.later(0, self._tick)
 
     def stop(self) -> None:
         """Ende des Home: Verbindungen schließen, Zustand bleibt (läuft beim nächsten Start weiter)."""

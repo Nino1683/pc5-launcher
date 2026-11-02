@@ -657,8 +657,10 @@ def check_games_root(games_root: str, mounts=None) -> str | None:
         return "Die Spiele-Platte ist nicht eingehängt (%s)." % games_root
     if real.startswith("/run/media/"):
         # Unter /run/media bleibt manchmal ein leerer Ordner zurück, obwohl nichts eingehängt ist
+        # Ein Unterordner der Platte („…/Spiele/Games“) zählt auch: Er liegt unter ihrem Einhängepunkt
         try:
-            mounted = real in set((mounts or trash.read_mounts)())
+            mounted = any(real == m or real.startswith(m.rstrip("/") + "/")
+                          for m in set((mounts or trash.read_mounts)()) if m.startswith("/run/media/"))
         except OSError:
             mounted = False
         if not mounted:
@@ -676,8 +678,8 @@ def resolve_target(content: dict, folder: str | None, games_root: str, rom_dirs:
     kind = content.get("kind")
     target = {"mode": None, "root": games_root, "parent": None, "name": None, "dir": None, "files": [],
               "exists": False, "existing": [], "suggestion": None, "problem": None}
-    if kind in ("windows-game", "linux-game", "windows-installer"):
-        # E114: Ein Installationsprogramm installiert in einen eigenen Spielordner wie ein Archiv-Spiel
+    if kind in ("windows-game", "linux-game", "windows-installer", "anyps5"):
+        # E114: Ein Installationsprogramm installiert in einen eigenen Spielordner wie ein Archiv-Spiel (E150: AnyPS5 auch)
         target.update(mode="game", parent=games_root)
     elif kind == "rom":
         system = content.get("system")
@@ -725,9 +727,9 @@ def free_bytes(path: str, statvfs=os.statvfs) -> int:
 
 KIND_LABELS = {"windows-game": "PC-Spiel (Windows)", "linux-game": "PC-Spiel (Linux)", "rom": "Emulator-Spiel",
                "windows-installer": "Installationsprogramm (Windows)", "disc-image": "Datenträgerabbild",
-               "unknown": "Unbekannter Inhalt", "windows-exe": "Programm (Windows)"}
+               "unknown": "Unbekannter Inhalt", "windows-exe": "Programm (Windows)", "anyps5": "AnyPS5-Spiel"}
 SETUP_LABEL = "Installationsprogramm (%s)"     # mit setupexe.TYPE_LABELS, wenn die Art bekannt ist
-PLATFORMS = {"windows-game": "windows", "linux-game": "linux", "windows-installer": "windows"}
+PLATFORMS = {"windows-game": "windows", "linux-game": "linux", "windows-installer": "windows", "anyps5": "linux"}
 
 
 def _problem(plan: dict, code: str, message: str) -> None:

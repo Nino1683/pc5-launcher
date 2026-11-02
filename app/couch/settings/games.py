@@ -18,6 +18,9 @@ Was der Kern einsteckt (deps.extra, alles freiwillig; fehlt ein Rückruf, entfä
                              lesbar); ohne ihn entfällt die Seite itch.io (E100)
     "itch_logout"()          -> {"ok": bool, "message": "…"}: abmelden (Netz, blockiert)
     "itch_set_client"(cid)   -> {"ok": bool, "message": "…"}: App-Kennung übernehmen (geprüft hier)
+    "removed_games"()        -> [{"id", "title", "badge"}]: aus der Bibliothek entfernte Spiele (2026-10-30); ohne ihn
+                             entfällt die Seite „Entfernte Spiele“
+    "restore_game"(id)       -> Titel: zurückholen (KeyError, wenn es das Spiel nicht mehr gibt)
 
 Für den Starter (launch/proton.py): resolve_proton(config.get("games.proton", "")) liefert den
 Build, den "Automatisch" meint.
@@ -28,6 +31,10 @@ Sicherungen je Spiel bleiben (saves.keep); was sie bewirken, steht in wiring_sav
 Trailer (E123): „Trailer im Hintergrund“ (games.trailers) und „Spielmusik im Home“ (games.music, Vorgabe aus) stehen
 bei den Schaltern; die Verdrahtung schickt sie als sys.state.trailers und sys.state.game_music an die Seite
 (wiring_gameinfo.py), dort entscheidet components/trailer.js.
+
+Entfernte Spiele (Wunsch 2026-10-30: „Ich möchte kacheln auch einfach entfernen können ohne das spiel oder die datei
+selber zu löschen“): Unterseite mit einer Zeile „Zurückholen“ je Spiel, das im Optionsmenü „Aus der Bibliothek
+entfernen“ bekam (library/index.set_removed); ohne entfernte Spiele eine Hinweiszeile.
 
 itch.io (E100): Unterseite mit dem Konto („Angemeldet als …“ / „Nicht angemeldet“ / „Nicht
 eingerichtet“), „Bei itch.io abmelden“ (Rückfrage, nur angemeldet) und der App-Kennung (Textfeld,
@@ -40,6 +47,7 @@ import logging
 import os
 import re
 
+from .backends import fmt_bytes
 from .rows import (AREA_ORDER, Page, SettingsError, action, call_or_raise, confirm_action, info, late_part, link,
                    option, select, text, toggle)
 
@@ -49,6 +57,25 @@ AREA_ID = "games"
 PAGE_STEAM = "games.steam"
 PAGE_EMULATORS = "games.emulators"
 PAGE_ITCH = "games.itch"
+PAGE_REMOVED = "games.removed"
+# E150: AnyPS5 (wiring_anyps5.AnyPS5Part über deps.extra["late"]("anyps5")); ohne den Teil entfällt die Seite
+PAGE_ANYPS5 = "games.anyps5"
+ROW_ANYPS5_INSTALL = "games.anyps5.install"
+ROW_ANYPS5_CANCEL = "games.anyps5.cancel"
+ROW_ANYPS5_REFRESH = "games.anyps5.refresh"
+ROW_ANYPS5_UNPACKER = "games.anyps5.unpacker.install"
+ANYPS5_ABOUT = ("AnyPS5 (github.com/boykopovar/AnyPS5) wandelt Spiele deiner Konsole in Linux-Programme um. "
+                "Es ist ein eigenes, frühes Projekt: Viele Spiele laufen noch nicht.")
+ANYPS5_HOW = ("Im Installer eine .pkg-Datei oder den Spieleordner (darin liegen eboot.bin und sce_sys) wählen, dann "
+              "Installieren. Ein Paket wird auf die Spiele-Platte entpackt; bei einem Ordner bleiben die Spieldateien, "
+              "wo sie sind.")
+UNPACKER_ABOUT = ("pkg-to-anyps5 (github.com/awake-devel/pkg-to-anyps5) entpackt unverschlüsselte Debug-Pakete und "
+                  "bereitet Programmdateien für AnyPS5 vor. Verschlüsselte Retail-Pakete liest es nicht. Nur mit Paketen "
+                  "nutzen, die du selbst gebaut hast oder nutzen darfst.")
+ROW_RESTORE = "games.removed.restore:"
+REMOVED_HINT = ("Spiele, die du im Optionsmenü mit „Aus der Bibliothek entfernen“ entfernt hast. Ihre Dateien sind noch "
+                "da; hier holst du die Kachel zurück.")
+REMOVED_NONE_HINT = "Entfernen geht im Optionsmenü (Options-Taste) jedes Spiels. Spiel und Dateien bleiben dabei erhalten."
 
 COMPAT_TOOLS_DIR = "~/.local/share/Steam/compatibilitytools.d"
 FSR4_MARKER = b"PROTON_FSR4_UPGRADE"      # steht im Startskript der Builds, die FSR 4 hochstufen
@@ -213,7 +240,9 @@ class GamesArea:
 
     def pages(self) -> list[str]:
         return ([AREA_ID, PAGE_STEAM] + ([PAGE_ITCH] if self._has_itch() else [])
-                + ([PAGE_EMULATORS] if self._has_emulators() else []))
+                + ([PAGE_EMULATORS] if self._has_emulators() else [])
+                + ([PAGE_REMOVED] if callable(self.extra.get("removed_games")) else [])
+                + ([PAGE_ANYPS5] if self._anyps5() is not None else []))
 
     def _has_emulators(self) -> bool:
         return callable(self.extra.get("emudeck_info")) or callable(self.extra.get("launch")) \
@@ -236,6 +265,10 @@ class GamesArea:
             return Page(PAGE_EMULATORS, "Emulatoren", self._emulator_rows())
         if page_id == PAGE_ITCH and self._has_itch():
             return Page(PAGE_ITCH, "itch.io", self._itch_rows())
+        if page_id == PAGE_REMOVED and callable(self.extra.get("removed_games")):
+            return Page(PAGE_REMOVED, "Entfernte Spiele", self._removed_rows())
+        if page_id == PAGE_ANYPS5 and self._anyps5() is not None:
+            return Page(PAGE_ANYPS5, "AnyPS5", self._anyps5_rows())
         raise KeyError(page_id)
 
     def set(self, row_id: str, value):
@@ -288,6 +321,11 @@ class GamesArea:
             return None
         if row_id == ROW_ITCH_LOGOUT:
             return self._itch_logout()
+        if row_id.startswith(ROW_RESTORE):
+            return self._restore(row_id[len(ROW_RESTORE):])
+        if row_id in (ROW_ANYPS5_INSTALL, ROW_ANYPS5_UNPACKER, ROW_ANYPS5_CANCEL, ROW_ANYPS5_REFRESH) \
+                and self._anyps5() is not None:
+            return self._anyps5_action(row_id)
         raise SettingsError("Diese Aktion gibt es nicht.")
 
     # --- Zeilen ---------------------------------------------------------------------------
@@ -322,7 +360,100 @@ class GamesArea:
             rows.append(link(PAGE_ITCH, "itch.io", PAGE_ITCH))
         if self._has_emulators():
             rows.append(link(PAGE_EMULATORS, "Emulatoren", PAGE_EMULATORS))
+        if callable(self.extra.get("removed_games")):
+            removed = self._removed()
+            rows.append(link(PAGE_REMOVED, "Entfernte Spiele", PAGE_REMOVED, note=str(len(removed)) if removed else "Keine",
+                             hint=REMOVED_HINT))
+        part = self._anyps5()
+        if part is not None:
+            tag = (part.status() or {}).get("installed")
+            rows.append(link(PAGE_ANYPS5, "AnyPS5", PAGE_ANYPS5, note=tag or "Nicht eingerichtet", hint=ANYPS5_ABOUT))
         return rows
+
+    # --- AnyPS5 (E150) ----------------------------------------------------------------------
+
+    def _anyps5(self):
+        return late_part(self.extra, "anyps5", log)
+
+    def _anyps5_rows(self) -> list:
+        st = self._anyps5().status()
+        have, latest, job = st.get("installed"), st.get("latest"), st.get("job")
+        rows = [info("games.anyps5.installed", "Eingerichtet", have or "Nein", hint=ANYPS5_ABOUT)]
+        if latest:
+            value, hint = latest["tag"], "Von GitHub, geprüft mit der Prüfsumme, die GitHub zu jeder Datei nennt."
+        elif st.get("checking"):
+            value, hint = "Wird gesucht …", ""
+        else:
+            value, hint = "Nicht erreichbar", st.get("error") or ""
+        rows.append(info("games.anyps5.latest", "Neueste Fassung", value, hint=hint))
+        if job:
+            rows.append(info("games.anyps5.job", "%s %s wird geladen" % (job.get("name") or "AnyPS5", job["tag"]),
+                             "%d %%" % job.get("percent", 0)))
+            rows.append(action(ROW_ANYPS5_CANCEL, "Abbrechen", hint="Ein neuer Versuch setzt den Download fort."))
+        elif latest and latest["tag"] != have:
+            label = "AnyPS5 %s laden" % latest["tag"] if not have else "Auf %s aktualisieren" % latest["tag"]
+            rows.append(confirm_action(
+                ROW_ANYPS5_INSTALL, label, title=label + "?",
+                text="Der Launcher lädt relinker und Bibliotheken (%s) aus dem offiziellen Release auf GitHub und prüft "
+                     "beide Dateien mit der Prüfsumme von GitHub. Umgewandelte Spiele behalten ihre Fassung; neu "
+                     "umgewandelte nutzen die neue." % fmt_bytes(latest["bytes"]), ok="Laden"))
+        elif not latest and not st.get("checking"):
+            rows.append(action(ROW_ANYPS5_REFRESH, "Erneut suchen"))
+        rows += self._unpacker_rows(st.get("unpacker") or {}, job)
+        games = st.get("games") or 0
+        rows.append(info("games.anyps5.games", "Umgewandelte Spiele", _plural(games),
+                         note="%d mit älterer Fassung" % st["older"] if st.get("older") else "", hint=ANYPS5_HOW))
+        return rows
+
+    def _unpacker_rows(self, st: dict, job) -> list:
+        """E151: pkg-to-anyps5. Fehlt es, lädt es der Installer beim ersten Spiel selbst."""
+        have, latest = st.get("installed"), st.get("latest")
+        rows = [info("games.anyps5.unpacker", "Entpacker für .pkg", have or "Wird bei Bedarf geladen", hint=UNPACKER_ABOUT)]
+        if have and latest and latest["tag"] != have and not job:
+            label = "Entpacker auf %s aktualisieren" % latest["tag"]
+            rows.append(confirm_action(
+                ROW_ANYPS5_UNPACKER, label, title=label + "?",
+                text="Der Launcher lädt pkg-to-anyps5 (%s) aus dem offiziellen Release auf GitHub und prüft die Datei "
+                     "mit der Prüfsumme von GitHub." % fmt_bytes(latest["bytes"]), ok="Laden"))
+        return rows
+
+    def _anyps5_action(self, row_id: str) -> dict | None:
+        part = self._anyps5()
+        if row_id == ROW_ANYPS5_REFRESH:
+            part.refresh()
+            return {"message": "Es wird nach AnyPS5 gesucht.", "refresh": True}
+        if row_id == ROW_ANYPS5_CANCEL:
+            part.cancel()
+            return {"refresh": True}
+        result = part.install("unpacker") if row_id == ROW_ANYPS5_UNPACKER else part.install()
+        if not result.get("ok"):
+            raise SettingsError(result.get("message") or "Das ist gerade nicht verfügbar.")
+        return {"message": result.get("message"), "refresh": True}
+
+    def _removed(self) -> list[dict]:
+        try:
+            items = self.extra["removed_games"]() or []
+        except Exception:  # noqa: BLE001 (nur Anzeige)
+            log.exception("removed_games()")
+            return []
+        return [i for i in items if isinstance(i, dict) and i.get("id")]
+
+    def _removed_rows(self) -> list:
+        items = self._removed()
+        if not items:
+            return [info("games.removed.none", "Keine Spiele entfernt.", enabled=False, hint=REMOVED_NONE_HINT)]
+        return [action(ROW_RESTORE + str(i["id"]), str(i.get("title") or i["id"]), value="Zurückholen",
+                       note=str(i.get("badge") or "")) for i in items]
+
+    def _restore(self, entry_id: str) -> dict:
+        fn = self.extra.get("restore_game")
+        if not callable(fn):
+            raise SettingsError("Das ist gerade nicht verfügbar.")
+        try:
+            title = fn(entry_id)
+        except KeyError:
+            raise SettingsError("Dieses Spiel gibt es nicht mehr.") from None
+        return {"message": "„%s“ steht wieder in der Bibliothek." % (title or entry_id), "refresh": True}
 
     def _saves_rows(self) -> list:
         keep = self.config.get("saves.keep", SAVES_DEFAULTS["saves.keep"])

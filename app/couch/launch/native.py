@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import stat
 
 from ..library.sources import expand_home
 from .spec import STEAM_LEFTOVERS, LaunchError, LaunchSpec, pad_mode
@@ -21,6 +22,7 @@ TEXT_NEEDS_STEAM = "Dieses Spiel braucht den laufenden Steam-Client. Starte es �
 TEXT_DISK = "Die Spiele-Platte ist nicht eingehängt."
 TEXT_EMUDECK_LAUNCHER = ("EmuDecks eigene Startskripte werden hier nicht benutzt. "
                          "Starte das Spiel über seine Kachel bei den Emulator-Spielen.")
+TEXT_ANYPS5_LIBS = "Die Bibliotheken von AnyPS5 für dieses Spiel fehlen. Installiere das Spiel noch einmal über den Installer."
 TEXT_STEAM_DETOUR = ("Dieser Eintrag würde den Emulator über Steam aufrufen. "
                      "Starte das Spiel über seine Kachel bei den Emulator-Spielen.")
 
@@ -28,6 +30,9 @@ TEXT_STEAM_DETOUR = ("Dieser Eintrag würde den Emulator über Steam aufrufen. "
 # Steam-Verknüpfung (steam-shortcut-run) und würden Steam mitten in unserer Sitzung starten.
 _STEAM_DETOUR_WRAPPERS = ("eden-launch", "cemu-launch")
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+HEAD_BYTES = 4096
+SHELL = "/bin/sh"
+SHELL_EXTS = ("", ".sh")           # Text ohne #! startet nur mit diesen Endungen über SHELL (keine .txt, keine .bat)
 
 
 # "~/x" gegen das eingesteckte Home auflösen (nicht gegen $HOME des Prozesses); dieselbe Regel wie die Quellen
@@ -118,6 +123,47 @@ def is_emudeck_launcher(path: str) -> bool:
     return False
 
 
+def program_kind(path: str) -> str:
+    """Art einer Startdatei nach ihrem Kopf (höchstens HEAD_BYTES): "elf" Linux-Programm, "script" Skript mit #!,
+    "pe" Windows-Programm, "text" Text ohne #! (Shell-Skript ohne Kopfzeile), sonst "". Nur lesend, blockierend (Platte)."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return ""
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return ""
+        head = os.read(fd, HEAD_BYTES)
+    except OSError:
+        return ""
+    finally:
+        os.close(fd)
+    if head.startswith(b"\x7fELF"):
+        return "elf"
+    if head.startswith(b"#!"):
+        return "script"
+    if head.startswith(b"MZ"):
+        return "pe"
+    return "text" if head and b"\0" not in head else ""
+
+
+def via_shell(path: str, kind: str) -> bool:
+    """Startet die Datei über SHELL? Text ohne #! (Shell-Skript ohne Kopfzeile), wie es die Shell bei ENOEXEC tut."""
+    return kind == "text" and os.path.splitext(os.path.basename(path))[1].lower() in SHELL_EXTS
+
+
+def linux_start(entry, ctx) -> bool:
+    """Ist die gewählte Startdatei eines Windows-Archivspiels ein Linux-Programm oder Shell-Skript (Wunsch 2026-10-30:
+    „Falls es mal eine launcher datei ist ohne eine endung“ – „Also ein shell skript“)? Dann startet es direkt, nicht
+    über Proton. Blockierend (liest den Kopf der Datei)."""
+    try:
+        exe = local_exe(entry, ctx)[0]
+    except LaunchError:
+        return False
+    kind = program_kind(exe)
+    return kind in ("elf", "script") or via_shell(exe, kind)
+
+
 def local_exe(entry, ctx) -> tuple:
     """(exe, args, ordner) eines Archiv-Spiels; die Startdatei darf den Spielordner nicht verlassen."""
     d = entry.detail
@@ -159,10 +205,29 @@ def _plan(entry, ctx) -> tuple:
     return exe, args, cwd
 
 
+def _shell_text(entry, exe: str) -> bool:
+    """Startdatei eines Archiv-Spiels, die über SHELL läuft (braucht kein Ausführungsrecht)."""
+    return entry.source == "local" and via_shell(exe, program_kind(exe))
+
+
+def _anyps5(entry) -> dict | None:
+    """detail.anyps5 eines Spiels aus AnyPS5 (E150), sonst None."""
+    value = entry.detail.get("anyps5") if entry.source == "local" else None
+    return value if isinstance(value, dict) else None
+
+
 def preflight(entry, ctx) -> list:
     """Harte Fehler als LaunchError, Hinweise als Liste deutscher Sätze. Blockierend (Platte)."""
     exe, _args, cwd = _plan(entry, ctx)
-    require_exe(entry, exe, ctx, executable=True)
+    require_exe(entry, exe, ctx, executable=not _shell_text(entry, exe))
+    origin = _anyps5(entry)
+    if origin is not None:
+        # E150: app0/ verweist auf den Spieleordner, libs auf die Bibliotheken der Fassung
+        source = origin.get("source") or ""
+        if source and not os.path.isdir(source):
+            raise missing(source, ctx, "Der Spieleordner")
+        if not os.path.isdir(os.path.join(os.path.dirname(exe), "libs")):
+            raise LaunchError(TEXT_ANYPS5_LIBS, exe, reason="missing-file")
     warnings = []
     if cwd and not os.path.isdir(cwd):
         warnings.append("Der Arbeitsordner fehlt (%s); gestartet wird im Ordner der Startdatei." % cwd)
@@ -170,7 +235,7 @@ def preflight(entry, ctx) -> list:
 
 
 def build(entry, ctx, *, check: bool = True) -> LaunchSpec:
-    """Entry (Quelle "native" oder "local" mit platform "linux") -> LaunchSpec.
+    """Entry (Quelle "native" oder "local" mit platform "linux" oder mit einer Linux-Startdatei) -> LaunchSpec.
 
     check=True prüft zusätzlich die Platte (blockierend) und wirft LaunchError.
     """
@@ -182,10 +247,14 @@ def build(entry, ctx, *, check: bool = True) -> LaunchSpec:
     # Aus Lutris übernommene Linux-Spiele (E134) bringen deren Umgebung mit (Vorgaben, Runner, Spiel: z. B.
     # LD_PRELOAD oder LD_LIBRARY_PATH auf mitgelieferte Bibliotheken), darüber die Option env (E99)
     env = clean_env(entry.detail.get("env")) if entry.source == "native" else {}
+    if _anyps5(entry) is not None:
+        from ..i18n import language
+        from ..installer.anyps5 import launch_env
+        env.update(launch_env(language(ctx.config)))      # E150: Vollbild, Sprache der Oberfläche
     env.update(clean_env(entry.option("env")))
     return LaunchSpec(
         entry_id=entry.id,
-        argv=[exe, *args],
+        argv=[SHELL, exe, *args] if _shell_text(entry, exe) else [exe, *args],
         env=env,
         unset=list(STEAM_LEFTOVERS),
         cwd=cwd or None,

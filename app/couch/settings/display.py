@@ -454,16 +454,16 @@ class DisplayArea:
     def _sdr_nits(self) -> int:
         try:
             return min(SDR_MAX, max(SDR_MIN, int(self._cfg("display.sdr_brightness"))))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):       # von Hand verschrieben (auch Infinity): die Vorgabe
             return DEFAULTS["display.sdr_brightness"]
 
     def _game_resolution(self) -> str:
         v = self._cfg("display.game_resolution")
-        return v if v in perf_mod.RESOLUTIONS else DEFAULTS["display.game_resolution"]
+        return v if isinstance(v, str) and v in perf_mod.RESOLUTIONS else DEFAULTS["display.game_resolution"]
 
     def _scaling_filter(self) -> str:
         v = self._cfg("display.scaling_filter")
-        return v if v in SCALING_FILTERS else DEFAULTS["display.scaling_filter"]
+        return v if isinstance(v, str) and v in SCALING_FILTERS else DEFAULTS["display.scaling_filter"]
 
     def _summary(self, force: bool = False) -> dict:
         with self._lock:

@@ -94,6 +94,21 @@ def discover(run_read: Callable, service: str) -> list[dict]:
     return parse_avahi(getattr(r, "stdout", "") or "")
 
 
+def ipv4_of(host: str) -> str:
+    """Die IPv4-Adresse zu host: die Adresse selbst oder die des Namens (fernseher.local, wie ihn „Adresse eingeben“
+    erlaubt). Die Nachbartabelle kennt nur Adressen: Mit dem Namen lernte die Konsole sonst nie die MAC für
+    Wake-on-LAN. Blockierend (Namensauflösung); ohne Antwort host selbst."""
+    try:
+        socket.inet_aton(host)
+        return host
+    except OSError:
+        pass
+    try:
+        return socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except (OSError, IndexError, UnicodeError):
+        return host
+
+
 def neighbour(host: str, path: str | None = None) -> tuple[str, str] | None:
     """(MAC, Netzgerät) des Fernsehers aus der Nachbartabelle, None ohne vollständigen Eintrag."""
     if path is None:
@@ -108,9 +123,10 @@ def neighbour(host: str, path: str | None = None) -> tuple[str, str] | None:
             lines = f.read(64 * 1024).splitlines()[1:]
     except OSError:
         return None
+    addr = ipv4_of(host)
     for line in lines:
         cols = line.split()
-        if len(cols) >= 6 and cols[0] == host:
+        if len(cols) >= 6 and cols[0] == addr:
             mac, flags, dev = cols[3].lower(), cols[2], cols[5]
             if _MAC.fullmatch(mac) and mac != "00:00:00:00:00:00" and flags != "0x0" and _IFACE.fullmatch(dev):
                 return mac, dev

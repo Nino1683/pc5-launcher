@@ -35,6 +35,7 @@ import copy
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import stat
@@ -245,13 +246,19 @@ def check_setting(key: str, value: Any, proton_exists: Callable[[str], bool] = l
         if not isinstance(value, bool):
             raise ValueError("Ein/Aus erwartet")
     elif isinstance(default, int):
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+        # math.isfinite zuerst: int(Infinity) wirft OverflowError, kein ValueError (json liest Infinity und 1e400)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or (isinstance(value, float) and not math.isfinite(value)) or value != int(value):
             raise ValueError("ganze Zahl erwartet")
         value = int(value)
     elif isinstance(default, float):
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or (isinstance(value, float) and not math.isfinite(value)):
             raise ValueError("Zahl erwartet")
-        value = float(value)
+        try:
+            value = float(value)
+        except OverflowError:
+            raise ValueError("Zahl erwartet") from None
     elif isinstance(default, str):
         if not isinstance(value, str) or len(value) > 4096 or "\x00" in value:
             raise ValueError("Text erwartet")

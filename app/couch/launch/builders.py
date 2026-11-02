@@ -158,14 +158,18 @@ def default_context(**overrides) -> LaunchContext:
 # ---------------------------------------------------------------------------------------------
 # Verteiler
 
-def _module(entry):
+def _module(entry, ctx):
     source = entry.source
+    platform = str(entry.detail.get("platform") or "") if source == "local" else ""
+    # Wunsch 2026-10-30: Ist die gewählte Startdatei eines Windows-Spiels ein Shell-Skript oder Linux-Programm (auch ohne
+    # Endung), startet sie direkt; weder Proton noch wine-run könnten sie ausführen. Liest den Kopf der Datei
+    if platform == "windows" and native.linux_start(entry, ctx):
+        return native
     if winerun.wanted(entry):
         return winerun                      # Wunsch 2026-10-28: je Spiel „Starten mit: wine-run“ statt Proton
     if source == "proton":
         return proton
     if source == "local":
-        platform = str(entry.detail.get("platform") or "")
         if platform == "windows":
             return proton
         if platform == "linux":
@@ -192,7 +196,7 @@ def build(entry, ctx: LaunchContext | None = None, *, check: bool = True,
                    noch aussteht (sonst AdoptionRequired mit .src und .dst).
     """
     ctx = ctx or default_context()
-    module = _module(entry)
+    module = _module(entry, ctx)
     # E134: Den Startweg „wie in Lutris“ (E55) gibt es nicht mehr; eine gespeicherte Option launcher "lutris"
     # wird überlesen, das Spiel startet mit Proton
     if module is proton:
@@ -208,7 +212,7 @@ def preflight(entry, ctx: LaunchContext | None = None, *, planning: bool = False
     """Vorab-Prüfungen ohne Spec. Rückgabe: Hinweise als deutsche Sätze (für das Ladebild).
     Harte Fehler als LaunchError. BLOCKIEREND wie build(check=True)."""
     ctx = ctx or default_context()
-    module = _module(entry)
+    module = _module(entry, ctx)
     if module is proton:
         return proton.preflight(entry, ctx, planning=planning)
     return module.preflight(entry, ctx)
@@ -220,14 +224,14 @@ def needs_adoption(entry, ctx: LaunchContext | None = None) -> tuple | None:
     Die Oberfläche zeigt dann vorher prefix.TEXT_ADOPT_HINT und ruft adopt() im Thread.
     Schnell (einige stat-Aufrufe)."""
     ctx = ctx or default_context()
-    if _module_or_none(entry) is not proton:
+    if _module_or_none(entry, ctx) is not proton:
         return None
     return prefix.needs_adoption(entry, ctx)
 
 
-def _module_or_none(entry):
+def _module_or_none(entry, ctx):
     try:
-        return _module(entry)
+        return _module(entry, ctx)
     except LaunchError:
         return None
 
@@ -236,7 +240,7 @@ def prefix_info(entry, ctx: LaunchContext | None = None) -> dict | None:
     """Prefix-Entscheidung für Anzeige und Plan:
     {"path", "mode": "in-place"|"copy"|"own", "state", "source", "adopt": [src, dst]|None, "note"}"""
     ctx = ctx or default_context()
-    if _module_or_none(entry) is not proton:
+    if _module_or_none(entry, ctx) is not proton:
         return None
     plan = prefix.decide(entry, ctx)
     return {"path": plan.path, "mode": plan.mode, "state": plan.state, "source": plan.source,
@@ -252,7 +256,7 @@ def adopt(entry, ctx: LaunchContext | None = None, progress_cb=None, cancel=None
     ctx = ctx or default_context()
     pair = needs_adoption(entry, ctx)
     if not pair:
-        plan = prefix.decide(entry, ctx) if _module_or_none(entry) is proton else None
+        plan = prefix.decide(entry, ctx) if _module_or_none(entry, ctx) is proton else None
         return {"copied": False, "dst": plan.path if plan else "", "src": "", "entries": 0,
                 "seconds": 0.0, "marker": prefix.read_marker(plan.path) if plan else None}
     src, dst = pair

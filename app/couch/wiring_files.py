@@ -141,12 +141,22 @@ def entry_for_file(app: Any, path: str) -> dict:
     if files.kind_of(path) not in ("windows", "linux") or not files.allowed(path) or not os.path.isfile(path):
         return {"ok": False, "message": "Nur Startdateien (.exe, .sh …) lassen sich starten."}
     real = os.path.realpath(path)
-    for entry in app.library.entries():
+    # Auch aus der Bibliothek entfernte Spiele (E148): Wer ihre Startdatei startet, will das Spiel samt seinem Prefix
+    # (Spielstände) zurück, keinen zweiten Eintrag mit leerem Prefix
+    from . import wiring_library
+    removed = list(getattr(app.library, "removed_by_user", list)())
+    removed_ids = {e.id for e in removed}
+    for entry in list(app.library.entries()) + removed:
         if entry.source != "local" or not isinstance(entry.detail, dict):
             continue
         exe = entry.detail.get("exe_path") or os.path.join(str(entry.detail.get("install_dir") or ""),
                                                            str(entry.detail.get("exe") or ""))
         if isinstance(exe, str) and os.path.isabs(exe) and os.path.realpath(exe) == real:
+            if entry.id in removed_ids:
+                try:
+                    wiring_library.restore_removed(app, entry.id)
+                except KeyError:
+                    pass                        # eben schon zurückgeholt
             return {"ok": True, "id": entry.id, "title": entry.title, "new": False}
     added = add_to_library(app, path)
     if not added.get("ok"):

@@ -45,11 +45,13 @@ function create(params = {}) {
   });
   const { list } = screen;
   let current = { path: null, parent: null, name: "" };
+  let shown = null;                 // zuletzt gelesener Ordner (files.list), für einen Ordner, der sich nicht öffnen lässt
   let entries = [];
   const marked = new Set();
   let hidden = false;
   let serial = 0;
   const jobs = new Map();       // jobId -> Satz für die Unterzeile
+  const moving = new Set();     // die Ablage (clip), deren Verschieben gerade läuft
   // files.done kann vor der Antwort auf files.op kommen (E99: rename und mkdir sind sofort fertig);
   // solange ein files.op unterwegs ist, wartet ein unbekanntes Ende hier auf seine Antwort
   let pending = 0;
@@ -103,8 +105,18 @@ function create(params = {}) {
       result = { ok: false, message: (e && e.message) || S.fbFailed, entries: [] };
     }
     if (mine !== serial) return;
+    // Ein anderer Ordner lässt sich nicht lesen (fehlt, keine Rechte, Zeitgrenze einer schlafenden Platte): bleiben,
+    // wo man war, und es sagen. Sonst fehlte der Weg zurück (Kreis sprang zu den Orten oder schloss den Explorer)
+    if (result.ok === false && shown && (path || null) !== current.path) {
+      toast({ title: S.fbFailed, body: result.message && result.message !== S.fbFailed ? result.message : "", icon: "warn" });
+      paint(shown, path || keepId);
+      return;
+    }
     const moved = (result.path || null) !== current.path;
-    current = { path: result.path || null, parent: result.parent || null, name: result.name || "" };
+    // derselbe Ordner, gerade nicht lesbar: der Weg nach oben bleibt
+    const parent = result.parent || (result.ok === false && !moved ? current.parent : null);
+    current = { path: result.path || path || null, parent, name: result.name || current.name || "" };
+    if (result.ok !== false) shown = result;
     if (moved) marked.clear();
     screen.setTitle(current.path ? current.name || S.exTitle : S.exTitle);
     screen.setHints(hintsFor(!!current.path));
@@ -230,8 +242,10 @@ function create(params = {}) {
       list.setRows(list.rows.map((row) => (row.entry ? rowOf(row.entry) : row)));
       screen.setSub(subText());
     } else if (choice === "paste") {
-      const job = clip;
-      if (await run(job.op, job.paths, { dest: current.path }) && job.op === "move") clip = null;
+      // Verschieben: Die Ablage leert erst ein gelungenes Ende (finished); scheitert es oder wird es abgebrochen,
+      // bleibt die Auswahl für einen neuen Versuch
+      if (clip.op === "move") moving.add(clip);
+      if (!(await run(clip.op, clip.paths, { dest: current.path }))) moving.clear();
     } else if (choice === "unclip") {
       clip = null;
       screen.setSub(subText());
@@ -290,6 +304,10 @@ function create(params = {}) {
 
   function finished(p) {
     jobs.delete(p.jobId);
+    if (p.op === "move") {
+      if (p.ok && moving.has(clip)) clip = null;
+      moving.clear();
+    }
     if (p.ok) { marked.clear(); toast({ title: S.exTitle, body: p.message || "" }); }
     else if (!p.cancelled) messageDialog({ title: S.exTitle, text: p.message || S.fbFailed });
     refresh();

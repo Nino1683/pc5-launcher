@@ -844,6 +844,14 @@ def build_extra(wiring: Any) -> dict:
         fn = _late("library", "game_dirs")
         return list(fn(app) or []) if fn is not None else []
 
+    def removed_games() -> list[dict]:
+        # aus der Bibliothek entfernte Spiele (2026-10-30), zum Zurückholen unter Einstellungen › Spiele
+        return main.call(lambda: [{"id": e.id, "title": e.title, "badge": e.badge}
+                                  for e in app.library.removed_by_user()])
+
+    def restore_game(entry_id: str) -> str:
+        return main.call(app.library.set_removed, str(entry_id), False)
+
     def local_entries() -> list[dict]:
         fn = _late("library", "local_entries")
         out = []
@@ -924,6 +932,8 @@ def build_extra(wiring: Any) -> dict:
         "has_entry": has_entry,
         "games": games,
         "local_entries": local_entries,
+        "removed_games": removed_games,
+        "restore_game": restore_game,
         "delete_local": delete_local,
         "steam_account": steam_account,
         "emudeck_info": emudeck_info,

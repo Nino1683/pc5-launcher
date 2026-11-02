@@ -53,6 +53,7 @@ import time
 from typing import Callable
 
 from .. import jsontext
+from ..launch.native import program_kind
 from . import human_size, test_mode_violation, thread_limit
 from . import probe, trash
 
@@ -60,6 +61,8 @@ PAYLOAD_DIR = "inhalt"          # Unterordner des Zwischenordners, in den entpac
 WATCH_INTERVAL = 3.0            # Sekunden zwischen zwei Blicken auf den freien Platz
 STOP_GRACE = 5.0                # so lange darf der Entpacker nach SIGTERM brauchen, dann SIGKILL
 START_FILE_SCAN_LIMIT = 50
+OTHER_FILE_LIMIT = 300          # „weitere Dateien“ in der Auswahl der Startdatei
+OTHER_FILE_WALK = 20000         # so viele Dateien sieht sich die Suche danach höchstens an
 WORKER_NICE = 10                # E30: Priorität des Arbeiters und damit von 7z/unrar
 
 MSG_CANCELLED = "Die Installation wurde abgebrochen."
@@ -408,6 +411,38 @@ def scan_start_files(install_dir: str, platform: str, limit: int = START_FILE_SC
                 if len(found) >= limit:
                     return found
     return found
+
+
+def scan_other_files(install_dir: str, skip=(), limit: int = OTHER_FILE_LIMIT) -> list:
+    """Die übrigen Dateien des Spielordners für die Auswahl der Startdatei, hinter den Programmen (Wunsch 2026-10-30:
+    „erst die exe dann alle weiteren … Falls es mal eine launcher datei ist ohne eine endung“ – „Also ein shell
+    skript“). Nur lesend, höchstens vier Ebenen tief, ohne versteckte Dateien und Ordner, ohne Verweise.
+
+    Reihenfolge: Skripte (#!) und Linux-Programme ohne Endung, dann die übrigen Dateien ohne Endung, dann alle mit
+    Endung; jeweils flache vor tiefen, dann nach Namen. Rückgabe wie scan_start_files, höchstens limit Einträge."""
+    root = os.path.realpath(install_dir)
+    skip = set(skip)
+    found, seen = [], 0
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        depth = dirpath[len(root):].count(os.sep)
+        dirnames[:] = [] if depth >= 4 else [d for d in dirnames if not d.startswith(".")]
+        for name in filenames:
+            seen += 1
+            if seen > OTHER_FILE_WALK:
+                break
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, root)
+            if name.startswith(".") or rel in skip or not _is_real_file(path):
+                continue
+            if os.path.splitext(name)[1]:
+                rank = 2
+            else:
+                rank = 0 if program_kind(path) in ("elf", "script") else 1
+            found.append((rank, depth, rel.casefold(), rel))
+        if seen > OTHER_FILE_WALK:
+            break
+    found.sort()
+    return [{"path": rel, "score": 0, "why": []} for _rank, _depth, _key, rel in found[:limit]]
 
 
 def _verified_candidates(plan: dict, top: str | None, source: str) -> list:

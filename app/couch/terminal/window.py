@@ -75,6 +75,8 @@ class Terminal:
         self._child_id = 0
         self._retry_id = 0              # ein einziger Zeitgeber für blockierte Eingaben
         self._quitting = False
+        self._ended = False
+        self._rest: list = []                # (pid, Startzeit) vor dem Auflegen, für _end
         self._first = session.autorun(os.environ)      # nur beim ersten „ready“ (lädt die Seite neu, nicht noch einmal)
 
         ucm = WebKit.UserContentManager()
@@ -261,7 +263,7 @@ class Terminal:
         self.send({"t": "exited", "what": self.action, "code": code})
         self.action = ""
         if self._quitting:
-            self.app.quit()
+            self._end()
 
     def quit(self) -> None:
         """Fenster zu: das Programm auflegen lassen (Claude Code speichert das Gespräch laufend),
@@ -273,10 +275,28 @@ class Terminal:
             self.osk.close()
             self.osk = None
         if self.pty is None:
-            self.app.quit()
+            self._end()
             return
+        # Wer vor dem Auflegen lief, merken: SIGHUP erreicht nur die Gruppe der Sitzung. Prozesse in eigener Gruppe
+        # (Werkzeuge des Programms) gingen sonst an den reaper und bekamen nach seiner Schonfrist nur SIGKILL
+        from ..proc import tree
+        self._rest = [(pid, tree.starttime(pid)) for pid in tree.descendants(self.pty.pid)]   # nicht WebKits Helfer
         self.pty.signal(signal.SIGHUP)
-        GLib.timeout_add(STOP_WAIT_MS, lambda: self.app.quit() or False)
+        GLib.timeout_add(STOP_WAIT_MS, lambda: self._end() or False)
+
+    def _end(self) -> None:
+        """Was vom Auflegen übrig ist, bekommt SIGTERM (nur genau diese Prozesse), dann endet das Fenster."""
+        if self._ended:
+            return
+        self._ended = True
+        from ..proc import tree
+        for pid, start in self._rest:
+            if start is not None and tree.alive(pid, start):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError:
+                    pass
+        self.app.quit()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -203,6 +203,29 @@ def registry_save(path: str, data: Any) -> bool:
         return True
 
 
+def in_library(app: Any, entry_id: Any) -> bool:
+    """Kennt die Bibliothek das Spiel, auch wenn seine Kachel entfernt ist (E148)? Für „installiert“ im Store: Ein
+    entferntes Spiel liegt noch auf der Platte; „Installieren“ lüde es sonst ein zweites Mal herunter."""
+    if not entry_id:
+        return False
+    library = app.library
+    return getattr(library, "get_any", library.get)(entry_id) is not None
+
+
+def mark_removed(app: Any, result: Any) -> Any:
+    """Karten installierter Spiele, deren Kachel aus der Bibliothek entfernt ist, bekommen removed (E148): Die
+    Store-Seite bietet dann „Zurück in die Bibliothek“ statt „Spielen“ (der Eintrag ließe sich nicht starten)."""
+    is_removed = getattr(getattr(app, "library", None), "is_removed", None)
+    if not isinstance(result, dict) or is_removed is None:
+        return result
+    cards = [result.get("item")] + list(result.get("items") or [])
+    cards += [c for sec in result.get("sections") or [] if isinstance(sec, dict) for c in sec.get("items") or []]
+    for c in cards:
+        if isinstance(c, dict) and c.get("installed") and c.get("entryId"):
+            c["removed"] = bool(is_removed(c["entryId"]))
+    return result
+
+
 def registry_load(path: str) -> Any:
     """Inhalt eines Verzeichnisses (siehe registry_save): der Stand, der noch auf die Platte muss, sonst die
     Datei. Fehlt sie oder ist sie kaputt: None."""
@@ -457,7 +480,7 @@ class SteamDownloads:
                     self._shutdown_foreign()
                 return True
             for job in cancels:
-                self._cancel_now(job, info.get(job["appid"]))
+                self._cancel_now(job, info.get(job["appid"]), info)
             for job in [j for j in queue if not j.get("written") and not j.get("cancel")]:
                 self._write(job, info.get(job["appid"]))
             return True
@@ -580,15 +603,16 @@ class SteamDownloads:
         self._drop(job, "„%s“ ist installiert" % job["name"], "Du findest es jetzt in der Bibliothek.", ok=True)
         self.wiring.main.post(self._rescan)
 
-    def _cancel_now(self, job: dict, info: dict | None) -> None:
+    def _cancel_now(self, job: dict, info: dict | None, everything: dict | None = None) -> None:
         """Bei beendetem Steam: Eintrag und Teil-Download in den Papierkorb. Ist das Spiel installiert
         (etwa mit offenem Update, E99), bleiben Eintrag und Spielordner; scheiterte der Auftrag, wird
-        dann gar nichts weggeräumt."""
+        dann gar nichts weggeräumt. everything: alle Einträge (manifests), damit ein geteilter
+        Spielordner liegen bleibt."""
         from . import files
         moved = 0
         kept = not job.get("uninstall") and steam_install.present(info)
         trash = [] if kept and job.get("failed") else \
-            steam_install.leftovers(info, job["appid"], uninstall=bool(job.get("uninstall"))) if info else []
+            steam_install.leftovers(info, job["appid"], uninstall=bool(job.get("uninstall")), others=everything) if info else []
         for path in trash:
             try:
                 files.gio_trash(path)
@@ -1058,7 +1082,7 @@ class _FolderQueue(_StoreQueue):
             return True
         library = getattr(self.app, "library", None)
         try:
-            return library is not None and library.get(entry_id) is not None
+            return library is not None and in_library(self.app, entry_id)
         except Exception:  # noqa: BLE001
             _log.exception("%s: Bibliothek fragen", self.NAME)
             return doubt
@@ -1792,6 +1816,10 @@ def extend(wiring: Any) -> None:
                     % (lib["path"], lib["free"] // 2**30, round(need / 1e9))}
         downloads.add(appid, name, lib["path"], steam_install.install_dir_name(ctx, appid, name))
         _log.info("Store: %s (%d) wird installiert nach %s", name, appid, lib["path"])
+        # Früher aus der Bibliothek entfernt (E148): Neu installiert soll es wieder dort stehen, wie die Mitteilung sagt
+        clear = getattr(app.library, "clear_removed", None)
+        if clear is not None:
+            wiring.main.call(clear, "steam:%d" % appid)
         return {"ok": True, "message": "„%s“ wird im Hintergrund installiert. Den Fortschritt siehst du unter Downloads." % name}
 
     def steam_uninstall(params: dict) -> dict:
@@ -1957,7 +1985,7 @@ def extend(wiring: Any) -> None:
         for c in cards:
             pid = int(c["id"])
             entry_id = done.get(pid)
-            c["installed"] = bool(entry_id) and app.library.get(entry_id) is not None
+            c["installed"] = in_library(app, entry_id)
             c["downloading"] = pid in busy
             c["owned"] = pid in owned or c["installed"]
             c["wishlist"] = False
@@ -2086,7 +2114,7 @@ def extend(wiring: Any) -> None:
     def epic_annotate(cards: list[dict]) -> list[dict]:
         owned = {c["id"].split(":")[0] for c in owned_epic["cards"]}
         done = {v.get("namespace"): v.get("entry") for v in EpicDownloads.installed().values()
-                if v.get("entry") and app.library.get(v["entry"]) is not None}
+                if in_library(app, v.get("entry"))}
         busy = {j["ns"] for j in epic_dl.jobs() if j["kind"] == "install"}
         for c in cards:
             ns = c["id"].split(":")[0]
@@ -2189,7 +2217,7 @@ def extend(wiring: Any) -> None:
         ns = str(params.get("id") or "").split(":")[0]
         app_name = next((a for a, v in reg.items() if (entry_id and v.get("entry") == entry_id) or (ns and v.get("namespace") == ns)), "")
         if not app_name and entry_id:
-            entry = app.library.get(entry_id)
+            entry = getattr(app.library, "get_any", app.library.get)(entry_id)
             app_name = str(entry.detail.get("epic") or "") if entry is not None else ""
         if not app_name:
             return {"ok": False, "message": "Dieses Spiel ist nicht über den Store installiert."}
@@ -2215,7 +2243,7 @@ def extend(wiring: Any) -> None:
                              "gog": lambda p: {"ok": False, "message": "GOG-Spiele deinstallierst du in der Bibliothek."}}, True),
     }
 
-    def route(fns: dict, in_bg: bool):
+    def route(name: str, fns: dict, in_bg: bool):
         def call(params):
             params = params or {}
             # Steam nur ohne Angabe; ein Shop, dessen Teil fehlt (wiring_itch darf scheitern), landete
@@ -2223,11 +2251,13 @@ def extend(wiring: Any) -> None:
             fn = fns.get(str(params.get("store") or "steam"))
             if fn is None:
                 return {"ok": False, "message": MSG_NO_SHOP}
+            if name in ("store.front", "store.list", "store.item"):
+                fn = lambda p, fn=fn: mark_removed(app, fn(p))      # noqa: E731
             return wiring._bg(fn, params) if in_bg else fn(params)
         return call
 
     for name, (fns, in_bg) in routes.items():
-        rpc.register(name, route(fns, in_bg))
+        rpc.register(name, route(name, fns, in_bg))
     # Weitere Shops hängen sich hier ein (wiring_launchers, E94): Die Routen lesen ihre Tabellen bei
     # jedem Aufruf, Einträge, die später dazukommen, gelten sofort
     wiring.store_routes = {name: fns for name, (fns, _bg) in routes.items()}

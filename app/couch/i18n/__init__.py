@@ -46,7 +46,8 @@ SKIP_KEYS = frozenset({"steam",       # Texte von Steam (E123) kommen schon in d
                        "key", "kind", "type", "page", "rows_page", "role", "state", "source", "store", "sid",
                        "slug", "code", "reason", "phase", "action", "event", "method", "name_id", "uuid", "mac",
                        "address", "ssid", "sink", "profile", "connector", "lang", "language", "version",
-                       "error", "exts", "flatpak", "game_id", "gameId",
+                       "error",     # Fehlerkennungen („NotFound“); ein Satz unter "error" wird doch übersetzt
+                       "exts", "flatpak", "game_id", "gameId",
                        "theme", "themeCss"})       # Design (E113): CSS bleibt, wie es ist („hsl(200,50%)“ ist keine Dezimalzahl)
 
 
@@ -215,7 +216,9 @@ def translate_tree(obj: Any, cat: Catalog | None = None) -> Any:
         keep_value = _skip_value(obj)
         out = {}
         for k, v in obj.items():
-            if k in SKIP_KEYS or (k == "value" and keep_value) or (isinstance(k, str) and k.endswith(("Id", "_id", "Path", "_path"))):
+            if k == "error" and isinstance(v, str) and " " in v:
+                out[k] = cat.translate(v)        # ein Satz (Download gescheitert …); Fehlerkennungen haben kein Leerzeichen
+            elif k in SKIP_KEYS or (k == "value" and keep_value) or (isinstance(k, str) and k.endswith(("Id", "_id", "Path", "_path"))):
                 out[k] = v
             else:
                 out[k] = translate_tree(v, cat)

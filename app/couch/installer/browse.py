@@ -19,7 +19,7 @@ import re
 
 from .. import mounts as _mounts
 from . import InstallError
-from . import probe, setupexe, trash
+from . import anyps5, probe, setupexe, trash
 
 ENTRY_LIMIT = 500        # so viele Einträge gehen höchstens an die Oberfläche
 SCAN_LIMIT = 5000        # so viele Verzeichniseinträge werden höchstens gelesen
@@ -29,6 +29,7 @@ OTHER_ARCHIVE_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.xz", ".tar.zst", ".ta
 # unfertige Downloads sehen am Dateikopf wie Archive aus
 PARTIAL_SUFFIXES = (".part", ".partial", ".crdownload", ".fdmdownload", ".download", ".!qb", ".tmp", ".aria2")
 SLOW_FSTYPES = ("fuse", "ntfs", "exfat", "vfat", "msdos", "cifs", "smb", "nfs", "9p", "sshfs", "mtp")
+SLOW_SOURCE_DIRS = 50    # E150: auf langsamen Platten Spieleordner für AnyPS5 nur bei so wenigen Ordnern erkennen
 
 
 class BrowseError(InstallError):
@@ -85,10 +86,12 @@ def _slow_filesystem(real: str, mountinfo: str | None = None) -> bool:
 
 
 def archive_type_by_name(name: str) -> str | None:
-    """"archive", "other" oder None (= die Endung sagt nichts, der Dateikopf entscheidet)."""
+    """"archive", "anyps5", "other" oder None (= die Endung sagt nichts, der Dateikopf entscheidet)."""
     low = name.lower()
     if low.endswith(PARTIAL_SUFFIXES):
         return "other"
+    if low.endswith(anyps5.PKG_SUFFIX):
+        return "anyps5"                  # E151: ob es wirklich passt, sagt die Prüfung
     if low.endswith(ARCHIVE_SUFFIXES) or low.endswith(OTHER_ARCHIVE_SUFFIXES):
         return "archive"
     if any(rx.match(name) for rx, _kind in probe.VOLUME_PATTERNS):
@@ -103,9 +106,11 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
     """Listet einen Ordner der Dateiauswahl. Blockierend, nur lesend, nie rekursiv.
 
     path=None liefert die Wurzeln. Rückgabe:
-      {"path", "parent", "name", "entries": [{"name", "path", "type": "dir"|"archive"|"installer"|"other", "size"}],
+      {"path", "parent", "name", "entries": [{"name", "path", "type": "dir"|"archive"|"installer"|"anyps5"|"other", "size"}],
        "truncated": bool, "total": int, "message": str}
     "installer" (E114): setup.exe bzw. .msi, mit Größe und Datum wie ein Archiv.
+    "anyps5" (E150): ein Ordner mit eboot.bin und sce_sys/param.json (anyps5.is_source), ohne Größe;
+    E151: oder eine .pkg-Datei, mit Größe und Datum.
     parent ist None an einer Wurzel (von dort geht es nur zurück zur Liste der Wurzeln).
     size steht nur bei Archiven und Installern (bei mehrteiligen die Summe; dazu "parts"), sonst None.
     Mehrteilige Archive erscheinen als ein Eintrag (ihr erster Teil).
@@ -188,6 +193,11 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
 
     # 2. Durchgang: nur für die gezeigten Dateien Art bestimmen; stat nur für Archive und Installer
     entries = [{"name": name, "path": os.path.join(real, name), "type": "dir", "size": None} for name in dirs]
+    if not slow or len(dirs) <= SLOW_SOURCE_DIRS:
+        # E150: ein Spieleordner für AnyPS5 (eboot.bin, sce_sys/param.json) ist eine Wahl, kein Ordner zum Hineingehen
+        for item in entries:
+            if anyps5.is_source(item["path"]):
+                item["type"] = "anyps5"
     budget = None if slow else setupexe.Budget()     # Blick in den Dateikopf nur für wenige .exe, nie auf langsamen Platten
     for name, forced in shown:
         full = os.path.join(real, name)
@@ -203,7 +213,7 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
                 st = None
             if st is not None and (setupexe.listing_flag(full, name, st.st_size, budget) or setupexe.is_setup_name(name)):
                 item.update(type="installer", size=st.st_size, mtime=st.st_mtime)
-        if kind == "archive":
+        if kind in ("archive", "anyps5"):
             parts = volume_parts.get(name, [name])
             size, mtime = 0, None
             for part in parts:
@@ -222,6 +232,20 @@ def list_dir(path: str | None = None, *, roots: list | None = None, limit: int =
     message = "Es werden nur die ersten %d Einträge angezeigt." % len(entries) if truncated else ""
     return {"path": real, "parent": parent, "name": root["name"] if parent is None else os.path.basename(real),
             "entries": entries, "truncated": truncated, "total": total, "message": message, "slow": slow}
+
+
+def is_allowed_source(path: str, roots: list | None = None) -> bool:
+    """E150: Liegt der Spieleordner oder (E151) das Paket für AnyPS5 (aufgelöst) unter einer der Wurzeln, nicht
+    versteckt? Nur lesend."""
+    if not isinstance(path, str) or not os.path.isabs(path):
+        return False
+    roots = default_roots() if roots is None else roots
+    real = os.path.realpath(path)
+    root = _root_of(real, roots)
+    if root is None or real == root["path"] or not anyps5.is_input(real):
+        return False
+    inside = real[len(root["path"].rstrip("/")):].strip("/")
+    return not any(part.startswith(".") for part in inside.split("/") if part)
 
 
 def is_allowed_archive(path: str, roots: list | None = None) -> bool:

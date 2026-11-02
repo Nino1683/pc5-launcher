@@ -709,6 +709,15 @@ def extend(wiring: Any) -> None:
             return {"ok": True, "message": "Die Sicherung liegt im Papierkorb."}
         return guarded(entry, run)
 
+    def save_folder_ok(path: str) -> bool:
+        """Kein ganzer Ort (persönlicher Ordner, Downloads, eine Platte) und nichts über, an oder in den eigenen
+        Sicherungen: Sichern nähme sonst alles mit, „Zurückholen“ ersetzte den ganzen Ort."""
+        real = os.path.realpath(path)
+        if any(os.path.realpath(r["path"]) == real for r in files.roots()):
+            return False
+        backups = os.path.realpath(saves.backup_root())
+        return not (real == backups or backups.startswith(real + os.sep) or real.startswith(backups + os.sep))
+
     def choose(params: dict) -> dict:
         entry = entry_of(params)
         if entry is None:
@@ -716,7 +725,7 @@ def extend(wiring: Any) -> None:
         path = str(params.get("path") or "")
         if path:
             path = os.path.normpath(path)
-            if not files.allowed(path) or not os.path.isdir(path):
+            if not files.allowed(path) or not os.path.isdir(path) or not save_folder_ok(path):
                 return {"ok": False, "message": "Diesen Ordner kann der PC5 Launcher nicht verwenden."}
         wiring.main.call(app.library.set_option, entry.id, "saves", path)
         with p.lock:

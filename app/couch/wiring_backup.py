@@ -32,11 +32,15 @@ def make_host(wiring: Any) -> backup.Host:
     library = app.library
     main = wiring.main
 
+    # Aus der Bibliothek entfernte Spiele (E148) gehören dazu: Ihre Bilder und Spielzeiten gehen mit in die Sicherung
+    get_any = getattr(library, "get_any", library.get)
+    removed = getattr(library, "removed_by_user", list)
+
     def known(entry_id: str) -> bool:
-        return isinstance(entry_id, str) and (library.get(entry_id) is not None or is_steam_app(entry_id))
+        return isinstance(entry_id, str) and (get_any(entry_id) is not None or is_steam_app(entry_id))
 
     def entry_ids() -> list:
-        return [e.id for e in library.entries()]
+        return [e.id for e in library.entries()] + [e.id for e in removed()]
 
     def art_dir() -> str:
         return os.path.join(paths.data_dir(), "art")

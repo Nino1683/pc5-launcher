@@ -128,7 +128,8 @@ class Power:
         # des gemeinsamen Pools (die an einer schlafenden Platte hängen könnten): eigener Thread.
         # Tests mit eigenem background behalten ihren (synchronen) Ablauf.
         self._own = system.dedicated if self._background is system.background else self._background
-        self._can: dict[str, bool] | None = None
+        self._can: dict[str, bool] | None = None           # gemerkt für die Sitzung (nur ein volles Ja)
+        self._last_can: dict[str, bool] | None = None      # letzte Antwort, auch ein Nein (can_do)
         self.busy: str | None = None
         self._key_at: float | None = None       # letzter Druck auf den Einschaltknopf (Uhr der Shell)
         self._key_question: Future | None = None    # offene Rückfrage des Knopfs (E38)
@@ -145,7 +146,7 @@ class Power:
 
     # ------------------------------------------------------------ Menü
     def _probe(self) -> dict[str, bool]:
-        """Was logind erlaubt (liest nur). Läuft im Arbeits-Thread, einmal je Sitzung."""
+        """Was logind erlaubt (liest nur). Läuft im Arbeits-Thread, einmal je Sitzung (bei einem Nein je Menü)."""
         can = {}
         for action, method in _LOGIND_CAN.items():
             r = self._read(_LOGIND + [method], timeout=3.0)
@@ -179,9 +180,9 @@ class Power:
     # ------------------------------------------------------------ Ruhemodus-Timer (E107)
     def can_do(self, action: str) -> bool | None:
         """Was logind laut letzter Abfrage erlaubt; None, solange noch nicht gefragt wurde."""
-        if self._can is None:
+        if self._last_can is None:
             return None
-        return bool(self._can.get(action, True))
+        return bool(self._last_can.get(action, True))
 
     def _timer_item(self, can: dict[str, bool]) -> dict | None:
         """Eintrag „Ruhemodus-Timer“ mit Stand (timer) und Auswahl (choices); None ohne Dienst."""
@@ -256,12 +257,17 @@ class Power:
 
         def done(f: Future) -> None:
             try:
-                self._can = f.result()
+                can = f.result()
             except Exception:
                 _log.exception("logind-Abfrage")
-                self._can = {}
+                can = {}
+            # Gemerkt wird nur ein volles Ja: Ein Nein kann vorübergehend sein (Zeitgrenze, eine Sperre während eines
+            # Updates). Sonst blieben Ruhemodus, Ausschalten oder Neustart bis zum nächsten Start des Home gesperrt;
+            # so fragt das nächste Menü neu
+            self._can = can if all(can.get(a) for a in _LOGIND_CAN) else None
+            self._last_can = can
             try:
-                fut.set_result(self._menu(self._can))
+                fut.set_result(self._menu(can))
             except Exception as e:              # sonst bekäme die Seite erst nach der Zeitgrenze eine Antwort
                 fut.set_exception(e)
         work.add_done_callback(lambda f: self.app.shell.sched.soon(lambda: done(f)))

@@ -272,6 +272,12 @@
   ]
  },
  {
+  "text": "%d mit älterer Fassung",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "%d von %d an",
   "files": [
    "app/couch/settings/home.py"
@@ -293,6 +299,24 @@
   "text": "%d zurückgelegt.",
   "files": [
    "app/couch/files.py"
+  ]
+ },
+ {
+  "text": "%s %s ist bereit",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
+  "text": "%s %s wird geladen",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "%s %s wird geladen.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
   ]
  },
  {
@@ -352,6 +376,7 @@
  {
   "text": "%s gibt es schon und ist kein Verweis.",
   "files": [
+   "app/couch/installer/anyps5.py",
    "app/couch/setup/umu.py"
   ]
  },
@@ -359,6 +384,12 @@
   "text": "%s ist Gamescopes Server %d, gebraucht wird Server 0.",
   "files": [
    "app/couch/gs/atoms.py"
+  ]
+ },
+ {
+  "text": "%s ist abgelegt, lässt sich aber nicht finden.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -511,6 +542,12 @@
   ]
  },
  {
+  "text": "%s ist noch nicht eingerichtet. %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "%s ist offen und lädt vielleicht gerade etwas. %s",
   "files": [
    "app/couch/wiring_launchers.py"
@@ -544,6 +581,18 @@
   "text": "%s ist zum Deinstallieren offen. Wenn er damit fertig ist: %s",
   "files": [
    "app/couch/wiring_launchers.py"
+  ]
+ },
+ {
+  "text": "%s kam beschädigt an (Prüfsumme passt nicht). Versuche es noch einmal.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "%s kam größer an als erwartet.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -584,9 +633,21 @@
   ]
  },
  {
+  "text": "%s ließ sich nicht ablegen: %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "%s ließ sich nicht einrichten (keine Rückmeldung nach 20 Minuten).",
   "files": [
    "app/couch/wiring_launchers.py"
+  ]
+ },
+ {
+  "text": "%s ließ sich nicht einrichten: %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -644,6 +705,12 @@
   ]
  },
  {
+  "text": "%s nicht geladen",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
   "text": "%s nimmt den Auftrag gerade nicht an",
   "files": [
    "app/couch/wiring_launchers.py"
@@ -665,6 +732,18 @@
   "text": "%s startet im Hintergrund …",
   "files": [
    "app/couch/wiring_launchers.py"
+  ]
+ },
+ {
+  "text": "%s startet nicht.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "%s startet nicht: %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -728,6 +807,12 @@
   ]
  },
  {
+  "text": "%s wird gerade geladen.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
   "text": "%s wird gerade neu geladen.",
   "files": [
    "app/couch/wiring_proton.py"
@@ -749,6 +834,18 @@
   "text": "%s wird noch beendet …",
   "files": [
    "app/couch/shell.py"
+  ]
+ },
+ {
+  "text": "%s wird schon geladen.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
+  "text": "%s wird von GitHub geladen",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -968,6 +1065,7 @@
   "files": [
    "app/couch/browser/window.py",
    "app/couch/power.py",
+   "app/couch/settings/games.py",
    "app/couch/settings/network.py",
    "app/couch/settings/rows.py",
    "app/couch/settings/system.py",
@@ -996,6 +1094,7 @@
   "files": [
    "app/couch/fetcher.py",
    "app/couch/files.py",
+   "app/couch/installer/anyps5.py",
    "app/couch/proton_repair.py",
    "app/couch/selfupdate.py",
    "app/couch/setup/jobs.py",
@@ -1392,6 +1491,42 @@
   ]
  },
  {
+  "text": "AnyPS5",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "AnyPS5 (github.com/boykopovar/AnyPS5) wandelt Spiele deiner Konsole in Linux-Programme um. Es ist ein eigenes, frühes Projekt: Viele Spiele laufen noch nicht.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "AnyPS5 ist abgelegt, lässt sich aber nicht finden.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "AnyPS5 konnte das Spiel nicht umwandeln%s.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "AnyPS5 ließ sich nicht ablegen: %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "AnyPS5 ließ sich nicht einrichten: %s",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Anzahl Kanäle",
   "files": [
    "app/couch/settings/audio.py"
@@ -1699,9 +1834,21 @@
   ]
  },
  {
+  "text": "Auf der Spiele-Platte ist kein Platz mehr.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Auf der Spiele-Platte konnte kein Zwischenordner angelegt werden.",
   "files": [
    "app/couch/installer/extract.py"
+  ]
+ },
+ {
+  "text": "Auf der Spiele-Platte ließ sich kein Zwischenordner anlegen.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -1847,6 +1994,12 @@
  },
  {
   "text": "Aus der Bibliothek ausblenden",
+  "files": [
+   "app/couch/library/describe.py"
+  ]
+ },
+ {
+  "text": "Aus der Bibliothek entfernen",
   "files": [
    "app/couch/library/describe.py"
   ]
@@ -3136,6 +3289,18 @@
   ]
  },
  {
+  "text": "Das Archiv von AnyPS5 enthält unerwartete Einträge.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "Das Archiv von AnyPS5 ist größer als erwartet.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Das Archiv von umu-launcher enthält unerlaubte Einträge.",
   "files": [
    "app/couch/setup/umu.py"
@@ -3205,6 +3370,18 @@
   "text": "Das Deinstallieren von „%s“ hat zu lange gedauert und wurde abgebrochen.",
   "files": [
    "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "Das Entpacken dauerte zu lange.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Entpacken kam nicht voran.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -3423,6 +3600,12 @@
   ]
  },
  {
+  "text": "Das Paket antwortet nicht (zu langsame Platte?).",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Das Paket enthält Unzulässiges und wird nicht entpackt (%s).",
   "files": [
    "app/couch/selfupdate.py"
@@ -3508,6 +3691,18 @@
    "app/couch/wiring_itch.py",
    "app/couch/wiring_settings.py",
    "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Das Spiel für AnyPS5 wurde nicht gefunden.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Das Spiel hat sich seit der Prüfung geändert. Bitte prüfe es erneut.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -3612,6 +3807,12 @@
   "text": "Das Terminal fehlt in dieser Fassung.",
   "files": [
    "app/couch/launch/apps.py"
+  ]
+ },
+ {
+  "text": "Das Umwandeln dauerte zu lange.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -4238,6 +4439,7 @@
  {
   "text": "Der Download ist unvollständig. Ein neuer Versuch setzt fort.",
   "files": [
+   "app/couch/installer/anyps5.py",
    "app/couch/proton_repair.py",
    "app/couch/setup/umu.py"
   ]
@@ -4436,6 +4638,12 @@
   ]
  },
  {
+  "text": "Der Inhalt ließ sich nicht lesen%s.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Der Installationsauftrag ist nicht lesbar.",
   "files": [
    "app/couch/installer/extract.py"
@@ -4496,6 +4704,18 @@
   ]
  },
  {
+  "text": "Der Launcher lädt pkg-to-anyps5 (%s) aus dem offiziellen Release auf GitHub und prüft die Datei mit der Prüfsumme von GitHub.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Der Launcher lädt relinker und Bibliotheken (%s) aus dem offiziellen Release auf GitHub und prüft beide Dateien mit der Prüfsumme von GitHub. Umgewandelte Spiele behalten ihre Fassung; neu umgewandelte nutzen die neue.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Der Linux-Installer ließ sich nicht entpacken.",
   "files": [
    "app/couch/wiring_store.py"
@@ -4547,6 +4767,18 @@
   "text": "Der Neustart hat nicht geklappt.",
   "files": [
    "app/couch/power.py"
+  ]
+ },
+ {
+  "text": "Der Ordner %s gibt es schon, aber ohne vollständiges %s. Er bleibt, wie er ist.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "Der Ordner %s gibt es schon, aber ohne vollständiges AnyPS5. Er bleibt, wie er ist.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -4865,6 +5097,12 @@
   ]
  },
  {
+  "text": "Der Spieleordner",
+  "files": [
+   "app/couch/launch/native.py"
+  ]
+ },
+ {
   "text": "Der Spielordner fehlt oder ist kein echter Ordner.",
   "files": [
    "app/couch/installer/extract.py"
@@ -4892,6 +5130,12 @@
   "text": "Der Spielordner konnte nicht angelegt werden.",
   "files": [
    "app/couch/installer/extract.py",
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Der Spielordner ließ sich nicht anlegen.",
+  "files": [
    "app/couch/installer/jobs.py"
   ]
  },
@@ -5180,6 +5424,18 @@
   ]
  },
  {
+  "text": "Der relinker kam nicht voran.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "Der relinker von AnyPS5 startet nicht.",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Der übernommene Vorab-Befehl des Spiels fehlt und wird ausgelassen: %s",
   "files": [
    "app/couch/launch/proton.py"
@@ -5271,6 +5527,12 @@
   ]
  },
  {
+  "text": "Die Adresse von %s zeigt nicht auf GitHub.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Die Aktualisierung ist fehlgeschlagen.",
   "files": [
    "app/couch/settings/system.py"
@@ -5298,6 +5560,18 @@
   "text": "Die Anmeldung bei itch.io ließ sich nicht vorbereiten.",
   "files": [
    "app/couch/wiring_itch.py"
+  ]
+ },
+ {
+  "text": "Die Antwort von GitHub ist nicht lesbar.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "Die Antwort von GitHub ist zu groß.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -5361,6 +5635,12 @@
   "text": "Die Bibliothek wird neu eingelesen.",
   "files": [
    "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Die Bibliotheken von AnyPS5 für dieses Spiel fehlen. Installiere das Spiel noch einmal über den Installer.",
+  "files": [
+   "app/couch/launch/native.py"
   ]
  },
  {
@@ -5494,6 +5774,12 @@
   "text": "Die Datei wurde nicht gefunden.",
   "files": [
    "app/couch/installer/probe.py"
+  ]
+ },
+ {
+  "text": "Die Dateien sind verschlüsselt. Gelesen werden nur unverschlüsselte Pakete und Ordner.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -5921,6 +6207,12 @@
   ]
  },
  {
+  "text": "Die Spieldateien bleiben im Spieleordner. Nicht verschieben oder löschen.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Die Spieldateien liegen im Papierkorb. Spielstände bleiben erhalten.",
   "files": [
    "app/couch/wiring_store.py"
@@ -5930,6 +6222,12 @@
   "text": "Die Spieldateien ließen sich nicht entfernen. Ist die Platte mit dem Spiel angeschlossen?",
   "files": [
    "app/couch/wiring_store.py"
+  ]
+ },
+ {
+  "text": "Die Spieldateien werden auf die Spiele-Platte entpackt. Das Paket selbst wird danach nicht mehr gebraucht.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -5950,6 +6248,12 @@
   "text": "Die Spiele-Platte ist nicht eingehängt.",
   "files": [
    "app/couch/launch/native.py"
+  ]
+ },
+ {
+  "text": "Die Spiele-Platte ist weg.",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -6036,6 +6340,12 @@
   "text": "Die Suche läuft schon.",
   "files": [
    "app/couch/wiring_proton.py"
+  ]
+ },
+ {
+  "text": "Die Suche nach AnyPS5 ist gescheitert.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
   ]
  },
  {
@@ -6207,6 +6517,12 @@
   ]
  },
  {
+  "text": "Die neueste Fassung ist noch nicht bekannt.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
   "text": "Die Änderung wurde nicht bestätigt.",
   "files": [
    "app/couch/settings/display.py"
@@ -6356,6 +6672,12 @@
   ]
  },
  {
+  "text": "Diese Datei ist kein Paket für AnyPS5.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Diese Datei liegt an keinem erlaubten Ort.",
   "files": [
    "app/couch/backup.py"
@@ -6372,6 +6694,12 @@
   "files": [
    "app/couch/installer/jobs.py",
    "app/couch/installer/service.py"
+  ]
+ },
+ {
+  "text": "Diese Datei lässt sich nicht lesen.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -6604,6 +6932,12 @@
   "text": "Diese Zeitzone gibt es nicht.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Diesem Prozessor fehlen Befehle, die AnyPS5-Spiele brauchen: %s.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -7036,6 +7370,12 @@
   ]
  },
  {
+  "text": "Dieses Paket ist verschlüsselt (Retail-Fassung). Gelesen werden nur unverschlüsselte Debug-Pakete.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Dieses Produkt lässt sich nicht über %s installieren.",
   "files": [
    "app/couch/wiring_launchers.py"
@@ -7064,6 +7404,13 @@
   "text": "Dieses Spiel gibt es im Rockstar-Shop nicht.",
   "files": [
    "app/couch/store/rockstar.py"
+  ]
+ },
+ {
+  "text": "Dieses Spiel gibt es nicht mehr.",
+  "files": [
+   "app/couch/library/index.py",
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -7575,6 +7922,12 @@
   ]
  },
  {
+  "text": "Ein interner Fehler ist aufgetreten.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
   "text": "Ein kurzes Video aus der Sammlung von steamdeckrepo.com, bevor du den Ruhemodus im Ein/Aus-Menü wählst. Beim Ruhemodus nach Zeit nie.",
   "files": [
    "app/couch/settings/home.py"
@@ -7584,6 +7937,12 @@
   "text": "Ein neuer Versuch setzt den Download dort fort, wo er aufgehört hat.",
   "files": [
    "app/couch/settings/system.py"
+  ]
+ },
+ {
+  "text": "Ein neuer Versuch setzt den Download fort.",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -7673,6 +8032,7 @@
  {
   "text": "Eingerichtet",
   "files": [
+   "app/couch/settings/games.py",
    "app/couch/settings/system.py",
    "app/couch/settings/tvctl.py"
   ]
@@ -8034,6 +8394,24 @@
   ]
  },
  {
+  "text": "Entfernen geht im Optionsmenü (Options-Taste) jedes Spiels. Spiel und Dateien bleiben dabei erhalten.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Entfernt. Zurückholen unter Einstellungen › Spiele.",
+  "files": [
+   "app/couch/library/index.py"
+  ]
+ },
+ {
+  "text": "Entfernte Spiele",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Enthält %d Abbild-/ROM-Dateien mit mehrdeutiger Endung.",
   "files": [
    "app/couch/installer/probe.py"
@@ -8043,6 +8421,18 @@
   "text": "Entpacken gescheitert: %s",
   "files": [
    "app/couch/proton_repair.py"
+  ]
+ },
+ {
+  "text": "Entpacker auf %s aktualisieren",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Entpacker für .pkg",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -8115,6 +8505,7 @@
  {
   "text": "Erneut suchen",
   "files": [
+   "app/couch/settings/games.py",
    "app/couch/settings/tvctl.py"
   ]
  },
@@ -8270,6 +8661,12 @@
   "text": "Es wird gerade schon eine App deinstalliert. Warte, bis das fertig ist.",
   "files": [
    "app/couch/wiring_apps.py"
+  ]
+ },
+ {
+  "text": "Es wird nach AnyPS5 gesucht.",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -9267,6 +9664,12 @@
   ]
  },
  {
+  "text": "GitHub antwortet nicht wie erwartet (HTTP %d).",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "GitHub antwortete mit einem Fehler (HTTP %d).",
   "files": [
    "app/couch/selfupdate.py"
@@ -9281,6 +9684,7 @@
  {
   "text": "GitHub ist nicht erreichbar. Besteht eine Verbindung zum Internet?",
   "files": [
+   "app/couch/installer/anyps5.py",
    "app/couch/selfupdate.py",
    "app/couch/setup/umu.py"
   ]
@@ -9289,6 +9693,12 @@
   "text": "GitHub kennt diese Datei nicht (HTTP 404).",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "GitHub lieferte %s nicht (HTTP %d).",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -9315,6 +9725,30 @@
   "text": "GitHub lässt gerade keine Abfragen zu (zu viele in kurzer Zeit). Später noch einmal.",
   "files": [
    "app/couch/selfupdate.py"
+  ]
+ },
+ {
+  "text": "GitHub nennt für %s eine unerwartete Größe.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "GitHub nennt für %s keine Prüfsumme. Ohne sie lädt der Launcher nichts.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "GitHub nennt keine gültige Fassung von %s.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "GitHub nennt keine gültige Fassung von AnyPS5.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -9816,6 +10250,18 @@
   ]
  },
  {
+  "text": "Im Archiv von %s liegt das Programm nicht wie erwartet.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
+  "text": "Im Archiv von AnyPS5 liegen keine Bibliotheken.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Im Archiv von umu-launcher steckt kein eindeutiges umu-run.",
   "files": [
    "app/couch/setup/umu.py"
@@ -9843,6 +10289,12 @@
   "text": "Im Desktop-Modus mit einem Texteditor",
   "files": [
    "app/couch/settings/session.py"
+  ]
+ },
+ {
+  "text": "Im Installer eine .pkg-Datei oder den Spieleordner (darin liegen eboot.bin und sce_sys) wählen, dann Installieren. Ein Paket wird auf die Spiele-Platte entpackt; bei einem Ordner bleiben die Spieldateien, wo sie sind.",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -9933,6 +10385,12 @@
   ]
  },
  {
+  "text": "Im Prüfmodus lädt der Launcher nichts aus dem Netz.",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "Im Prüfmodus läuft kein echtes sudo.",
   "files": [
    "app/couch/sysadmin.py"
@@ -9982,6 +10440,12 @@
    "app/couch/installer/extract.py",
    "app/couch/installer/jobs.py",
    "app/couch/installer/probe.py"
+  ]
+ },
+ {
+  "text": "Im Release %s von %s fehlt die Datei %s.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -10106,9 +10570,21 @@
   ]
  },
  {
+  "text": "In diesem Ordner liegt kein Spiel für AnyPS5 (es fehlen eboot.bin oder sce_sys/param.json).",
+  "files": [
+   "app/couch/installer/anyps5.py"
+  ]
+ },
+ {
   "text": "In diesem Ordner liegt schon eine Markerdatei. Er wird nicht angefasst.",
   "files": [
    "app/couch/installer/trash.py"
+  ]
+ },
+ {
+  "text": "In diesem Paket liegt kein Spiel (es fehlt eboot.bin).",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -10559,6 +11035,7 @@
   "text": "Keine",
   "files": [
    "app/couch/settings/apps.py",
+   "app/couch/settings/games.py",
    "app/couch/settings/network.py",
    "app/couch/settings/session.py",
    "app/couch/settings/system.py"
@@ -10614,6 +11091,12 @@
  },
  {
   "text": "Keine Spiele",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
+  "text": "Keine Spiele entfernt.",
   "files": [
    "app/couch/settings/games.py"
   ]
@@ -10908,6 +11391,12 @@
   "text": "L.A. Noire",
   "files": [
    "app/couch/store/rockstar.py"
+  ]
+ },
+ {
+  "text": "Laden",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -11696,6 +12185,7 @@
   "files": [
    "app/couch/settings/display.py",
    "app/couch/settings/drm_modes.py",
+   "app/couch/settings/games.py",
    "app/couch/shell.py"
   ]
  },
@@ -11810,6 +12300,12 @@
   "text": "Neuen Controller koppeln",
   "files": [
    "app/couch/settings/accessories.py"
+  ]
+ },
+ {
+  "text": "Neueste Fassung",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -12115,6 +12611,12 @@
   "text": "Nur Hintergründe",
   "files": [
    "app/couch/settings/home.py"
+  ]
+ },
+ {
+  "text": "Nur Spiele lassen sich aus der Bibliothek entfernen. Apps blendest du aus.",
+  "files": [
+   "app/couch/library/index.py"
   ]
  },
  {
@@ -12512,6 +13014,12 @@
   ]
  },
  {
+  "text": "Paket wird entpackt",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "Paketnamen auf diesem System (nur als Hinweis): ",
   "files": [
    "app/couch/depcheck.py"
@@ -12737,6 +13245,12 @@
   "text": "Profile",
   "files": [
    "app/couch/settings/backends/pipewire.py"
+  ]
+ },
+ {
+  "text": "Programmdateien werden vorbereitet",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -13101,6 +13615,7 @@
   "text": "Range",
   "files": [
    "app/couch/fetcher.py",
+   "app/couch/installer/anyps5.py",
    "app/couch/proton_repair.py",
    "app/couch/setup/umu.py",
    "app/couch/store/gog_install.py",
@@ -13829,6 +14344,7 @@
   "text": "Spiel",
   "files": [
    "app/couch/discord/ipc.py",
+   "app/couch/installer/anyps5.py",
    "app/couch/installer/jobs.py",
    "app/couch/installer/probe.py",
    "app/couch/installer/setupexe.py",
@@ -13964,6 +14480,18 @@
   "files": [
    "app/couch/library/apps.py",
    "app/couch/setup/catalog.py"
+  ]
+ },
+ {
+  "text": "Spiele wandelst du im Installer um: Paket oder Spieleordner wählen, Installieren.",
+  "files": [
+   "app/couch/wiring_anyps5.py"
+  ]
+ },
+ {
+  "text": "Spiele, die du im Optionsmenü mit „Aus der Bibliothek entfernen“ entfernt hast. Ihre Dateien sind noch da; hier holst du die Kachel zurück.",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -15090,6 +15618,12 @@
   ]
  },
  {
+  "text": "Umgewandelte Spiele",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Unavailable",
   "files": [
    "app/couch/tv/keys.py",
@@ -15115,6 +15649,12 @@
   "text": "Unbekannte Aktion.",
   "files": [
    "app/couch/files.py"
+  ]
+ },
+ {
+  "text": "Unbekannte Fassung von AnyPS5.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -15573,6 +16113,12 @@
   ]
  },
  {
+  "text": "Von GitHub, geprüft mit der Prüfsumme, die GitHub zu jeder Datei nennt.",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Von GitHub, je Familie die neuesten Fassungen mit Prüfsumme. Geladen wird nur, was hier steht.",
   "files": [
    "app/couch/settings/system.py"
@@ -15612,6 +16158,12 @@
   "text": "Vorgaben",
   "files": [
    "app/couch/wiring_library.py"
+  ]
+ },
+ {
+  "text": "Vorher wird %s %s (%s) von GitHub geladen.",
+  "files": [
+   "app/couch/installer/anyps5.py"
   ]
  },
  {
@@ -15992,9 +16544,21 @@
   ]
  },
  {
+  "text": "Wird bei Bedarf geladen",
+  "files": [
+   "app/couch/settings/games.py"
+  ]
+ },
+ {
   "text": "Wird der Fernseher nicht gefunden: seine IP-Adresse aus seinen Netzwerk-Einstellungen (vier Zahlen mit Punkten) oder sein Name im Netz.",
   "files": [
    "app/couch/settings/tvctl.py"
+  ]
+ },
+ {
+  "text": "Wird mit AnyPS5 %s umgewandelt",
+  "files": [
+   "app/couch/installer/jobs.py"
   ]
  },
  {
@@ -16260,6 +16824,12 @@
   "text": "Zeit abgelaufen. Das Netz antwortet nicht.",
   "files": [
    "app/couch/settings/backends/nm.py"
+  ]
+ },
+ {
+  "text": "Zeit für „Treffer auswählen“ um",
+  "files": [
+   "app/couch/library/artsources/base.py"
   ]
  },
  {
@@ -16538,6 +17108,12 @@
   "text": "Zurückgelegt nach %s",
   "files": [
    "app/couch/files.py"
+  ]
+ },
+ {
+  "text": "Zurückholen",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -17078,6 +17654,12 @@
   ]
  },
  {
+  "text": "job %s: %s nicht geladen: %s %s",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
   "text": "job %s: Abschlussmeldung mit Installer passt nicht zum Auftrag",
   "files": [
    "app/couch/installer/jobs.py"
@@ -17115,6 +17697,18 @@
  },
  {
   "text": "job %s: Spielordner nicht angelegt: %s",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Spielordner nicht fertig: %s",
+  "files": [
+   "app/couch/installer/jobs.py"
+  ]
+ },
+ {
+  "text": "job %s: Zwischenordner nicht angelegt: %s",
   "files": [
    "app/couch/installer/jobs.py"
   ]
@@ -17685,6 +18279,12 @@
   "text": "offset ist die Zahl der Zeiträume zurück (0 = der laufende).",
   "files": [
    "app/couch/wiring_stats.py"
+  ]
+ },
+ {
+  "text": "pkg-to-anyps5 (github.com/awake-devel/pkg-to-anyps5) entpackt unverschlüsselte Debug-Pakete und bereitet Programmdateien für AnyPS5 vor. Verschlüsselte Retail-Pakete liest es nicht. Nur mit Paketen nutzen, die du selbst gebaut hast oder nutzen darfst.",
+  "files": [
+   "app/couch/settings/games.py"
   ]
  },
  {
@@ -18387,6 +18987,12 @@
   ]
  },
  {
+  "text": "„%s“ läuft gerade. Schließe es zuerst.",
+  "files": [
+   "app/couch/library/index.py"
+  ]
+ },
+ {
   "text": "„%s“ läuft jetzt vor dem Ruhemodus.",
   "files": [
    "app/couch/wiring_videos.py"
@@ -18414,6 +19020,13 @@
   "text": "„%s“ steht jetzt in der Bibliothek.",
   "files": [
    "app/couch/wiring_files.py"
+  ]
+ },
+ {
+  "text": "„%s“ steht wieder in der Bibliothek.",
+  "files": [
+   "app/couch/library/index.py",
+   "app/couch/settings/games.py"
   ]
  },
  {

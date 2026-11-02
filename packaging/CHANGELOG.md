@@ -2,6 +2,51 @@
 
 ## Nächste Fassung
 
+- **AnyPS5:** Spiele deiner Konsole, umgewandelt mit AnyPS5 (github.com/boykopovar/AnyPS5), laufen als Linux-Spiel
+  im Launcher. Im Installer den Spieleordner wählen (darin liegen `eboot.bin` und `sce_sys`), dann Installieren:
+  Der Launcher lädt AnyPS5 bei Bedarf selbst von GitHub (geprüft mit GitHubs Prüfsumme), wandelt um und legt die
+  Kachel an. Die Spieldateien bleiben, wo sie sind. Einstellungen › Spiele › AnyPS5 zeigt die Fassung und lädt
+  eine neuere. AnyPS5 ist ein eigenes, frühes Projekt; viele Spiele laufen dort noch nicht.
+- **Pakete für AnyPS5:** Der Installer nimmt auch `.pkg`-Dateien (unverschlüsselte Debug-Pakete, die du selbst gebaut
+  hast oder nutzen darfst). Der Launcher lädt dazu pkg-to-anyps5 (github.com/awake-devel/pkg-to-anyps5), entpackt das
+  Paket auf die Spiele-Platte und legt die Kachel an. Verschlüsselte Retail-Pakete werden abgelehnt. Spieleordner dürfen
+  jetzt auch selbst signierte Programmdateien enthalten, und Unity-Spiele behalten ihre Dateien neben den Modulen.
+- **Durchsicht, Fehler behoben:**
+  - Steam: Abbrechen oder Deinstallieren eines Spiels, das sich seinen Ordner mit anderen teilt (Half-Life und
+    seine Erweiterungen, Half-Life 2 und die Episoden), legt den gemeinsamen Ordner nicht mehr in den Papierkorb.
+  - Aus der Bibliothek entfernte Spiele gelten im Store weiter als installiert (kein zweiter Download); die
+    Store-Seite bietet „Zurück in die Bibliothek“. Startest du die Datei eines entfernten Spiels im Datei-Explorer,
+    kommt es samt Spielständen zurück statt als zweiter Eintrag. Neu über den Store installiert, steht ein
+    Steam-Spiel wieder in der Bibliothek.
+  - Spielstände: Ein ganzer Ort (persönlicher Ordner, Downloads, eine Platte) oder ein Ordner über den Sicherungen
+    lässt sich nicht mehr als Spielstand-Ordner wählen, und eine Sicherung packt nie die Sicherungen selbst ein.
+  - Terminal („Claude Code“): Beim Schließen bekommen auch Werkzeuge, die noch laufen, die höfliche Bitte und werden
+    nicht mehr nach 8 Sekunden hart beendet.
+  - Bildschirmschoner und Ruhemodus richten sich nach dem, was zu sehen ist: Eine App ohne Fenster (Discord im
+    Infobereich) hält die Konsole nicht mehr wach. Ein Zeitabgleich der Uhr gilt nicht mehr als Aufwachen.
+  - Ein/Aus-Menü: Ein kurzes Nein des Systems sperrt Ruhemodus, Ausschalten und Neustart nicht mehr bis zum
+    nächsten Start; das nächste Öffnen fragt neu.
+  - Downloads aus Chrome: Ein Download, dessen Dateien fehlen, gilt nach zwei Minuten als abgebrochen und hält den
+    Ruhemodus nicht mehr auf. Fehlermeldungen von Downloads erscheinen auf Englisch übersetzt.
+  - Datei-Explorer: Ein Ordner, der sich nicht lesen lässt, wirft dich nicht mehr aus dem Ordner; nach einem
+    gescheiterten Verschieben bleibt die Auswahl zum Einfügen erhalten. „Aufräumen“ meldet schnelle
+    Papierkorb-Aufträge zuverlässig und zeigt nach dem Leeren den neuen Stand.
+  - Home: Eine Kachel springt beim Verschieben nicht mehr zurück, wenn sich die Bibliothek gerade ändert.
+  - „Treffer auswählen“ (Bilder) antwortet sicher vor der Zeitgrenze, statt nur einen Fehler zu zeigen.
+  - Kleineres: Proton-CachyOS ab Version 10 richtig als installiert erkannt; Wake-on-LAN auch für Fernseher, die
+    per Name gekoppelt sind; ein Spiele-Ordner in einem Unterordner der Platte gilt als eingehängt; ein Spiel mit
+    übernommenem Prefix startet nicht in einem leeren, wenn dessen Platte fehlt; eine `.sh`-Startdatei ohne
+    `#!`-Zeile startet auch bei Windows-Spielen direkt; die Statistik blättert nicht über die erste Sitzung hinaus;
+    die Trophäen-Liste behält den Fokus; Store-Anmeldungen (Epic, GOG, Ubisoft) melden keinen Fehler mehr, wenn
+    zwei Abfragen zugleich den Anmeldecode sehen; fehlerhafte Werte in Einstellungen oder Sicherungen brechen keine
+    Seite mehr ab.
+- **Spiele aus der Bibliothek entfernen:** Neuer Punkt „Aus der Bibliothek entfernen“ im Optionsmenü jedes Spiels.
+  Die Kachel verschwindet aus Home und Bibliothek, anders als beim Ausblenden auch aus „Ausgeblendet“; das Spiel und
+  seine Dateien bleiben unberührt. Zurückholen geht unter Einstellungen › Spiele › Entfernte Spiele.
+- **Startdatei frei wählen:** In den Spieleinstellungen (und bei „Startdatei wählen“) stehen zuerst die Programme
+  (.exe bzw. die Linux-Startdateien), danach alle übrigen Dateien des Spielordners. So lässt sich auch ein
+  Launcher ohne Endung wählen. Ist die gewählte Datei ein Shell-Skript oder Linux-Programm, startet ein
+  Windows-Spiel sie direkt statt über Proton; ein Skript ohne `#!`-Zeile läuft über `/bin/sh`.
 - **Downloads aus Chrome:** Was du in Chrome lädst, steht jetzt auch im Control Center unter Downloads, mit
   Fortschritt, Mitteilung beim Fertigwerden und „Installieren“ für Archive und Installer. Anhalten und Abbrechen
   gehen weiter in Chrome; gezeigt wird, was ab dieser Fassung geladen wird.

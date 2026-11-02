@@ -222,17 +222,22 @@ def logind_blockers(run_read: Callable[..., Any]) -> list[str]:
     return out_list
 
 
+def _boottime() -> float:
+    return time.clock_gettime(time.CLOCK_BOOTTIME)
+
+
 class ResumeWatch:
-    """Erkennt das Aufwachen aus dem Ruhemodus: Die monotone Uhr steht im Schlaf, die Wanduhr
-    läuft weiter. Springt die Wanduhr zwischen zwei Takten um mehr als JUMP_S weiter als die
-    monotone, war der PC im Ruhemodus; dann on_resume() in der Hauptschleife."""
+    """Erkennt das Aufwachen aus dem Ruhemodus: Die monotone Uhr steht im Schlaf, CLOCK_BOOTTIME
+    läuft weiter. Springt sie zwischen zwei Takten um mehr als JUMP_S weiter als die monotone, war
+    der PC im Ruhemodus; dann on_resume() in der Hauptschleife. Nicht die Wanduhr: Ein Zeitabgleich
+    (NTP) stellt sie um und täuschte ein Aufwachen vor (Ruhemodus-Timer aus). wall: andere Uhr (Tests)."""
 
     TICK_MS = 2000
     JUMP_S = 5.0
 
     def __init__(self, sched: Any, on_resume: Callable[[], None], wall: Callable[[], float] | None = None):
         self.sched, self.on_resume = sched, on_resume
-        self.wall = wall or time.time
+        self.wall = wall or _boottime
         self._last = (self.wall(), sched.now())
         self._timer = None
 

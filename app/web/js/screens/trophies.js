@@ -72,7 +72,8 @@ function createOverview() {
 
   async function load() {
     const mine = ++serial;
-    list.setLoading();
+    // Nur beim ersten Mal „lädt“: Ein neues Ereignis (trophies.changed) lädt still nach, der Fokus bleibt auf der Zeile
+    if (mine === 1) list.setLoading();
     const r = await trophySummary();
     if (mine !== serial) return;
     if (!r || !r.ok) notify("sys.log", { level: "info", text: "[trophies] summary: " + ((r && (r.reason || r.message)) || "?") });
@@ -172,7 +173,7 @@ function createGame(params = {}) {
 
   async function load() {
     const mine = ++serial;
-    list.setLoading();
+    if (mine === 1) list.setLoading();       // wie oben: beim Nachladen bleibt der Fokus
     const r = await trophyGame(id);
     if (mine !== serial) return;
     paint(r);

@@ -28,6 +28,14 @@ Scheitert oder endet es vorher, kommen der angefangene Spielordner in den Papier
 Zwischenordner weg (trash.remove_staging) und der Prefix des nie eingetragenen Spiels über
 discard_prefix weg. Im Prüfmodus startet nur eine Attrappe (proc.manager.test_mode_allows).
 
+E150, AnyPS5: Ein Spieleordner (eboot.bin, sce_sys/param.json) statt eines Archivs, kind "anyps5". Im Auftrag
+selbst (kein Arbeiter-Prozess): Fehlen AnyPS5 oder der Entpacker, lädt sie anyps5.install bzw. install_unpacker,
+dann holt der Entpacker die Programmdateien nach source/, und der relinker wandelt sie im Zwischenordner um (beide in
+eigener Sitzung wie ein Installationsprogramm, gleiche Wächter), anyps5.link_resources legt die Verweise an, Marker,
+rename an den Zielort, Eintrag mit Startdatei app.elf und detail.anyps5.
+E151, Paketdatei (.pkg): gleicher Weg, nur entpackt der Entpacker auch alle Spieldateien nach app0/ (statt Verweisen);
+das Paket bleibt, wie es ist. Fortschritt: Laden bis 20 %, Entpacken bis 90 %, Umwandeln ab 90 % (Ordner: Laden bis 85 %).
+
 Der JobManager selbst hängt nicht an der GLib-Schleife. Hintergrundarbeit und Rückrufe laufen über
 den eingesteckten Planer (scheduler.run_in_thread, scheduler.call_soon).
 """
@@ -48,10 +56,12 @@ from typing import Any, Callable
 
 from .. import jsontext, system
 from . import InstallError, ThreadScheduler, games_root as cfg_games_root, human_size, reserve_bytes as cfg_reserve_bytes
-from . import extract, probe, setupexe, trash
+from . import anyps5, extract, probe, setupexe, trash
 
 JOBS_FILE = "install-jobs.json"
 LOG_FILE = "installer.log"
+ANYPS5_LOG = "anyps5-relinker.log"   # E150: Ausgabe von Entpacker und relinker (angehängt, gekappt)
+ANYPS5_RUN = "=== "                  # beginnt im Protokoll den Lauf eines Auftrags
 SETUP_LOG = "setup-run.log"      # Ausgabe der Installationsprogramme, wenn setup_env keinen Ort nennt
 PROGRESS_MIN_INTERVAL = 0.25     # höchstens 4 Fortschritts-Ereignisse pro Sekunde
 KILL_AFTER = 10.0                # Sekunden zwischen SIGTERM und SIGKILL an die Gruppe des Arbeiters
@@ -69,6 +79,7 @@ MSG_INTERRUPTED = "Die Installation wurde unterbrochen, weil die Konsole beendet
 SETUP_TIMEOUT = 3 * 3600.0
 SETUP_IDLE = 15 * 60.0
 SETUP_SAMPLE = 30.0
+TICK_S = 2.0                     # so oft schaut ein Auftrag nach dem Fortschritt seines Programms
 SETUP_BUSY_CPU = 1 / 30
 SETUP_BUSY_IO = 32 * 1024
 SPACE_SAMPLE = 3.0               # Platzwächter wie beim Entpacken (extract.WATCH_INTERVAL)
@@ -170,6 +181,36 @@ def make_executable(install_dir: str, rel: str) -> None:
         os.close(fd)
 
 
+def _last_error(path: str, limit: int = 4096) -> str:
+    """Der Grund aus dem Protokoll von Entpacker und relinker, nur aus dem letzten Lauf (ab ANYPS5_RUN): die letzte Zeile
+    mit „error:“ (Entpacker) oder „FAIL:“ (relinker, danach folgt noch „Input: …“) ohne dieses Wort, sonst die letzte
+    Zeile. Höchstens 200 Zeichen."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(max(0, os.fstat(fh.fileno()).st_size - limit))
+            lines = [ln.strip() for ln in fh.read().decode("utf-8", "replace").splitlines() if ln.strip()]
+    except OSError:
+        return ""
+    starts = [i for i, ln in enumerate(lines) if ln.startswith(ANYPS5_RUN)]
+    lines = lines[starts[-1] + 1:] if starts else lines
+    for line in reversed(lines):
+        for word in ("error:", "FAIL:"):
+            if line.startswith(word):
+                return line[len(word):].strip()[:200]
+    return lines[-1][:200] if lines else ""
+
+
+def _last_line(path: str, limit: int = 4096) -> str:
+    """Letzte nicht leere Zeile einer Protokolldatei (höchstens 200 Zeichen), sonst ""."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(max(0, os.fstat(fh.fileno()).st_size - limit))
+            lines = [ln.strip() for ln in fh.read().decode("utf-8", "replace").splitlines() if ln.strip()]
+    except OSError:
+        return ""
+    return lines[-1][:200] if lines else ""
+
+
 class JobManager:
     def __init__(self, *, config, state_dir: str, emit: Callable[[str, dict], None],
                  add_local: Callable[[dict], None], scheduler=None, rom_dirs: Callable[[], dict] | None = None,
@@ -229,8 +270,9 @@ class JobManager:
         if not isinstance(plan, dict) or not isinstance(plan.get("archive"), str) or not isinstance(choices, dict):
             raise InstallError("bad-plan", "Der Installationsplan ist ungültig.")
         archive = plan["archive"]
-        if not os.path.isabs(archive) or not os.path.isfile(archive):
-            raise InstallError("not-found", "Das Archiv wurde nicht gefunden.")
+        source = plan.get("kind") == "anyps5"          # E150: ein Spieleordner (E151: oder Paket) statt eines Archivs
+        if not os.path.isabs(archive) or not (anyps5.is_input(archive) if source else os.path.isfile(archive)):
+            raise InstallError("not-found", "Das Spiel für AnyPS5 wurde nicht gefunden." if source else "Das Archiv wurde nicht gefunden.")
         games_root = cfg_games_root(self._config)
         problem = probe.check_games_root(games_root)
         if problem:
@@ -272,6 +314,9 @@ class JobManager:
                    "entry_uuid": str(uuid.uuid4()), "wanted_exe": choices.get("exe") if isinstance(choices.get("exe"), str) else None,
                    "plan_candidates": candidates, "created": self._clock(), "started": None, "finished": None,
                    "staging": None, "staging_token": None, "setup": setup}
+            if source:
+                job["anyps5"] = {"pkg" if anyps5.is_pkg(archive) else "source": archive,
+                                 "title_id": str(plan.get("title_id") or "")[:16]}
             self._jobs[job_id] = job
             self._queue.append(job_id)
             if password:
@@ -491,6 +536,9 @@ class JobManager:
     def _work(self, job: dict) -> None:
         if job.get("setup") == "file":
             self._work_setup_file(job)
+            return
+        if job.get("kind") == "anyps5":
+            self._work_anyps5(job)
             return
         job_id = job["id"]
         with self._lock:
@@ -798,10 +846,11 @@ class JobManager:
         return any(n.lower().endswith(".exe") or os.path.isdir(os.path.join(job["install_dir"], n))
                    for n in os.listdir(job["install_dir"]) if not n.startswith("."))
 
-    def _setup_process(self, job: dict, argv: list, env: dict, cwd: str, log_path: str) -> tuple:
+    def _setup_process(self, job: dict, argv: list, env: dict, cwd: str, log_path: str,
+                       tick: Callable[[], None] | None = None) -> tuple:
         """Startet das Installationsprogramm in eigener Sitzung (Gruppe = seine PID) und wacht über Abbruch,
         Zeit, Untätigkeit und Platz. Rückgabe: (grund, rückgabewert) mit grund in "ok" | "cancelled" |
-        "timeout" | "idle" | "no-space" | "disk-gone" | "no-tool"."""
+        "timeout" | "idle" | "no-space" | "disk-gone" | "no-tool". tick() kommt alle TICK_S, solange es läuft."""
         job_id = job["id"]
         try:
             from .. import log as log_mod
@@ -826,6 +875,7 @@ class JobManager:
         last = tree_activity(proc.pid, self.proc_root)
         last_work = last_at = started
         next_sample, next_space = started + self._setup_sample, started + self._space_sample
+        next_tick = started + TICK_S
         rc = None
         try:
             while True:
@@ -835,6 +885,9 @@ class JobManager:
                 if rc is not None:
                     break
                 now = time.monotonic()
+                if tick is not None and now >= next_tick:
+                    next_tick = now + TICK_S
+                    tick()
                 if reason is None:
                     if asked:
                         reason, stop_at = "cancelled", asked     # SIGTERM kam schon mit cancel()
@@ -876,6 +929,186 @@ class JobManager:
         if reason is None and job.get("cancel_requested"):
             reason = "cancelled"                 # Abbruch kam, während es gerade endete
         return reason or "ok", rc
+
+    # ------------------------------------------------------------ AnyPS5 (E150)
+
+    def _work_anyps5(self, job: dict) -> None:
+        """Spieleordner oder Paket für AnyPS5: prüfen, Werkzeuge bereitstellen, im Zwischenordner entpacken und
+        umwandeln, an den Zielort, Eintrag. Läuft im Hintergrund-Thread des Auftrags; die Quelle wird nur gelesen."""
+        with self._lock:
+            if job["state"] != "queued":
+                return                           # inzwischen abgebrochen
+            job.update(state="running", started=self._clock(), percent=0, file=None)
+            self._save()
+        self._progress(job, force=True)
+        plan = self._anyps5_checked_plan(job)
+        if plan is None:
+            return
+        end = 20 if anyps5.is_pkg(job["archive"]) else 85
+        tool = anyps5.installed() or self._anyps5_fetch(job, "AnyPS5", anyps5.fetch_latest, anyps5.install, 0, end)
+        if tool is None:
+            return
+        unpack = anyps5.unpacker() or self._anyps5_fetch(job, anyps5.UNPACKER, anyps5.fetch_unpacker,
+                                                         anyps5.install_unpacker, end, end)
+        if unpack is None:
+            return
+        if job.get("cancel_requested"):
+            self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            return
+        if plan.get("estimated"):                # erst jetzt nennt der Entpacker die echte Größe
+            plan = self._anyps5_checked_plan(job)
+            if plan is None:
+                return
+        with self._lock:
+            job.update(percent=end, file=None)
+            job["anyps5"]["tag"] = tool["tag"]
+        self._progress(job, force=True)
+        real_root = os.path.realpath(job["games_root"])
+        try:
+            staging, payload, token, lock_fd = extract.make_staging(real_root)
+        except OSError as exc:
+            self._log("job %s: Zwischenordner nicht angelegt: %s" % (job["id"], exc))
+            self._fail(job, "no-target", "Auf der Spiele-Platte ließ sich kein Zwischenordner anlegen.")
+            return
+        with self._lock:
+            job.update(staging=staging, staging_token=token)
+            self._save()
+        done = False
+        try:
+            done = self._anyps5_build(job, plan, tool, unpack, payload, real_root, end)
+        finally:
+            os.close(lock_fd)
+            self._cleanup_staging(job)       # danach liegt darin nur noch der Marker (oder der Rest eines Fehlers)
+        if done:
+            with self._lock:
+                job.update(install_dir=job["final_dir"], staging=None, staging_token=None,
+                           candidates=[{"path": anyps5.EXE, "score": 100, "why": []}])
+                self._complete(job, anyps5.EXE)
+
+    def _anyps5_checked_plan(self, job: dict) -> dict | None:
+        """Der Plan, frisch von der Platte (dem der Oberfläche wird nicht geglaubt, wie beim Entpacken). None, wenn er
+        nicht mehr passt (der Auftrag ist dann zu)."""
+        plan = anyps5.plan(job["archive"], games_root=job["games_root"], reserve_bytes=cfg_reserve_bytes(self._config),
+                           folder=job.get("folder") or None)
+        if not plan["ready"]:
+            self._fail(job, plan["status"], plan["message"])
+            return None
+        target = plan.get("target") or {}
+        if not target.get("dir") or os.path.realpath(target["dir"]) != os.path.realpath(job["final_dir"]):
+            self._fail(job, "plan-changed", "Das Spiel hat sich seit der Prüfung geändert. Bitte prüfe es erneut.")
+            return None
+        return plan
+
+    def _anyps5_fetch(self, job: dict, name: str, latest: Callable, install: Callable, start: int, end: int) -> dict | None:
+        """Ein Werkzeug fehlt: die neueste Fassung laden (Fortschritt start bis end). None nach einem Fehler (der Auftrag
+        ist dann zu)."""
+        with self._lock:
+            job["file"] = "%s wird von GitHub geladen" % name
+        self._progress(job, force=True)
+
+        def progress(done: int, total: int) -> None:
+            with self._lock:
+                job["percent"] = start + int(done * (end - start) / max(1, total))
+            self._progress(job)
+
+        try:
+            return install(latest(), progress=progress, stop=lambda: bool(job.get("cancel_requested")))
+        except anyps5.AnyError as e:
+            if e.code == "cancelled":
+                self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            else:
+                self._log("job %s: %s nicht geladen: %s %s" % (job["id"], name, e.code, e.message))
+                self._fail(job, e.code, e.message)
+            return None
+
+    def _anyps5_unpack(self, job: dict, unpack: dict, payload: str, start: int) -> bool:
+        """Entpacker in payload: Paket ganz, Ordner nur die Programmdateien (start bis 90 %). False: Auftrag ist zu."""
+        with self._lock:
+            job["file"] = "Paket wird entpackt" if anyps5.is_pkg(job["archive"]) else "Programmdateien werden vorbereitet"
+        self._progress(job, force=True)
+        argv = anyps5.unpack_argv(unpack, job["archive"], payload)
+        log_path = os.path.join(self._state_dir, ANYPS5_LOG)
+        self._log("job %s: %s" % (job["id"], " ".join(argv)))
+        try:
+            os.makedirs(self._state_dir, exist_ok=True)
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write("%s%s\n" % (ANYPS5_RUN, job["id"]))
+        except OSError:
+            pass                         # ohne Trennzeile nennt der Fehler höchstens einen älteren Grund mit
+
+        def tick() -> None:
+            fraction = anyps5.unpack_fraction(_last_line(log_path))
+            if fraction is not None:
+                with self._lock:
+                    job["percent"] = start + int(fraction * (90 - start))
+                self._progress(job)
+
+        reason, rc = self._setup_process(job, argv, dict(os.environ, NO_COLOR="1"), payload, log_path, tick)
+        if reason == "cancelled":
+            self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            return False
+        if reason != "ok" or rc != 0 or not os.path.isfile(os.path.join(payload, anyps5.SOURCE, "eboot.bin")):
+            why = {"timeout": "Das Entpacken dauerte zu lange.", "idle": "Das Entpacken kam nicht voran.",
+                   "no-space": "Auf der Spiele-Platte ist kein Platz mehr.", "disk-gone": "Die Spiele-Platte ist weg.",
+                   "no-tool": "%s startet nicht." % anyps5.UNPACKER}.get(reason)
+            self._fail(job, "unpack-failed", why or anyps5.refusal(_last_error(log_path)))
+            return False
+        return True
+
+    def _anyps5_build(self, job: dict, plan: dict, tool: dict, unpack: dict, payload: str, real_root: str, start: int) -> bool:
+        """Entpacker und relinker in payload, Verweise, Marker, rename an den Zielort. False: Auftrag ist (mit Grund) zu."""
+        if not self._anyps5_unpack(job, unpack, payload, start):
+            return False
+        with self._lock:
+            job.update(percent=90, file="Wird mit AnyPS5 %s umgewandelt" % tool["tag"])
+        self._progress(job, force=True)
+        out_exe = os.path.join(payload, anyps5.EXE)
+        argv = anyps5.relinker_argv(tool, os.path.join(payload, anyps5.SOURCE), out_exe, anyps5.needs_intel())
+        log_path = os.path.join(self._state_dir, ANYPS5_LOG)
+        self._log("job %s: %s" % (job["id"], " ".join(argv)))
+        reason, rc = self._setup_process(job, argv, dict(os.environ), payload, log_path)
+        if reason == "cancelled":
+            self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            return False
+        if reason != "ok" or rc != 0 or not os.path.isfile(out_exe):
+            why = {"timeout": "Das Umwandeln dauerte zu lange.", "idle": "Der relinker kam nicht voran.",
+                   "no-space": "Auf der Spiele-Platte ist kein Platz mehr.", "disk-gone": "Die Spiele-Platte ist weg.",
+                   "no-tool": "Der relinker von AnyPS5 startet nicht."}.get(reason)
+            last = _last_error(log_path)
+            self._fail(job, "convert-failed", why or "AnyPS5 konnte das Spiel nicht umwandeln%s." % (": " + last if last else ""))
+            return False
+        try:
+            os.chmod(out_exe, 0o755)
+            if anyps5.is_pkg(job["archive"]):
+                anyps5.link_libs(payload, tool)      # die Spieldateien liegen schon in app0/
+            else:
+                anyps5.link_resources(job["archive"], payload, tool)
+            spec = {"token": job["token"], "entry_id": "local:" + job["entry_uuid"], "title": job["title"],
+                    "version": self._version}
+            extract.write_marker(payload, extract.marker_fields(spec, plan, real_root))
+        except OSError as exc:
+            self._log("job %s: Spielordner nicht fertig: %s" % (job["id"], exc))
+            self._fail(job, "bad-content", "Der Spielordner ließ sich nicht anlegen.")
+            return False
+        if job.get("cancel_requested"):
+            self._fail(job, "", extract.MSG_CANCELLED, "cancelled")
+            return False
+        try:
+            extract._move(payload, job["final_dir"])
+        except extract._Abort as abort:
+            self._fail(job, abort.code, abort.message)
+            return False
+        return True
+
+    def _anyps5_detail(self, job: dict) -> dict:
+        """detail.anyps5 des Eintrags: Quelle, Kennung, Fassung (nach einem Neustart aus dem Verweis libs)."""
+        detail = dict(job.get("anyps5") or {})
+        if not detail.get("tag") and job.get("install_dir"):
+            try:
+                detail["tag"] = os.path.basename(os.path.dirname(os.readlink(os.path.join(job["install_dir"], anyps5.LIBS))))
+            except OSError:
+                pass
+        return detail
 
     def _setup_candidates(self, job: dict) -> dict:
         """Startdateien im installierten Spielordner wie beim Archiv-Spiel; Deinstaller fallen weg. Nennt
@@ -969,7 +1202,8 @@ class JobManager:
                                    if isinstance(c, dict) and isinstance(c.get("path"), str)],
                 # E114: Startoptionen aus goggame-*.info, wenn ein GOG-Installer sie nennt (nur für diese Startdatei)
                 "args": str(job.get("args") or "") if exe and exe == job.get("args_for") else "",
-                "created": created or self._clock(), "archive": job["archive"], "marker": job["token"]}
+                "created": created or self._clock(), "archive": job["archive"], "marker": job["token"],
+                **({"anyps5": self._anyps5_detail(job)} if job.get("anyps5") else {})}
 
     def _complete(self, job: dict, exe: str) -> dict:
         """Bibliothekseintrag bauen, abgeben und den Auftrag als erledigt melden. Unter self._lock aufrufen."""

@@ -133,7 +133,8 @@ def collect(profile: str, fallback_dir: str, since: float, clock: Callable[[], f
     Ist der Verlauf gerade unlesbar, gilt für ihn der vorige Stand."""
     history = read_history(profile, since)
     if history is None:
-        history = [i for i in previous or [] if str(i.get("id", "")).startswith("chrome:")]
+        # Kopien: Der vorige Stand gehört dem Aufrufer, der an ihm Änderungen erkennt
+        history = [dict(i) for i in previous or [] if str(i.get("id", "")).startswith("chrome:")]
     now = clock()
     known = set()
     for item in history:
@@ -146,7 +147,11 @@ def collect(profile: str, fallback_dir: str, since: float, clock: Callable[[], f
             continue
         got = _size(item["partial"]) if item["partial"] else None
         if got is None:
-            continue                         # Datei schon umbenannt: der Verlauf meldet gleich „fertig“
+            # Datei schon umbenannt: Der Verlauf meldet gleich „fertig“. Fehlen Teil und Ziel (Chrome endete hart vor
+            # seinem Eintrag, Teil gelöscht), lädt nichts mehr: sonst hielte der Download den Ruhemodus ewig auf
+            if not os.path.lexists(item["path"]) and now - item["started"] > STALE_S:
+                item.update(state="cancelled", error=TEXT_STOPPED)
+            continue
         item["received"] = max(item["received"], got[0])
         if now - got[1] > STALE_S:
             item.update(state="cancelled", error=TEXT_STOPPED)

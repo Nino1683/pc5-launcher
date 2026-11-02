@@ -993,8 +993,10 @@ class Shell:
         return any(v.name == "saver" for v in self._views)
 
     def front_kind(self) -> str | None:
-        """Art der App vorn (LaunchSpec.kind), None im Home."""
-        front = self._front_app()
+        """Art der App, die zu sehen ist (LaunchSpec.kind), None im Home. Hat die App vorn kein Fenster mehr (Discord im
+        Tray, Reste eines Terminals), zeigt Gamescope das Home: Dann gelten Schoner und Ruhemodus des Home, sonst hielte
+        eine unsichtbare „Werkzeug“-App die Konsole für immer wach."""
+        front = self._effective_front()
         return getattr(getattr(front, "spec", None), "kind", None) if front is not None else None
 
     def key_menu_open(self) -> bool:

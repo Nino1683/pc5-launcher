@@ -32,6 +32,7 @@ Parser-Typ „Glob-regex“.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import re
@@ -655,16 +656,16 @@ def emudeck_info(ctx) -> dict:
     path und label sind dieselben Werte unter den Namen, die die Einstellungsseite erwartet.
     Die Warnungen dieses Laufs landen NICHT in ctx.warnings.
     """
-    saved = list(ctx.warnings)
+    # Eine Abfrage für die Anzeige hinterlässt keine Warnungen: eigene Kopie des Kontexts mit eigener Liste. Vorher
+    # gesichert und zurückgeschrieben; lief dabei ein Einlesen der Bibliothek, gingen dessen Warnungen verloren
+    own = copy.copy(ctx)
+    own.warnings = []
     try:
-        try:
-            entries = load(ctx)
-        except Exception:
-            entries = []
-        settings = _emudeck_settings(ctx)
-        _parsers, base = _load_srm(ctx)
-    finally:
-        ctx.warnings = saved                             # eine Abfrage für die Anzeige hinterlässt keine Warnungen
+        entries = load(own)
+    except Exception:
+        entries = []
+    settings = _emudeck_settings(own)
+    _parsers, base = _load_srm(own)
     roms = settings.get("romsPath") or (base or {}).get("romsdirglobal") or \
         (os.path.join(ctx.games_disk, "Emulation/roms") if ctx.games_disk else "")
     emulation = settings.get("emulationPath") or (os.path.dirname(roms.rstrip("/")) if roms else "")

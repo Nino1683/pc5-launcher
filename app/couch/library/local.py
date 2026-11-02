@@ -24,6 +24,10 @@ Der Datensatz eines Archiv-Spiels (das gibt der Installer an add_local weiter):
             "upload_id": 1, "build_id": 0,            Herkunft der installierten Datei für den Hinweis auf eine
             "updated_at": "…", "key_id": 2,           neuere Fassung; detail.store wird "itchio" (STORE für umu)
             "page": "https://user.itch.io/slug"}}
+   "anyps5": {"tag": "v0.1.4",                        nur Spiele aus AnyPS5 (E150, platform "linux", exe "app.elf"):
+              "source": "/run/media/…/Spiel",         Fassung, mit der umgewandelt wurde, und der Spieleordner, auf
+              "title_id": "PPSA01234"}                den app0/ verweist; Marke ANYPS5, Start mit ANYPS5_* (native.py);
+                                                      aus einem Paket (E151): "pkg" statt "source", nur zur Auskunft
 
 Abschnitt "local" in library.json – gelesen werden alle drei Formen:
   a) Liste solcher Datensätze                         [ {datensatz}, … ]
@@ -62,12 +66,13 @@ LIBRARY_FILE = "library.json"
 SECTION = "local"
 MARKER_FILE = ".couch-install.json"      # schreibt der Installer (installer/trash.py MARKER_NAME)
 RECORD_KEYS = ("platform", "install_dir", "exe", "exe_candidates", "args", "created", "archive", "marker", "epic",
-               "launcher", "launcher_code", "folder_win", "launcher_prefix", "itch")
+               "launcher", "launcher_code", "folder_win", "launcher_prefix", "itch", "anyps5")
 # Spiele über den Launcher eines Herstellers (E94): Marke auf der Kachel und STORE für umu/Proton
 LAUNCHER_BADGES = {"battlenet": ("BATTLE.NET", "battlenet"), "ubisoft": ("UBISOFT", "ubisoft"), "rockstar": ("ROCKSTAR", "")}
 PC_PLATFORMS = ("windows", "linux")
 ITCH_ARCHIVE = "itch.io"                 # archive der itch.io-Spiele aus dem Store (E100)
 ITCH_KEYS = {"id": str, "game_id": int, "upload_id": int, "build_id": int, "updated_at": str, "key_id": int, "page": str}
+ANYPS5_KEYS = ("tag", "source", "pkg", "title_id")
 
 
 # ---------------------------------------------------------------- reine Helfer (für Installer und Index)
@@ -78,7 +83,8 @@ def new_id() -> str:
 
 def make_record(title: str, platform: str, install_dir: str, exe: str = "", exe_candidates=(),
                 args="", archive: str = "", marker: str = "", created: float | None = None,
-                entry_id: str | None = None, epic: str = "", itch: dict | None = None) -> dict:
+                entry_id: str | None = None, epic: str = "", itch: dict | None = None,
+                anyps5: dict | None = None) -> dict:
     """Baut einen gültigen Datensatz für den Abschnitt "local". Rein, schreibt nichts."""
     rec = {
         "id": entry_id or new_id(), "title": title, "platform": platform,
@@ -91,6 +97,8 @@ def make_record(title: str, platform: str, install_dir: str, exe: str = "", exe_
         rec["epic"] = epic
     if itch:
         rec["itch"] = itch_detail(itch)
+    if anyps5:
+        rec["anyps5"] = anyps5_detail(anyps5)
     return rec
 
 
@@ -107,13 +115,19 @@ def itch_detail(value) -> dict:
     return out
 
 
+def anyps5_detail(value) -> dict:
+    """Herkunft eines Spiels aus AnyPS5 (E150): nur die bekannten Felder als Text. Rein."""
+    return {k: value[k][:4096] for k in ANYPS5_KEYS if isinstance(value, dict) and isinstance(value.get(k), str)}
+
+
 def entry_to_record(entry: Entry) -> dict:
     """Der Datensatz zu einem Entry dieser Quelle (für LibraryIndex.add_local). Rein."""
     d = entry.detail
     rec = make_record(entry.title, d.get("platform", "windows"), d.get("install_dir", ""),
                       d.get("exe", ""), d.get("exe_candidates") or (), d.get("args") or "",
                       d.get("archive", ""), d.get("marker", ""), d.get("created"), entry.id, d.get("epic", ""),
-                      d.get("itch") if isinstance(d.get("itch"), dict) else None)
+                      d.get("itch") if isinstance(d.get("itch"), dict) else None,
+                      d.get("anyps5") if isinstance(d.get("anyps5"), dict) else None)
     if d.get("launcher"):
         rec.update({k: d[k] for k in ("launcher", "launcher_code", "folder_win", "launcher_prefix") if k in d})
     return rec
@@ -240,6 +254,8 @@ def record_to_entry(ctx, rec) -> Entry | None:
     elif not epic and str(rec.get("archive") or "") == ITCH_ARCHIVE:
         # itch.io aus dem Store (E100): STORE für umu; die Marke bleibt PROTON bzw. leer (Startweg)
         detail_epic = {"store": "itchio", "itch": itch_detail(rec.get("itch"))}
+    elif platform == "linux" and isinstance(rec.get("anyps5"), dict):
+        badge, detail_epic = "ANYPS5", {"anyps5": anyps5_detail(rec["anyps5"])}
     return Entry(
         id=entry_id, title=title, kind="game", source="local",
         badge=badge,

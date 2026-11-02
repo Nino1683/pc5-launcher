@@ -126,6 +126,8 @@ def write_manifest(lib_path: str, appid: int, name: str, installdir: str, owner:
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
             fh.write(manifest_text(appid, name, installdir, owner))
+            fh.flush()
+            os.fsync(fh.fileno())   # erst auf der Platte, dann unter dem echten Namen: nach einem Stromausfall nie leer
         os.link(tmp, path)      # schlägt fehl, falls es ihn inzwischen gibt; nie überschrieben
     finally:
         try:
@@ -135,13 +137,17 @@ def write_manifest(lib_path: str, appid: int, name: str, installdir: str, owner:
     return path
 
 
-def leftovers(info: dict, appid: int, uninstall: bool = False) -> list[str]:
+def leftovers(info: dict, appid: int, uninstall: bool = False, others: dict | None = None) -> list[str]:
     """Was ein abgebrochener Download hinterlässt: Eintrag, steamapps/downloading/<id> und der
     Spielordner, solange das Spiel nie fertig installiert war. Ist es installiert (Bit 4, etwa mit
     offenem Update), bleiben Eintrag und Spielordner liegen, nur der Teil-Download geht (E99: sonst
     vergaßen Steam und Bibliothek ein installiertes Spiel). uninstall: auch Eintrag und Spielordner
     eines fertigen Spiels und sein Shader-Zwischenspeicher. compatdata (Proton-Prefix mit den
-    Spielständen) bleibt immer liegen."""
+    Spielständen) bleibt immer liegen.
+
+    others: alle Einträge wie manifests(). Teilt sich das Spiel seinen Ordner unter common mit einer
+    anderen App derselben Bibliothek (Half-Life mit seinen Erweiterungen, Half-Life 2 mit den Episoden),
+    bleibt der Ordner liegen: Sonst gingen die Dateien der anderen Spiele mit in den Papierkorb."""
     steamapps = os.path.join(info["lib"], "steamapps")
     keep_game = not uninstall and bool(info["flags"] & FULLY_INSTALLED)
     out = [] if keep_game else [info["path"]]
@@ -151,9 +157,17 @@ def leftovers(info: dict, appid: int, uninstall: bool = False) -> list[str]:
             out.append(path)
     if info["installdir"] and "/" not in info["installdir"] and info["installdir"] not in (".", ".."):
         game = os.path.join(steamapps, "common", info["installdir"])
-        if os.path.lexists(game) and not keep_game:
+        if os.path.lexists(game) and not keep_game and not shared_dir(info, appid, others):
             out.append(game)
     return out
+
+
+def shared_dir(info: dict, appid: int, others: dict | None) -> bool:
+    """Nutzt eine andere App derselben Bibliothek denselben Ordner unter common (Groß-/Kleinschreibung egal)?"""
+    name = info["installdir"].casefold()
+    return any(other_id != appid and other.get("lib") == info["lib"]
+               and str(other.get("installdir") or "").casefold() == name
+               for other_id, other in (others or {}).items())
 
 
 def owned_games(ctx, owned: set) -> list[tuple[int, str]]:

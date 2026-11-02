@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 
 from .. import system
@@ -19,21 +20,34 @@ def store(path: str, code: str, clock=time.time) -> None:
     system.write_atomic(path, json.dumps({"code": code, "at": clock()}), 0o600)
 
 
+def claim(path: str) -> str | None:
+    """Die Datei genau einmal nehmen: erst umbenennen (atomar, von mehreren Fäden gewinnt einer), dann lesen und
+    löschen. None: keine da, oder ein anderer Faden war schneller (sonst tauschten zwei Fäden denselben Code, und der
+    zweite meldete eine gescheiterte Anmeldung). "" bei unlesbarem Inhalt."""
+    mine = "%s.%d-%d.genommen" % (path, os.getpid(), threading.get_ident())
+    try:
+        os.rename(path, mine)
+    except OSError:
+        return None
+    try:
+        with open(mine, encoding="utf-8") as fh:
+            return fh.read(64 * 1024)
+    except (OSError, ValueError):       # ValueError: kein UTF-8
+        return ""
+    finally:
+        try:
+            os.unlink(mine)
+        except OSError:
+            pass
+
+
 def take(path: str, ttl: float, clock=time.time) -> str:
     """Der Code, wenn er jünger als ttl ist, sonst "". Die Datei ist danach weg, auch eine alte, leere oder
     kaputte: Ein Code gilt nur einmal, und eine unlesbare Datei läge sonst für immer da und würde bei jedem
     Blick in den Store neu gelesen."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read(64 * 1024)
-    except FileNotFoundError:
+    text = claim(path)
+    if not text:
         return ""
-    except (OSError, ValueError):       # ValueError: kein UTF-8
-        text = ""
-    try:
-        os.unlink(path)
-    except OSError:
-        pass
     try:
         data = json.loads(text)
     except ValueError:

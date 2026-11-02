@@ -38,6 +38,12 @@ class CleanupService:
             _log.exception("Prefix-Ordner")
             return ""
 
+    @staticmethod
+    def _all_entries(library: Any):
+        """Bibliothek samt entfernten Spielen (E148): Deren Prefix (mit den Spielständen) ist kein „Prefix ohne Spiel“."""
+        removed = getattr(library, "removed_by_user", list)
+        return lambda: list(library.entries()) + list(removed())
+
     def _games_root(self) -> str:
         try:
             from . import wiring_install
@@ -103,7 +109,7 @@ class CleanupService:
         return cleanup.Context(
             state_dir=paths.state_dir(), games_root=self._games_root(), downloads=paths.user_dir("DOWNLOAD"),
             prefix_root=self._prefix_root(), steam_roots=[steam_root] if steam_root else [],
-            entries=library.entries if library is not None else None, prefix_name=prefix_name,
+            entries=self._all_entries(library) if library is not None else None, prefix_name=prefix_name,
             console_trash=self._console_trash(), console_trash_quick=self._console_trash_quick(),
             system_trash=self._system_trash, allowed=self._allowed,
             # „Frei: 910 GB auf „Spiele“ · 230 GB im persönlichen Ordner“ (im Prüfmodus der Käfig)

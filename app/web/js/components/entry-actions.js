@@ -5,6 +5,8 @@
 // E140: „Deinstallieren“ für Kacheln mit einem Flatpak dahinter (apps.uninstall).
 // E141: „Ausblenden“ für Apps mit dem Weg zurück (Einstellungen › Apps › Ausgeblendete Apps); Schließen fragt mit dem
 // Satz des Kerns nach, wenn es etwas abbräche (app.closeNote, z. B. ein Download im App Store).
+// 2026-10-30: „Aus der Bibliothek entfernen“ für Spiele (lib.remove): Kachel ganz weg, Spiel und Dateien bleiben; zurück
+// über Einstellungen › Spiele › Entfernte Spiele.
 import { call, on, role } from "../core/bridge.js";
 import { h, hint, cssMs, cssPx, settledRect, reducedMotion } from "../core/dom.js";
 import { nav } from "../core/nav.js";
@@ -243,8 +245,10 @@ export async function chooseExe(entry, { ref, candidates } = {}) {
   }
   if (!list.length) { toast({ title: entry.title, body: S.exeNone, icon: "warn" }); return false; }
   const current = list.find((c) => c.current);
+  const firstOther = list.find((c) => c.other);       // ab hier alle weiteren Dateien des Spielordners
   const choice = await openMenu(
-    list.map((c) => ({ id: c.path, label: c.path, note: c.current ? S.exeCurrent : (Array.isArray(c.why) ? c.why.join(", ") : "") })),
+    list.map((c) => ({ id: c.path, label: c.path,
+      note: c.current ? S.exeCurrent : c === firstOther ? S.exeOther : (Array.isArray(c.why) ? c.why.join(", ") : "") })),
     { cls: "menu-center", title: fmt(S.exeTitle, { title: entry.title }), initial: current ? current.path : null });
   if (!choice) return false;
   try {
@@ -350,6 +354,18 @@ export async function deleteEntry(entry) {
     if (!result || result.ok === false) { fail(result, entry.title); return false; }
     toast({ title: entry.title, body: result.message || "", icon: "trash", sound: false });
     return true;
+  } catch (e) { fail(e, entry.title); return false; }
+}
+
+// Kachel eines Spiels ganz entfernen (2026-10-30), nach Rückfrage; auf der Platte geschieht nichts
+async function removeEntry(entry) {
+  const yes = await confirm({ title: fmt(S.removeTitle, { title: entry.title }), text: S.removeText, ok: S.removeOk });
+  if (!yes) return false;
+  try {
+    const result = await call("lib.remove", { id: entry.id });
+    toast({ title: entry.title, body: (result && result.message) || S.errorGeneric, icon: result && result.ok ? "trash" : "warn",
+      sound: result && result.ok ? false : "error", ...(result && result.ok ? { stay: 5000 } : {}) });
+    return !!(result && result.ok);
   } catch (e) { fail(e, entry.title); return false; }
 }
 
@@ -498,7 +514,7 @@ export async function adjustLogo(entry) {
 
 // Kennungen aus lib.get.actions, die ins Menü gehören (Starten und Fortsetzen macht der Hauptknopf)
 const MENU_ACTIONS = new Set(["close", "settings", "exe", "art", "art-fetch", "rename", "rename-reset", "info", "saves", "forget",
-  "favorite", "unfavorite", "hide", "unhide", "delete", "uninstall"]);
+  "favorite", "unfavorite", "hide", "unhide", "remove", "delete", "uninstall"]);
 
 // Einträge des Optionsmenüs: was lib.get.actions nennt, in dieser Reihenfolge, nichts darüber
 // hinaus. Antwortet der Kern nicht, bleibt die kleinste eigene Vorgabe.
@@ -624,6 +640,7 @@ export async function openEntryMenu(entry, { anchor = null, extra = [], onExtra 
     case "hide": await setHidden(current, true); break;
     case "unhide": await setHidden(current, false); break;
     case "forget": await forgetEntry(current); break;
+    case "remove": await removeEntry(current); break;
     case "delete": await deleteEntry(current); break;
     case "uninstall": {
       const action = ((detail && detail.actions) || []).find((a) => a.id === "uninstall") || {};

@@ -510,6 +510,9 @@ def make_backup(title: str, entry_id: str, folder: str, note: str = "", clock=ti
         return arc + ("/" if is_dir else "")
 
     tmp = path + ".neu"
+    # Die eigenen Sicherungen nie mitnehmen: Liegt der Ordner über ihnen (falsch gewählter Spielstand-Ordner wie der
+    # persönliche Ordner), packte die ZIP sich sonst selbst ein, bis die Platte voll ist
+    skip = os.path.realpath(backup_root())
     try:
         with open(tmp, "wb") as fh:
             # strict_timestamps=False: Dateien von vor 1980 (aus Archiven ohne Zeitstempel) bekommen
@@ -517,7 +520,8 @@ def make_backup(title: str, entry_id: str, folder: str, note: str = "", clock=ti
             with zipfile.ZipFile(fh, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6,
                                  strict_timestamps=False) as z:
                 for base, dirs, names in os.walk(folder, followlinks=False):
-                    dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(base, d))]
+                    dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(base, d))
+                               and os.path.realpath(os.path.join(base, d)) != skip]
                     rel_base = os.path.relpath(base, folder)
                     arc_base = top if rel_base == "." else os.path.join(top, rel_base)
                     if not names and not dirs:

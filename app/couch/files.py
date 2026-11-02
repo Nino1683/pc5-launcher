@@ -63,7 +63,7 @@ KINDS = {
     "image": (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif", ".svg"),
     "video": (".mkv", ".mp4", ".avi", ".mov", ".webm", ".m4v", ".ts", ".wmv"),
     "audio": (".mp3", ".flac", ".ogg", ".opus", ".wav", ".m4a", ".aac"),
-    "archive": (".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".xz", ".txz", ".bz2", ".zst", ".iso"),
+    "archive": (".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".xz", ".txz", ".bz2", ".zst", ".iso", ".pkg"),
     "text": (".txt", ".md", ".log", ".ini", ".cfg", ".conf", ".json", ".xml", ".yml", ".yaml", ".nfo", ".csv"),
     "pdf": (".pdf",),
     "windows": (".exe", ".bat", ".msi"),

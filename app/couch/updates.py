@@ -61,9 +61,12 @@ _KEY_SOURCE = {"app": "apps", "proton": "proton", "game": "games"}
 
 # ---------------------------------------------------------------- Proton
 def proton_installed(compat_dir: str) -> list[str]:
+    """Installierte Proton-CachyOS-Ordner, älteste zuerst: nach den Zahlen im Namen, nicht als Text (sonst stünde
+    „9.0-…“ hinter „10.0-…“ und gälte als die installierte Fassung)."""
+    from .proton_repair import version_key
     try:
-        return sorted(n for n in os.listdir(compat_dir) if _PROTON.match(n)
-                      and os.path.isfile(os.path.join(compat_dir, n, "proton")))
+        return sorted((n for n in os.listdir(compat_dir) if _PROTON.match(n)
+                       and os.path.isfile(os.path.join(compat_dir, n, "proton"))), key=lambda n: (version_key(n), n))
     except OSError:
         return []
 

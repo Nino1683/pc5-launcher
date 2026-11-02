@@ -434,7 +434,7 @@ class ItchShop:
         for c in cards:
             cid = str(c.get("id") or "")
             entry_id = str((done.get(cid) or {}).get("entry") or "")
-            c["installed"] = bool(entry_id) and self.app.library.get(entry_id) is not None
+            c["installed"] = wiring_store.in_library(self.app, entry_id)
             c["entryId"] = entry_id if c["installed"] else ""
             c["downloading"] = cid in busy
             c["owned"] = cid in owned or c["installed"]
@@ -571,7 +571,7 @@ class ItchShop:
         if not acct.logged_in():
             return {"ok": False, "message": itch_account.LOGIN_FIRST}
         info = self.installed_info(gid)
-        if info and self.app.library.get(info["entry"]) is not None:
+        if info and wiring_store.in_library(self.app, info["entry"]):
             return {"ok": False, "message": MSG_INSTALLED}
         key = next((k for k in self.owned_keys(force=True) if k.get("id") == gid), None)
         known = self.store.remembered(gid) or {}

@@ -171,6 +171,8 @@ function create(params = {}) {
     // Über einen Launcher (E94): Der Knopf holt ihn nach vorn (bestätigen, Fortschritt ansehen)
     if (j && LAUNCHER_STORES.includes(storeId) && !j.hidden && (j.state === "confirm" || j.state === "installing")) return { id: "show", label: jobLabel };
     if (j) return { id: "loading", label: jobLabel, off: true };
+    // E148: aus der Bibliothek entfernt, aber installiert: zurückholen (starten ließe es sich so nicht)
+    if (d.installed && d.removed) return { id: "restore", label: S.stRestore };
     if (d.installed) return { id: "play", label: S.stPlay };
     // itch.io (E100): Ein Browserspiel lässt sich nicht installieren, gespielt wird auf seiner Seite
     if (d.browserOnly) return { id: "web", label: S.stItchPlayWeb };
@@ -191,7 +193,7 @@ function create(params = {}) {
     second.hidden = !j || j.state === "removing";
     second.querySelector(".btn-label").textContent = S.stCancelDl;
     // itch.io (E100): neuere Datei als Hinweis (updateHint), Browserspiel, Einrichtung, kostenlos holen
-    note.textContent = !d ? "" : j ? "" : d.installed ? (d.update_pending ? S.stUpdatePending : d.updateHint || "") : d.hint ? d.hint
+    note.textContent = !d ? "" : j ? "" : d.installed && d.removed ? S.stRemovedHint : d.installed ? (d.update_pending ? S.stUpdatePending : d.updateHint || "") : d.hint ? d.hint
       : d.browserOnly ? S.stItchBrowserHint
         : d.owned && d.library ? fmt(S.stFacts.target + ": " + S.stTargetFree, { path: d.library.path, n: d.library.free_gb })
           : !d.owned && !d.loggedIn ? (unset() ? S.stItchSetupHint : loginHint(storeId))
@@ -319,6 +321,13 @@ function create(params = {}) {
     const a = action();
     if (!a || a.off) { sound.play("edge"); return; }
     if (a.id === "play") { if (d.entryId) activateEntry({ id: d.entryId, title: d.title, kind: "game", installed: true, available: true }); return; }
+    if (a.id === "restore") {
+      const r = await call("lib.restore", { id: d.entryId }).catch((e) => ({ ok: false, message: e && e.message }));
+      if (r && r.ok) toast({ title: d.title, body: r.message || "", icon: "check" });
+      else messageDialog({ title: d.title, text: (r && r.message) || S.errorGeneric });
+      load();
+      return;
+    }
     if (a.id === "login") { await storeLogin(storeId, { setup: unset() }); return; }
     if (a.id === "web") { await openStoreUrl("store.web", { store: storeId, what: "page", id }); return; }
     if (a.id === "buy") { await openStoreUrl("store.buy", { store: storeId, id, slug: d.slug || "", title: d.title }); return; }

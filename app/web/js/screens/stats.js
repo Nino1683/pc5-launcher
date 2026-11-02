@@ -66,6 +66,7 @@ function create(params = {}) {
     h("div.hints", hint(S.rbKeysRange, S.rbHintRange), hint(S.rbKeysPage, S.rbHintPage),
       hint("btn-cross", S.rbHintOpen), hint("btn-circle", S.hintBack)));
   let serial = 0;
+  let paging = false;               // lib.stats ist unterwegs
 
   const range = () => RANGES.find((r) => r.id === state.range);
 
@@ -153,12 +154,14 @@ function create(params = {}) {
   async function load() {
     const mine = ++serial;
     let d = null;
+    paging = true;
     try {
       d = await call("lib.stats", { range: state.range, offset: state.offset });
     } catch (e) {
       notify("sys.log", { level: "warning", text: "[stats] lib.stats: " + (e && e.message) });
     }
     if (mine !== serial) return;
+    paging = false;
     state.failed = !d;
     state.data = d;
     paint();
@@ -178,6 +181,9 @@ function create(params = {}) {
 
   // Links = älter, Rechts = neuer; weiter als bis zur ersten Sitzung bzw. über heute hinaus geht es nicht
   function page(step) {
+    // Solange der Zeitraum lädt, gilt „älter gibt es“ noch vom vorigen: Gehaltenes Links liefe sonst über die erste
+    // Sitzung hinaus in leere Wochen
+    if (paging) return;
     const d = state.data;
     const older = step > 0;
     if (state.range === "all" || !d || (older && !d.older) || (!older && state.offset === 0)) { sound.play("edge"); return; }

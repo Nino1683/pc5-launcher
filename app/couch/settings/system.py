@@ -651,10 +651,12 @@ class SystemArea:
         found = watch.found or {}
         rel = found.get("proton")
         job = watch.proton_job
+        from ..proton_repair import version_key
         installed = ""
         for d in self.deps.extra.get("compat_tools_dirs") or []:
             try:
-                names = sorted(n for n in os.listdir(d) if n.startswith("proton-cachyos-"))
+                # nach den Zahlen, nicht als Text: sonst gälte „9.0-…“ als neuer als „10.0-…“
+                names = sorted((n for n in os.listdir(d) if n.startswith("proton-cachyos-")), key=lambda n: (version_key(n), n))
             except OSError:
                 names = []
             installed = names[-1] if names else installed

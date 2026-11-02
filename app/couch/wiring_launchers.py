@@ -37,7 +37,7 @@ from typing import Any
 
 from . import log, paths, system, wiring_store
 from .library.model import Entry
-from .store import launchers
+from .store import launchers, login_code
 from .store.steam import StoreError
 
 _log = log.get("wiring.launchers")
@@ -116,6 +116,7 @@ class LauncherStores:
         self.shops: dict = {}
         self.owned: dict = {sid: {"at": 0.0, "data": None} for sid in STORE_IDS}
         self.ubi_account = None
+        self._ubi_lock = threading.Lock()      # ein Ubisoft-Konto (eine Sperre fürs Erneuern), Anmeldung genau einmal
         self._last_sync = 0.0
         self.hidden: dict[str, Any] = {}       # Launcher, die die Konsole unsichtbar laufen lässt (Popen)
         # Unsichtbare Launcher aus der Zeit vor einem Neustart des Home (kein eigener Popen): Sie enden wie
@@ -218,6 +219,10 @@ class LauncherStores:
             return {}
 
     def ubi(self):
+        with self._ubi_lock:
+            return self._ubi()
+
+    def _ubi(self):
         if self.ubi_account is None:
             acct = self.modules["ubisoft"][1]
             if acct is None:
@@ -230,12 +235,9 @@ class LauncherStores:
             extra = {k: ids[k] for k in ("app_id", "genome_id") if ids.get(k)}
             self.ubi_account = acct.UbisoftAccount(os.path.join(paths.config_dir(), "ubisoft-token.json"),
                                                    resolve=self.shop("ubisoft").uplay_ids, **extra)
-        login = os.path.join(paths.state_dir(), "ubisoft-login.json")
-        if os.path.isfile(login):
+        raw = login_code.claim(os.path.join(paths.state_dir(), "ubisoft-login.json"))
+        if raw:
             try:
-                with open(login, encoding="utf-8") as fh:
-                    raw = fh.read()
-                os.unlink(login)
                 if self.ubi_account.take_login(raw):
                     _log.info("Ubisoft: angemeldet")
                     self.owned["ubisoft"]["at"] = 0.0
@@ -336,7 +338,7 @@ class LauncherStores:
         for c in cards:
             code = self.code_of(sid, c)
             entry = known.get(str(code)) if code is not None else None
-            c["installed"] = bool(entry) and self.app.library.get(entry) is not None
+            c["installed"] = wiring_store.in_library(self.app, entry)
             c["entryId"] = entry if c["installed"] else ""
             c["downloading"] = code is not None and str(code) in busy
             c["owned"] = self.is_owned(sid, c, acct) or c["installed"]

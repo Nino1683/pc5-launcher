@@ -237,7 +237,7 @@ def clean_meta(record: dict) -> tuple[dict, bool]:
             if not isinstance(value, bool):
                 dropped = True
                 continue
-        elif key in ("forgotten", "favorite"):
+        elif key in ("forgotten", "favorite", "removed"):
             if not isinstance(value, bool):
                 dropped = True
                 continue
@@ -306,6 +306,7 @@ class LibraryIndex:
         self._imported: dict[str, list[dict]] = {}  # Quelle -> übernommene Einträge als dict (E134)
         self._scanned: dict[str, list[Entry]] = {}  # Quelle -> Einträge des letzten Laufs
         self._entries: dict[str, Entry] = {}
+        self._removed: dict[str, Entry] = {}        # aus der Bibliothek entfernt (meta.removed), zum Zurückholen
         self._order: dict[str, int] = {}            # id -> Platz in der Reihenfolge der Quellen
         self._volumes: list[tuple[str, bool]] = []  # (Wurzel, muss Einhängepunkt sein)
         # Bilder, die nach dem Lesen der Quellen neu aufgelöst wurden: id -> (Zeit, art)
@@ -524,8 +525,11 @@ class LibraryIndex:
             # Letztes Netz: lieber eine leere Bibliothek als ein Home, das nicht startet
             _log.exception("Bibliothek ließ sich nicht zusammenführen, sie bleibt vorerst leer")
             merged = {}
+        # Aus der Bibliothek entfernt (meta.removed): fehlt überall, bleibt für „Entfernte Spiele“ greifbar
+        removed = {eid: merged.pop(eid) for eid in [e for e in merged if self._is_removed(e)]}
         with self._lock:
             self._entries = merged
+            self._removed = removed
             self._order = {eid: n for n, eid in enumerate(merged)}
 
     def _merge(self) -> dict[str, Entry]:
@@ -653,6 +657,12 @@ class LibraryIndex:
         with self._lock:
             return self._entries.get(entry_id)
 
+    def get_any(self, entry_id: str) -> Entry | None:
+        """Wie get, kennt aber auch aus der Bibliothek entfernte Spiele (E148): Für Fragen nach dem Spiel selbst
+        (Datensatz eines Archiv-Spiels, Installer), nicht nach der Kachel."""
+        with self._lock:
+            return self._entries.get(entry_id) or self._removed.get(entry_id)
+
     def on_change(self, fn: Callable[[], None]) -> None:
         self._observers.append(fn)
 
@@ -738,6 +748,49 @@ class LibraryIndex:
             raise KeyError("unbekannter Eintrag: %s" % entry_id)
         self._meta.setdefault(entry_id, {})["hidden"] = bool(hidden)
         self._changed()
+
+    def _is_removed(self, entry_id: str) -> bool:
+        meta = self._meta.get(entry_id)
+        return isinstance(meta, dict) and meta.get("removed") is True
+
+    def is_removed(self, entry_id: str) -> bool:
+        """Hat jemand dieses Spiel aus der Bibliothek entfernt (E148)? Der Store zeigt dann „Zurück in die Bibliothek“."""
+        with self._lock:
+            return self._is_removed(entry_id)
+
+    def clear_removed(self, entry_id: str) -> bool:
+        """Den Vermerk „entfernt“ löschen, auch wenn keine Quelle das Spiel gerade kennt (der Store installiert es neu:
+        dann soll es wieder in der Bibliothek stehen, wie die Mitteilung „… ist installiert“ sagt). True: war entfernt."""
+        meta = self._meta.get(entry_id)
+        if not (isinstance(meta, dict) and meta.pop("removed", None) is not None):
+            return False
+        self._changed()
+        return True
+
+    def set_removed(self, entry_id: str, removed: bool) -> str:
+        """Kachel eines Spiels aus der Bibliothek entfernen bzw. zurückholen (Wunsch 2026-10-30: „Ich möchte kacheln auch
+        einfach entfernen können ohne das spiel oder die datei selber zu löschen“ – „Wenn ich ausblenden mache bleibt es
+        im bereich Ausgeblendet“). Nur der Vermerk meta.removed: Spielordner, Dateien, Spielstände und Steam bleiben
+        unberührt. Entfernt fehlt das Spiel überall (Home, Bibliothek samt „Ausgeblendet“, Suche, Control Center), auch
+        nach einer Neuinstallation, bis „Zurückholen“ unter Einstellungen › Spiele › Entfernte Spiele. Nur Spiele.
+        Rückgabe: der Titel. KeyError, wenn es den Eintrag (bzw. den entfernten) nicht gibt."""
+        with self._lock:
+            entry = self._entries.get(entry_id) if removed else self._removed.get(entry_id)
+        if entry is None or entry.kind != "game":
+            raise KeyError("unbekannter Eintrag: %s" % entry_id)
+        meta = self._meta.setdefault(entry_id, {})
+        if removed:
+            meta["removed"] = True
+        else:
+            meta.pop("removed", None)
+        self._changed()
+        return entry.title
+
+    def removed_by_user(self) -> list[Entry]:
+        """Entfernte Spiele, die eine Quelle noch kennt, in Namensfolge (für „Entfernte Spiele“)."""
+        with self._lock:
+            items = list(self._removed.values())
+        return sorted(items, key=lambda e: (e.sort_title or e.title or "").casefold())
 
     def hidden_by_user(self, kind: str | None = None) -> list[Entry]:
         """E141: Einträge, die jemand ausgeblendet hat (meta.hidden), in Namensfolge. Was eine Quelle selbst verbirgt
@@ -998,7 +1051,7 @@ class LibraryIndex:
             title = meta.get("title")
             if isinstance(title, str) and title:
                 rec["title"] = title
-            for key in ("favorite", "hidden"):
+            for key in ("favorite", "hidden", "removed"):
                 if isinstance(meta.get(key), bool):
                     rec[key] = meta[key]
             options = meta.get("options")
@@ -1045,7 +1098,7 @@ class LibraryIndex:
                     meta["title"] = title
                 elif title:
                     meta.pop("title", None)
-            for key in ("favorite", "hidden"):
+            for key in ("favorite", "hidden", "removed"):
                 if isinstance(record.get(key), bool):
                     meta[key] = record[key]
             options = record.get("options")
@@ -1567,6 +1620,26 @@ def register_rpc(rpc: Any, library: LibraryIndex, procs: Any = None,
                                             "„Ausblenden“ nehmen." % entry.title}
         return {"ok": True, "message": "„%s“ wurde aus der Liste entfernt." % entry.title}
 
+    def lib_remove(params: dict) -> dict:
+        """{id} -> {ok, message}: Kachel eines Spiels aus der Bibliothek entfernen; Spiel und Dateien bleiben."""
+        entry = need(params)
+        if entry.kind != "game":
+            return {"ok": False, "message": "Nur Spiele lassen sich aus der Bibliothek entfernen. Apps blendest du aus."}
+        if running(entry.id):
+            return {"ok": False, "message": "„%s“ läuft gerade. Schließe es zuerst." % entry.title}
+        library.set_removed(entry.id, True)
+        # kurz wie „Ausgeblendet. …“ (E141): Die Einblendung trägt den Titel, die Rückfrage nannte den ganzen Weg
+        return {"ok": True, "message": "Entfernt. Zurückholen unter Einstellungen › Spiele."}
+
+    def lib_restore(params: dict) -> dict:
+        """{id} -> {ok, message}: ein entferntes Spiel zurück in die Bibliothek (der Store bietet das an, E148)."""
+        entry_id = str((params or {}).get("id") or "")
+        try:
+            title = library.set_removed(entry_id, False)
+        except KeyError:
+            return {"ok": False, "message": "Dieses Spiel gibt es nicht mehr."}
+        return {"ok": True, "message": "„%s“ steht wieder in der Bibliothek." % title}
+
     def lib_rescan(params: dict) -> Future:
         return library.rescan()
 
@@ -1583,6 +1656,8 @@ def register_rpc(rpc: Any, library: LibraryIndex, procs: Any = None,
     rpc.register("lib.rename", lib_rename)
     rpc.register("lib.setFavorite", lib_set_favorite)
     rpc.register("lib.forget", lib_forget)
+    rpc.register("lib.remove", lib_remove)
+    rpc.register("lib.restore", lib_restore)
     rpc.register("lib.rescan", lib_rescan)
     rpc.register("lib.exeCandidates", lib_exe_candidates)
     library.on_change(lambda: rpc.emit("lib.changed", {}))

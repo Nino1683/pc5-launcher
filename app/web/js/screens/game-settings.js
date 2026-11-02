@@ -127,8 +127,16 @@ function createKeys(params) {
   let told = false;                 // „Gilt ab dem nächsten Start“ einmal je Besuch als Mitteilung
   let unsub = null;
   async function save(next) {
+    const before = keys;
     keys = next;                    // sofort: eine zweite Zeile rechnet schon mit diesem Stand
-    await call("lib.setOption", { id, key: "pad_keys", value: next });
+    try {
+      await call("lib.setOption", { id, key: "pad_keys", value: next });
+    } catch (e) {
+      // gescheitert: Die Zeile nimmt ihren alten Wert zurück, also auch der Stand hier (sonst speicherte die
+      // nächste Belegung die gescheiterte mit)
+      if (keys === next) keys = before;
+      throw e;
+    }
     if (told) return { refresh: true };
     told = true;
     return { refresh: true, message: S.gkNextStart };
@@ -218,7 +226,10 @@ function buildRows(entry, detail, extra) {
     rows.push({ id: "proton", type: "select", label: S.gsProton, value: o.proton || "", options: builds, section: S.gsSectionStart });
   }
   if (exeWorks(entry, way) && extra.exe.length) {
-    const exes = extra.exe.map((c) => ({ value: c.path, label: c.path }));
+    // Wunsch 2026-10-30: erst die Programme, dann alle weiteren Dateien (other, etwa ein Shell-Skript ohne Endung);
+    // die erste davon trägt den Hinweis
+    const firstOther = extra.exe.findIndex((c) => c.other);
+    const exes = extra.exe.map((c, i) => ({ value: c.path, label: c.path, note: i === firstOther ? S.exeOther : undefined }));
     const current = (extra.exe.find((c) => c.current) || {}).path || o.exe || exes[0].value;
     if (!exes.some((x) => x.value === current)) exes.push({ value: current, label: current });
     rows.push({ id: "exe", type: "select", label: S.gsExe, value: current, options: exes, hint: S.gsExeHint, section: S.gsSectionStart });

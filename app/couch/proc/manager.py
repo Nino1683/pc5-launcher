@@ -627,8 +627,11 @@ class AppManager:
                 out.close()
 
     def _on_grace(self, app: RunningApp) -> None:
+        # Namen vorher lesen (danach sind sie fort): Wer nicht auf die Bitte hört, steht so im Protokoll
+        names = sorted({info.comm for info in map(tree.read_stat, tree.descendants(app.reaper_pid)) if info is not None})
         hit = self._tree(app, signal.SIGKILL)
-        _log.warning("%s reagiert nicht auf die Bitte, SIGKILL an %d Prozesse", app.entry_id, len(hit))
+        _log.warning("%s reagiert nicht auf die Bitte, SIGKILL an %d Prozesse (%s)", app.entry_id, len(hit),
+                     ", ".join(names[:8]) + (" …" if len(names) > 8 else ""))
         self._later(app, LAST_RESORT, self._on_last)
 
     def _on_last(self, app: RunningApp) -> None:

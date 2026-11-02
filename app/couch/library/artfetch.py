@@ -36,6 +36,7 @@ import time
 from .. import jsontext
 from ..system import write_atomic
 from . import artsources
+from .artsources import base as artbase
 from .artsources import match
 from .artsources.base import (IMAGE_TYPES, MAX_BYTES, MAX_JSON_BYTES, MIN_INTERVAL, TIMEOUT,  # noqa: F401
                               TOTAL_TIMEOUT, USER_AGENT, FetchError, Http, _NET_LOCK, host_of, https_url)
@@ -60,6 +61,7 @@ MAX_THUMB_BYTES = 6 * 1024 * 1024
 THUMB_SIDE = 320
 MAX_CANDIDATES = 6                 # je Quelle für „Treffer auswählen“
 CANDIDATES_BUDGET_S = 40.0         # „Treffer auswählen“: danach nur noch antworten (RPC wartet 90 s)
+CANDIDATES_GRACE_S = 30.0          # eine schon begonnene Anfrage darf so viel länger laufen, dann ist Schluss (Frist)
 
 MIN_COVER = (600, 900)
 MIN_HERO_WIDTH = 1920              # Breite des gezeigten 16:9-Ausschnitts
@@ -794,8 +796,12 @@ class ArtFetcher:
             return []
         terms = [text] if text and text.strip() else [t for t in query.get("terms") or [] if t][:2]
         system = query.get("system")
-        out, listed = [], {}
         deadline = time.monotonic() + (CANDIDATES_BUDGET_S if budget is None else budget)
+        with artbase.deadline(deadline + CANDIDATES_GRACE_S):
+            return self._candidates(key, terms, system, thumb_dir, deadline)
+
+    def _candidates(self, key, terms, system, thumb_dir, deadline) -> list[dict]:
+        out, listed = [], {}
         for src in self.sources_for(system):
             if self.service_blocked(src.name) > 0:
                 continue
@@ -806,7 +812,7 @@ class ArtFetcher:
                 found = self._list(src, terms, system)
                 self._service_ok(src.name)
             except FetchError as exc:
-                if exc.reason in ("cancelled", "test-mode", "busy"):
+                if exc.reason in ("cancelled", "test-mode", "busy", "deadline"):
                     break                           # busy: die Sperre gilt für alle Quellen, Warten lohnt nicht
                 self._log("artfetch %s: %s: %s" % (key, src.name, exc))
                 self._service_failed(src.name, exc)

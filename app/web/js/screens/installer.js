@@ -179,18 +179,22 @@ function createCheck(params) {
     }
     (plan.problems || []).forEach((p, i) => out.push({ id: "problem:" + i, type: "info", label: p.message || plan.message, enabled: false, section: i === 0 ? S.insWarning : undefined }));
     if (!(plan.problems || []).length && plan.message) out.push({ id: "problem:msg", type: "info", label: plan.message, enabled: false, section: S.insWarning });
+    // E150: Hinweise eines Spieleordners für AnyPS5, je einer eine Zeile
+    const warned = (plan.problems || []).length || plan.message;
+    (plan.notes || []).forEach((note, i) => out.push({ id: "note:" + i, type: "info", label: note, enabled: false, section: i === 0 && !warned ? S.insWarning : undefined }));
     // Installationsprogramm als Datei (E114): samt der .bin-Dateien daneben
     const setup = SETUP_FORMATS.includes(plan.format);
     const extra = Math.max(0, (plan.setup_files || []).length - 1);
     const name = plan.name || params.name || "";
     const fileText = !setup || !extra ? name : fmt(extra === 1 ? S.insSetupWithOne : S.insSetupWith, { name, n: extra });
-    out.push({ id: "archive", type: "info", label: setup ? S.insSetupFile : S.insArchive, value: fileText, section: (plan.problems || []).length || plan.message ? " " : undefined });
+    const label = setup ? S.insSetupFile : plan.format === "folder" ? S.insSourceFolder : plan.format === "pkg" ? S.insPackage : S.insArchive;   // E150: Spieleordner, E151: Paket
+    out.push({ id: "archive", type: "info", label, value: fileText, section: warned || (plan.notes || []).length ? " " : undefined });
     return out;
   }
 
   function paint() {
     const unsupported = plan && (plan.supported === false || plan.ready === false && plan.status !== "password-needed" && plan.status !== "password-wrong" && plan.status !== "target-exists");
-    const file = plan && SETUP_FORMATS.includes(plan.format);
+    const file = plan && (SETUP_FORMATS.includes(plan.format) || plan.format === "pkg");
     screen.setTitle(plan && plan.supported === false ? (file ? S.insUnsupportedFile : S.insUnsupported) : S.insCheckTitle);
     button.querySelector(".btn-label").textContent = unsupported ? (file ? S.insOtherFile : S.insOther) : S.insStart;
     button.dataset.mode = unsupported ? "other" : "start";

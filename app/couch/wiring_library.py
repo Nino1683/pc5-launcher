@@ -1174,9 +1174,11 @@ def add_local_record(app: Any, record: dict) -> str | None:
 
 
 def get_local_record(app: Any, entry_id: str) -> dict | None:
-    """Der Datensatz (library/local.py) eines eigenen Archiv-Spiels oder None."""
+    """Der Datensatz (library/local.py) eines eigenen Archiv-Spiels oder None. Auch für ein aus der Bibliothek
+    entferntes (E148): Sonst gäbe der Installer dessen alten Datensatz bei jedem Start noch einmal ab (_readd_lost)."""
     from .library import local as local_mod
-    entry = app.library.get(entry_id) if isinstance(entry_id, str) else None
+    lookup = getattr(app.library, "get_any", app.library.get)
+    entry = lookup(entry_id) if isinstance(entry_id, str) else None
     if entry is None or entry.source != "local":
         return None
     return local_mod.entry_to_record(entry)
@@ -1188,6 +1190,15 @@ def remove_local(app: Any, entry_id: str) -> bool:
     if part is None:
         return bool(app.library.remove_local(entry_id))
     return bool(part.call(app.library.remove_local, entry_id))
+
+
+def restore_removed(app: Any, entry_id: str) -> str:
+    """Ein aus der Bibliothek entferntes Spiel zurückholen (E148), in der Hauptschleife. Rückgabe: der Titel;
+    KeyError, wenn es kein entferntes Spiel ist."""
+    part = _part(app)
+    if part is None:
+        return app.library.set_removed(entry_id, False)
+    return part.call(app.library.set_removed, entry_id, False)
 
 
 def local_entries(app: Any) -> list[dict]:

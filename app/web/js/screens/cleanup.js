@@ -55,6 +55,14 @@ function create() {
   let serial = 0;
   let closed = false;
   const jobs = new Set();         // eigene files.op-Aufträge: bei files.done neu suchen
+  // files.done kann vor der Antwort auf files.op kommen (Papierkorb ist ein sofortiges Umbenennen); solange ein files.op
+  // unterwegs ist, wartet ein unbekanntes Ende hier auf seine Antwort (wie im Explorer)
+  let pending = 0;
+  const early = new Map();        // jobId -> files.done
+  // Python reicht einem neuen storage.cleanupScan den laufenden Suchlauf: Kam die Bitte währenddessen (etwa nach
+  // „Jetzt leeren“), wird danach noch einmal gesucht, sonst stünde der alte Stand da
+  let scanning = false;
+  let again = false;
 
   function rowsOf(groups) {
     const rows = [];
@@ -88,12 +96,15 @@ function create() {
   }
 
   async function load() {
+    if (scanning) { again = true; return; }
     const mine = ++serial;
     screen.setSub(S.clScanning);
     if (!data) list.setLoading();
     let result = null;
-    try { result = await call("storage.cleanupScan"); } catch (e) { result = null; }
+    scanning = true;
+    try { result = await call("storage.cleanupScan"); } catch (e) { result = null; } finally { scanning = false; }
     if (mine !== serial || closed) return;
+    if (again) { again = false; load(); return; }
     if (!result || !Array.isArray(result.groups)) {
       screen.setSub(S.clFailed);
       list.setRows([{ id: "failed", type: "info", label: S.clFailed, enabled: false }]);
@@ -113,9 +124,15 @@ function create() {
 
   async function filesOp(params) {
     let result;
+    pending += 1;
     try { result = await call("files.op", params); } catch (e) { result = { ok: false, message: e && e.message }; }
-    if (result && result.ok !== false && result.jobId) jobs.add(result.jobId);
+    finally { pending -= 1; }
+    const done = result && result.ok !== false && result.jobId ? early.get(result.jobId) : null;
+    if (done) early.delete(result.jobId);
+    else if (result && result.ok !== false && result.jobId) jobs.add(result.jobId);
+    if (!pending) early.clear();
     report(result, "");
+    if (done) report(done, done.ok ? S.clDone : "");
     load();
   }
 
@@ -176,7 +193,10 @@ function create() {
 
   const offs = [
     on("install.purgeDone", () => load()),
-    on("files.done", (p) => { if (p && jobs.has(p.jobId)) { jobs.delete(p.jobId); report(p, p.ok ? S.clDone : ""); load(); } }),
+    on("files.done", (p) => {
+      if (!p) return;
+      if (jobs.has(p.jobId)) { jobs.delete(p.jobId); report(p, p.ok ? S.clDone : ""); load(); } else if (pending) early.set(p.jobId, p);
+    }),
   ];
   load();
   return {

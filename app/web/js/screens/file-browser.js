@@ -3,7 +3,7 @@
 // Tastenhinweise unten rechts.
 //
 // Dateiauswahl: mode "archive" (install.browse: Ordner und Archive mit Größe, mehrteilige als ein
-// Eintrag, dazu Installationsprogramme setup.exe/.msi, E114) oder "image" (lib.artBrowse: Ordner und Bilder, je Bild ein Vorschaubild über
+// Eintrag, dazu Installationsprogramme setup.exe/.msi, E114, und Spieleordner für AnyPS5, E150) oder "image" (lib.artBrowse: Ordner und Bilder, je Bild ein Vorschaubild über
 // lib.artPreview, beginnt im Download-Ordner). Neueste Dateien zuerst, Ordner davor. Die Unterzeile
 // nennt den Weg ab dem Ort („Downloads › Archive“), die Zeilen Größe und Datum.
 // Kreis geht einen Ordner hoch, an den Orten zurück. params.onPick(eintrag) bekommt die Wahl.
@@ -65,6 +65,7 @@ function create(params = {}) {
   });
   const { list } = screen;
   let current = { path: null, parent: null };
+  let shown = null;                 // zuletzt gelesener Ordner, für einen, der sich nicht öffnen lässt
   let serial = 0;
   const thumbs = new Map();       // Pfad -> Adresse des Vorschaubilds
   let previewTimer = null;
@@ -78,6 +79,8 @@ function create(params = {}) {
       const url = thumbs.get(entry.path);
       return { id: entry.path, type: "action", label: entry.name, value: whenText(entry.mtime) || "", art: url ? { id: entry.path, kind: "game", title: entry.name, art: { tile: url } } : null, icon: url ? null : "screen", entry };
     }
+    // E150: Spieleordner für AnyPS5 (eboot.bin, sce_sys/param.json): wählen statt hineingehen; E151: oder ein Paket (mit Größe und Datum)
+    if (entry.type === "anyps5") return { id: entry.path, type: "action", label: entry.name, value: [S.fbAnyps5, sizeText(entry.size), whenText(entry.mtime)].filter(Boolean).join(" · "), icon: "library", entry };
     // Größe und Datum (07 11.6)
     const parts = entry.parts && entry.parts > 1 ? fmt(S.fbParts, { n: entry.parts }) : "";
     return { id: entry.path, type: "action", label: entry.name, value: [sizeText(entry.size), parts, whenText(entry.mtime)].filter(Boolean).join(" · "), icon: "archive", entry };
@@ -94,7 +97,7 @@ function create(params = {}) {
   }
 
   function paint(result) {
-    const entries = (result.entries || []).filter((e) => e && typeof e === "object" && (e.type === "dir" || (image ? e.type === "image" : e.type === "archive" || e.type === "installer")));
+    const entries = (result.entries || []).filter((e) => e && typeof e === "object" && (e.type === "dir" || (image ? e.type === "image" : e.type === "archive" || e.type === "installer" || e.type === "anyps5")));
     entries.sort(byNewest);
     const rows = entries.map(rowOf);
     if (result.ok === false) rows.unshift({ id: "_err", type: "info", label: result.message || S.fbFailed, enabled: false });
@@ -115,7 +118,18 @@ function create(params = {}) {
       result = { ok: false, message: (e && e.message) || S.fbFailed, entries: [] };
     }
     if (mine !== serial) return;
-    current = { path: result.path || null, parent: result.parent || null, name: result.name || "" };
+    // Ein anderer Ordner lässt sich nicht lesen: bleiben, wo man war (sonst fehlte der Weg zurück)
+    if (result.ok === false && shown && (path || null) !== current.path) {
+      paint({ ...shown, ok: false, message: result.message || S.fbFailed });
+      nav.ensure();
+      const node = path && list.nodeOf(path);
+      if (node) nav.focus(node);
+      return;
+    }
+    const same = (result.path || path || null) === current.path;
+    current = { path: result.path || path || null, parent: result.parent || (result.ok === false && same ? current.parent : null),
+      name: result.name || "" };
+    if (result.ok !== false) shown = result;
     if (!current.path && result.ok !== false) roots = (result.entries || []).filter((e) => e && e.type === "dir" && e.path).map((e) => ({ name: e.name, path: e.path }));
     screen.setSub(placeText(current.path, roots));
     if (current.path && !roots) learnRoots();

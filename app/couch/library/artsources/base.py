@@ -34,6 +34,38 @@ IMAGE_TYPES = ("image/jpeg", "image/jpg", "image/png")
 
 # Eine Anfrage zur Zeit, auch wenn mehrere Abrufer existieren
 _NET_LOCK = threading.Lock()
+# Frist für alle Anfragen eines Fadens (time.monotonic), gesetzt von „Treffer auswählen“ (artfetch.candidates): Warten
+# auf die Sperre, Abstand zum Dienst und die Anfrage selbst enden spätestens dort. Sonst begann kurz vor Ablauf des
+# Budgets noch eine Anfrage, wartete bis zu 45 s auf die Sperre und brauchte dann selbst so lange: Die Seite (90 s)
+# bekam nur noch die Zeitüberschreitung
+_THREAD = threading.local()
+
+
+class deadline:
+    """with deadline(at): Frist für die Anfragen dieses Fadens; at None = keine."""
+
+    def __init__(self, at: float | None):
+        self.at = at
+
+    def __enter__(self):
+        self.before = getattr(_THREAD, "deadline", None)
+        _THREAD.deadline = self.at
+        return self
+
+    def __exit__(self, *exc):
+        _THREAD.deadline = self.before
+        return False
+
+
+def _left() -> float | None:
+    """Sekunden bis zur Frist dieses Fadens; None ohne Frist. FetchError "deadline", wenn sie um ist."""
+    at = getattr(_THREAD, "deadline", None)
+    if at is None:
+        return None
+    left = at - time.monotonic()
+    if left <= 0:
+        raise FetchError("deadline", transient=True, detail="Zeit für „Treffer auswählen“ um")
+    return left
 
 
 class FetchError(Exception):
@@ -131,7 +163,9 @@ class Http:
         service = service or host_of(url)
         # Nicht unbegrenzt hinter einer anderen Anfrage warten („Treffer auswählen“ hat eine Frist).
         # Eigener Grund "busy" (E99): Das ist keine Störung dieses Dienstes, sondern eine andere Anfrage
-        if not _NET_LOCK.acquire(timeout=max(0.1, self.total_timeout)):
+        left = _left()
+        if not _NET_LOCK.acquire(timeout=max(0.1, self.total_timeout if left is None else min(self.total_timeout, left))):
+            _left()                                 # die eigene Frist ist um: das sagen, nicht „besetzt“
             raise FetchError("busy", transient=True, detail="andere Anfrage hängt")
         try:
             hops = 0
@@ -143,7 +177,12 @@ class Http:
                 if last is not None:
                     wait = gap - (self._monotonic() - last)
                     if wait > 0:
+                        left = _left()
+                        if left is not None and wait >= left:
+                            raise FetchError("deadline", transient=True, detail="Zeit für „Treffer auswählen“ um")
                         self._sleep(wait)
+                left = _left()
+                timeout = self.timeout if left is None else max(0.5, min(self.timeout, left))
                 # Die Gesamtfrist gilt für die Anfrage samt Weiterleitungen, nicht je Sprung neu (E99)
                 if started is None:
                     started = self._monotonic()
@@ -160,7 +199,7 @@ class Http:
                     if headers and hops == 0:
                         send.update(headers)
                     resp = self._get_session().get(
-                        url, params=params if hops == 0 else None, timeout=(self.timeout, self.timeout),
+                        url, params=params if hops == 0 else None, timeout=(timeout, timeout),
                         stream=True, headers=send, allow_redirects=False)
                     code = resp.status_code
                     if code in (301, 302, 303, 307, 308):
@@ -194,6 +233,7 @@ class Http:
                             raise FetchError("too-large", detail="mehr als %d Bytes" % max_bytes)
                         if self._monotonic() - started > self.total_timeout:
                             raise FetchError("timeout", transient=True, detail="Antwort tröpfelt")
+                        _left()
                         chunks.append(chunk)
                     return b"".join(chunks), ctype
                 except requests.Timeout as exc:

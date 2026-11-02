@@ -67,6 +67,7 @@ function create() {
   let retryTimer = null;
   let artTimer = null;
   let loadSerial = 0;
+  let heldLoad = false;             // lib.changed oder home.changed kam beim Verschieben einer Kachel (endMove lädt)
   const artIds = new Set();
 
   // data-label: der Reiter reserviert die Breite seines fetten Schnitts (home.css .tab::before)
@@ -163,6 +164,9 @@ function create() {
   const inGames = (a) => rowOf(a) === "games";
 
   async function load() {
+    // Beim Verschieben einer Kachel nicht neu aufbauen: Die Reihe käme in der alten Reihenfolge, die Kachel spränge
+    // zurück, und Kreuz speicherte dann die alte. endMove lädt danach (heldLoad)
+    if (state.moving) { heldLoad = true; return; }
     const serial = ++loadSerial;
     let lists = null;
     let code = "";
@@ -398,6 +402,8 @@ function create() {
     state.moving = null;
     if (!moving) return;
     rows[moving.area].setMoving(false);
+    const held = heldLoad;
+    heldLoad = false;
     if (!save) { load(); return; }
     const ids = rowIds(moving.area);
     state.orders[moving.area] = ids;
@@ -406,6 +412,7 @@ function create() {
       if (r && r.ok === false) toast({ title: S.tileMove, body: r.message || S.errorGeneric, icon: "warn" });
       else sound.play("select");
     } catch (e) { toast({ title: S.tileMove, body: (e && e.message) || S.errorGeneric, icon: "warn" }); }
+    if (held) load();                       // was während des Verschiebens kam
   }
 
   function tileExtras(entry) {

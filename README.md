@@ -43,6 +43,12 @@ Free and open source (GPL-3.0) · Preview version 0.5.1 · Interface in **Englis
 - **Installers (setup.exe, .msi):** your own installer from Downloads, the file explorer or inside an archive runs
   silently through Proton (Inno Setup, NSIS, MSI), into its own game folder and the same prefix the game later
   starts in. Games from the GOG and itch.io stores install the same way.
+- **AnyPS5 (early, experimental):** games for your own console run as native Linux programs through
+  [AnyPS5](https://github.com/boykopovar/AnyPS5). Choose a game folder (with `eboot.bin` and `sce_sys`) or an unencrypted
+  debug package (`.pkg`, unpacked with [pkg-to-anyps5](https://github.com/awake-devel/pkg-to-anyps5)). PC5 Launcher
+  downloads both tools from GitHub when needed, verifies them and adds the tile. Encrypted retail packages are refused;
+  use it only with games you built yourself or are entitled to use. Both are separate, young projects and many games
+  don't run yet. So far this has only been tested here with test packages, not with a real game.
 - Start any .exe from Downloads or the file explorer; it becomes a library entry.
 - Download manager with pause, resume and the time left
 
@@ -243,6 +249,12 @@ Kostenlos und quelloffen (GPL-3.0) · Vorab-Fassung 0.5.1 · Oberfläche auf **D
   Datei-Explorer oder aus einem Archiv läuft unsichtbar über Proton durch (Inno Setup, NSIS, MSI), in einen eigenen
   Spielordner und im selben Prefix, in dem das Spiel später startet. Spiele aus den Stores von GOG und itch.io
   installieren genauso.
+- **AnyPS5 (früh, experimentell):** Spiele deiner eigenen Konsole laufen als Linux-Programme über
+  [AnyPS5](https://github.com/boykopovar/AnyPS5). Wähle einen Spieleordner (mit `eboot.bin` und `sce_sys`) oder ein
+  unverschlüsseltes Debug-Paket (`.pkg`, entpackt mit [pkg-to-anyps5](https://github.com/awake-devel/pkg-to-anyps5)). Der
+  PC5 Launcher lädt beide Werkzeuge bei Bedarf von GitHub, prüft sie und legt die Kachel an. Verschlüsselte Retail-Pakete
+  werden abgelehnt; nur mit Spielen nutzen, die du selbst gebaut hast oder nutzen darfst. Beides sind eigene, junge
+  Projekte, viele Spiele laufen noch nicht. Bisher hier nur mit Testpaketen geprüft, nicht mit einem echten Spiel.
 - Jede .exe aus den Downloads oder dem Datei-Explorer starten; sie wird zum Eintrag der Bibliothek.
 - Download-Manager mit Anhalten, Fortsetzen und Restzeit
 

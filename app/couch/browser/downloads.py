@@ -25,7 +25,7 @@ LOCAL_SAVE_GAP = 1.0            # Stand eines laufenden Downloads höchstens so 
 TEXT_CLOSED = "Abgebrochen: Der Browser wurde geschlossen."
 TEXT_ENDED = "Abgebrochen: Der Browser wurde unerwartet beendet."
 ARCHIVE_SUFFIXES = (".zip", ".7z", ".rar", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2",
-                    ".tar.zst", ".iso")
+                    ".tar.zst", ".iso", ".pkg")       # E151: .pkg prüft der Installer für AnyPS5
 _BAD = re.compile(r"[\x00-\x1f/\\:*?\"<>|]+")
 
 

@@ -20,6 +20,8 @@ deps (SimpleNamespace oder ähnliches Objekt):
     setup_env     E114: setup_env(entry_id, title, installer) -> {"argv", "env", "log"?} für den stillen Lauf
                   eines Installationsprogramms im Prefix des späteren Eintrags (jobs.JobManager)
     discard_prefix  E114: discard_prefix(entry_id), Prefix eines nie eingetragenen Spiels wegräumen
+    anyps5_latest E150, nur für Tests: statt anyps5.fetch_latest (Plan eines Spieleordners ohne AnyPS5)
+    anyps5_latest_unpacker E151, nur für Tests: statt anyps5.fetch_unpacker
     rom_dirs, tools, worker_argv, setup_limits   nur für Tests
 
 Blockierend (Platte, Unterprozess; in einen Thread legen): browse, probe, delete, restore, purge,
@@ -43,10 +45,11 @@ import time
 from typing import Any, Callable
 
 from .. import system
+from ..launch.native import program_kind
 from . import (InstallError, ThreadScheduler, games_root as cfg_games_root, reserve_bytes as cfg_reserve_bytes,
                trash_days as cfg_trash_days)
 from . import browse as browse_mod
-from . import extract, probe as probe_mod, trash
+from . import anyps5, extract, probe as probe_mod, trash
 from .jobs import JobManager, make_executable
 
 PURGE_EVENT_INTERVAL = 0.5       # Sekunden zwischen zwei Fortschrittsmeldungen beim endgültigen Löschen
@@ -180,15 +183,29 @@ class Installer:
         return listing
 
     def probe(self, path: str, password: str | None = None) -> dict:
-        """install.probe. Blockierend (Sekunden bei großen Archiven). → Plan (siehe probe.probe); plan["ready"] sagt, ob start() geht."""
+        """install.probe. Blockierend (Sekunden bei großen Archiven). → Plan (siehe probe.probe); plan["ready"] sagt, ob start() geht.
+        E150: Ein Spieleordner für AnyPS5 bekommt den Plan aus anyps5.plan (fehlt AnyPS5, fragt er GitHub), E151: auch
+        eine Paketdatei."""
+        if isinstance(path, str) and os.path.isabs(path) and os.path.isdir(path):
+            if not browse_mod.is_allowed_source(path, self._roots()):
+                return anyps5.plan("", games_root=self._games_root(), reserve_bytes=cfg_reserve_bytes(self._config))
+            return self._anyps5_plan(path)
         if not browse_mod.is_allowed_archive(path, self._roots()):
             return {"archive": path, "name": os.path.basename(str(path or "")), "format": None, "volumes": None,
                     "supported": False, "ready": False, "status": "outside-roots", "kind": None,
                     "message": "Diese Datei liegt außerhalb der erlaubten Orte.",
                     "problems": [{"code": "outside-roots", "message": "Diese Datei liegt außerhalb der erlaubten Orte."}]}
+        if anyps5.is_pkg(path):
+            return self._anyps5_plan(path)
         return probe_mod.probe(path, password, games_root=self._games_root(),
                                reserve_bytes=cfg_reserve_bytes(self._config), rom_dirs=self._rom_dirs(),
                                tools=getattr(self._deps, "tools", None))
+
+    def _anyps5_plan(self, path: str) -> dict:
+        from .. import i18n
+        return anyps5.plan(path, games_root=self._games_root(), reserve_bytes=cfg_reserve_bytes(self._config),
+                           lang=i18n.language(self._config), latest=getattr(self._deps, "anyps5_latest", None),
+                           latest_unpacker=getattr(self._deps, "anyps5_latest_unpacker", None))
 
     # ------------------------------------------------------------ Aufträge
 
@@ -197,7 +214,9 @@ class Installer:
 
         choices: {"title"?, "folder"?, "exe"?, "password"?}. Bei "target-exists" nennt "suggestion" einen freien Ordnernamen."""
         try:
-            if not isinstance(plan, dict) or not browse_mod.is_allowed_archive(plan.get("archive"), self._roots()):
+            allowed = browse_mod.is_allowed_source if isinstance(plan, dict) and plan.get("kind") == "anyps5" \
+                else browse_mod.is_allowed_archive
+            if not isinstance(plan, dict) or not allowed(plan.get("archive"), self._roots()):
                 raise InstallError("outside-roots", "Diese Datei liegt außerhalb der erlaubten Orte.")
             return {"ok": True, "jobId": self.manager.start(plan, choices)}
         except InstallError as error:
@@ -276,7 +295,9 @@ class Installer:
         if marker["token"] != entry.get("marker"):
             raise InstallError("marker-mismatch", "Der Spielordner gehört nicht zu diesem Bibliothekseintrag.")
         updated = dict(entry, exe=exe)
-        if updated.get("platform") == "linux":
+        # Linux-Spiel, oder ein Windows-Spiel mit Shell-Skript bzw. Linux-Programm als Startdatei (startet direkt)
+        if updated.get("platform") == "linux" or \
+                program_kind(os.path.join(os.path.realpath(entry["install_dir"]), exe)) in ("elf", "script"):
             try:
                 make_executable(entry["install_dir"], exe)
             except OSError:
@@ -368,8 +389,10 @@ class Installer:
         """Mögliche Startdateien eines Archiv-Spiels, gegen die Platte geprüft. Blockierend (kurz).
 
         Zuerst die bei der Installation bewerteten Kandidaten, soweit sie noch im Spielordner liegen,
-        danach weitere Programme aus dem Ordner (höchstens vier Ebenen tief, ohne Bewertung).
-        → {"ok": True, "id", "exe" (die geltende, relativ), "available", "candidates": [{path, score, why[], current}]}
+        danach weitere Programme aus dem Ordner (höchstens vier Ebenen tief, ohne Bewertung), zuletzt alle übrigen
+        Dateien mit other=True (Nutzer 2026-10-30: ein Shell-Skript ohne Endung als Startdatei, extract.scan_other_files).
+        → {"ok": True, "id", "exe" (die geltende, relativ), "available",
+           "candidates": [{path, score, why[], current, other}]}
         oder {"ok": False, "code": "unknown-entry", "message", "candidates": []}."""
         entry = _flat_entry(self._deps.get_local(entry_id)) if isinstance(entry_id, str) else None
         if entry is None or not isinstance(entry.get("install_dir"), str):
@@ -407,8 +430,12 @@ class Installer:
         platform = "linux" if entry.get("platform") == "linux" else "windows"
         for cand in extract.scan_start_files(install_dir, platform):
             take(cand["path"])
-        for cand in found:
+        programs = len(found)
+        for cand in extract.scan_other_files(install_dir, seen):
+            take(cand["path"])
+        for number, cand in enumerate(found):
             cand["current"] = cand["path"] == current
+            cand["other"] = number >= programs
         return {"ok": True, "id": entry_id, "exe": current, "available": True, "candidates": found}
 
     def trash_list(self) -> dict:

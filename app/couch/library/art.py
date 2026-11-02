@@ -1322,15 +1322,17 @@ class ArtResolver:
     def _probe(self, cand: Candidate):
         """(breite, höhe) der Vorlage oder None, wenn sie sich nicht öffnen lässt. Liest nur den Kopf."""
         key = (cand.path, cand.mtime_ns, cand.size)
-        if key not in self._probe_cache:
-            try:
-                with Image.open(cand.path) as im:
-                    self._probe_cache[key] = im.size
-            except Exception:                         # PIL wirft je nach Schaden Verschiedenes
-                self._probe_cache[key] = None
-            if len(self._probe_cache) > 4000:
-                self._probe_cache.clear()
-        return self._probe_cache[key]
+        if key in self._probe_cache:
+            return self._probe_cache[key]
+        try:
+            with Image.open(cand.path) as im:
+                size = im.size
+        except Exception:                             # PIL wirft je nach Schaden Verschiedenes
+            size = None
+        if len(self._probe_cache) >= 4000:
+            self._probe_cache.clear()                 # erst leeren, dann eintragen: sonst fehlte der neue Wert
+        self._probe_cache[key] = size
+        return size
 
     def _derive(self, folder, kind, mode, cand, ext, make, dry_run, extra: str = "", quality: int = 92) -> str | None:
         """Erzeugt (falls nötig) die Ableitung einer Vorlage. Rückgabe Pfad oder None bei Fehlschlag."""

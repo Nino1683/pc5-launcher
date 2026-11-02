@@ -35,7 +35,7 @@ from collections import OrderedDict
 
 from .. import log, system
 from . import prefix as prefixes
-from .native import clean_env, expand, local_exe, require_exe, split_args
+from .native import clean_env, expand, local_exe, missing, require_exe, split_args
 from .prefix import TEXT_WINESERVER, AdoptionRequired, wineserver_pids
 from .spec import STEAM_LEFTOVERS, LaunchError, LaunchSpec, pad_mode
 
@@ -845,6 +845,13 @@ def _check(p: _Plan, entry, ctx, planning: bool, room=None, start: bool = False)
     require_exe(entry, p.exe, ctx)
     if p.cwd and not os.path.isdir(p.cwd):
         warnings.append("Der Arbeitsordner fehlt (%s); gestartet wird im Ordner der Startdatei." % p.cwd)
+    src = str(entry.detail.get("prefix") or "") if entry.source != "local" and isinstance(entry.detail, dict) else ""
+    if src and p.prefix.mode == "own" and not os.path.isdir(p.prefix.path) and not os.path.isdir(src):
+        # Der übernommene Prefix (mit den Spielständen) liegt auf einer Platte, die gerade fehlt: nicht starten. Sonst
+        # legte Proton einen leeren eigenen an, und der alte bliebe für immer ungenutzt (der eigene gilt dann immer)
+        err = missing(src, ctx)
+        if err.reason == "disk-missing":            # nur die Platte (TEXT_DISK); ein gelöschter Prefix bleibt wie bisher
+            raise err
 
     if p.prefix.adopt:
         src, dst = p.prefix.adopt

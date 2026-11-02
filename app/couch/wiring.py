@@ -61,9 +61,10 @@ SLOW_STEP_MS = 50.0             # ab hier steht die Dauer eines Bausteins als Wa
 # E140: "apps" (erkannte Flatpaks live, Deinstallieren, Bazaar) davor: braucht Bibliothek, Shell und Process-Manager
 # E139: "discord" (Discord im Hintergrund, Vorgabe aus) als letzter: braucht Shell, Process-Manager und Bibliothek
 # E142: "tv" (Fernseher steuern, Vorgabe aus) dahinter: hängt sich an power (before_system) und resume_hooks
+# E150: "anyps5" (AnyPS5 laden für Einstellungen › Spiele › AnyPS5) als letzter; braucht nur die Bibliothek
 PARTS = ("library", "art", "launch", "settings", "install", "files", "saves", "store", "itch", "launchers", "proton",
          "home", "setup", "backup", "sleeptimer", "stats", "cleanup", "selfupdate", "gallery", "wishlist", "gameinfo",
-         "trophies", "widgets", "videos", "apps", "discord", "tv")
+         "trophies", "widgets", "videos", "apps", "discord", "tv", "anyps5")
 
 UNAVAILABLE = "Das ist gerade nicht verfügbar."
 REVEAL_WAIT_S = 30.0            # so lange wartet der Faden auf den zweiten Start zum Zeigen (beendet wird er nie)
